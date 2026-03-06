@@ -1,0 +1,129 @@
+<!--pages/employee/worklog/worklog.wxml-->
+<view class="container">
+  <!-- 今日预估工资 -->
+  <view class="stat-card">
+    <text class="stat-label">今日预估工资</text>
+    <text class="stat-value">¥{{todayTotal}}</text>
+  </view>
+
+  <!-- 报工表单 -->
+  <view class="card">
+    <view class="section-title">提交报工</view>
+
+    <!-- 工序选择 -->
+    <view class="input-group">
+      <text class="input-label">选择工序</text>
+      <picker 
+        mode="selector" 
+        range="{{processes}}" 
+        range-key="display"
+        value="{{selectedProcessIndex}}" 
+        bindchange="onProcessChange"
+      >
+        <view class="picker-field">
+          <text wx:if="{{selectedProcess}}">{{selectedProcess.display}}</text>
+          <text wx:else class="text-gray">请选择工序</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <!-- 数量输入 -->
+    <view class="input-group">
+      <text class="input-label">完成数量</text>
+      <view class="qty-input-row">
+        <button class="qty-btn qty-btn-sub" bindtap="subQty">−</button>
+        <input 
+          class="qty-input" 
+          type="number" 
+          value="{{quantity}}" 
+          bindinput="onQuantityInput"
+        />
+        <button class="qty-btn qty-btn-add" bindtap="addQty">+</button>
+        <button class="qty-btn-fast" bindtap="addQty10">+10</button>
+      </view>
+    </view>
+
+    <!-- 预估金额 -->
+    <view wx:if="{{selectedProcess && quantity > 0}}" class="preview-amount">
+      预估金额：<text class="text-primary text-bold">¥{{quantity * selectedProcess.current_price}}</text>
+      <text class="text-sm text-gray">（{{quantity}}件 × ¥{{selectedProcess.current_price}}）</text>
+    </view>
+
+    <button 
+      class="btn-success btn-block btn-lg mt-30" 
+      bindtap="onSubmit"
+      disabled="{{loading || !selectedProcess || quantity <= 0}}"
+    >
+      {{loading ? '提交中...' : '提交报工'}}
+    </button>
+  </view>
+
+  <!-- 今日报工记录 -->
+  <view class="card">
+    <view class="section-title">今日报工记录</view>
+    
+    <view wx:if="{{todayLogs.length === 0}}" class="empty-state">
+      <text class="empty-text">暂无报工记录</text>
+    </view>
+
+    <view wx:for="{{todayLogs}}" wx:key="_id" class="log-item">
+      <view class="log-info">
+        <text class="log-process">{{item.process_name}}</text>
+        <text class="log-order text-sm text-gray">{{item.order_name}}</text>
+      </view>
+      <view class="log-detail">
+        <text class="log-qty">{{item.quantity}}件</text>
+        <text class="tag {{item.status === 'inspected' ? 'tag-success' : 'tag-pending'}}">
+          {{item.status === 'inspected' ? '已质检' : '待质检'}}
+        </text>
+        <text wx:if="{{item.status === 'inspected'}}" class="text-sm">
+          合格: {{item.passed_qty}}件
+        </text>
+        <text class="log-amount text-primary">¥{{item.quantity * item.snapshot_price}}</text>
+        <view class="log-edit-wrap">
+          <button wx:if="{{item.is_today && !item.is_locked}}" class="btn-sm btn-edit-log" bindtap="onEditLog" data-log="{{item}}">编辑</button>
+          <text wx:elif="{{item.is_locked}}" class="text-sm text-gray">🔒{{item.lock_reason}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 编辑报工弹窗 -->
+<view wx:if="{{showEditLog}}" class="modal-mask" bindtap="closeEditLog">
+  <view class="modal-dialog" catchtap="true">
+    <view class="modal-title">修改报工记录</view>
+    <view class="modal-body">
+      <view class="edit-info text-sm text-gray mb-20">
+        工序：{{editLog.process_name}} | 订单：{{editLog.order_name}}
+      </view>
+      <view class="input-group">
+        <text class="input-label">报工数量</text>
+        <input class="input-field" type="number" value="{{editQuantity}}" bindinput="onEditQtyInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">备注</text>
+        <input class="input-field" placeholder="可选" value="{{editNote}}" bindinput="onEditNoteInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">修改原因 *</text>
+        <picker mode="selector" range="{{editReasons}}" value="{{editReasonIndex}}" bindchange="onEditReasonChange">
+          <view class="picker-field">
+            <text wx:if="{{editReasonIndex >= 0}}">{{editReasons[editReasonIndex]}}</text>
+            <text wx:else class="text-gray">请选择原因</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+      <view wx:if="{{editReasonIndex === 3}}" class="input-group">
+        <text class="input-label">详细原因</text>
+        <input class="input-field" placeholder="请输入具体原因" value="{{editReason}}" bindinput="onEditReasonInput" />
+      </view>
+    </view>
+    <view class="modal-footer">
+      <button class="btn-default modal-btn" bindtap="closeEditLog">取消</button>
+      <button class="btn-primary modal-btn" bindtap="onSaveEditLog">保存</button>
+    </view>
+  </view>
+</view>

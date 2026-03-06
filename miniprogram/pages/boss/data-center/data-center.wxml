@@ -1,0 +1,255 @@
+<!--pages/boss/data-center/data-center.wxml-->
+<view class="container">
+
+  <!-- 顶部模式切换 -->
+  <view class="mode-switch">
+    <view class="mode-btn {{viewMode === 'month' ? 'mode-active' : ''}}" bindtap="switchMode" data-mode="month">📅 按月查看</view>
+    <view class="mode-btn {{viewMode === 'order' ? 'mode-active' : ''}}" bindtap="switchMode" data-mode="order">📋 按订单查看</view>
+  </view>
+
+  <!-- ==================== 按月查看 ==================== -->
+  <block wx:if="{{viewMode === 'month'}}">
+    <!-- 月份选择器 -->
+    <view class="card">
+      <view class="input-group" style="margin-bottom:0;">
+        <text class="input-label">选择月份</text>
+        <picker mode="date" fields="month" value="{{month}}" bindchange="onMonthChange">
+          <view class="picker-field">
+            <text>{{month}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- 年月标题 -->
+    <view class="month-header">
+      <text class="month-header-text">{{month}} 数据概览</text>
+    </view>
+
+    <!-- Tab 切换 -->
+    <view class="tab-bar">
+      <view wx:for="{{tabs}}" wx:key="index"
+        class="tab-item {{activeTab === index ? 'tab-active' : ''}}"
+        bindtap="switchTab" data-idx="{{index}}">
+        {{item}}
+      </view>
+    </view>
+
+    <!-- 考勤 Tab -->
+    <block wx:if="{{activeTab === 0}}">
+      <view class="card summary-card">
+        <view class="summary-row">
+          <view class="summary-item">
+            <text class="summary-val text-primary">{{attendanceSummary.workDays || 0}}</text>
+            <text class="summary-label">工作天数</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-success">{{attendanceSummary.totalRecords || 0}}</text>
+            <text class="summary-label">打卡次数</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-danger">{{attendanceSummary.totalLate || 0}}</text>
+            <text class="summary-label">迟到次数</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{attendanceList.length === 0 && !loading}}" class="card empty-card">
+        <text class="empty-text">暂无考勤数据</text>
+      </view>
+
+      <view wx:for="{{attendanceList}}" wx:key="date" class="card data-card">
+        <view class="data-card-header">
+          <text class="data-date">{{item.date}}</text>
+          <text class="data-badge">出勤 {{item.present}} 人 · 迟到 {{item.late}} 人</text>
+        </view>
+        <view wx:for="{{item.records}}" wx:for-item="rec" wx:key="_id" class="data-row">
+          <text class="data-row-name">{{rec.user_name || '未知'}}</text>
+          <text class="data-row-info">{{rec.check_in_time || '--'}} ~ {{rec.check_out_time || '--'}}</text>
+          <text wx:if="{{rec.is_late}}" class="tag tag-danger">迟到</text>
+          <text wx:else class="tag tag-success">正常</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- 报工 Tab -->
+    <block wx:if="{{activeTab === 1}}">
+      <view class="card summary-card">
+        <view class="summary-row">
+          <view class="summary-item">
+            <text class="summary-val text-primary">{{worklogSummary.totalLogs || 0}}</text>
+            <text class="summary-label">报工条数</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-success">{{worklogSummary.totalQty || 0}}</text>
+            <text class="summary-label">总数量</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-warning">¥{{worklogSummary.totalAmount || '0.00'}}</text>
+            <text class="summary-label">总金额</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{worklogList.length === 0 && !loading}}" class="card empty-card">
+        <text class="empty-text">暂无报工数据</text>
+      </view>
+
+      <view wx:for="{{worklogList}}" wx:key="date" class="card data-card">
+        <view class="data-card-header">
+          <text class="data-date">{{item.date}}</text>
+          <text class="data-badge">数量 {{item.dayQty}} · ¥{{item.dayAmount}}</text>
+        </view>
+        <view wx:for="{{item.logs}}" wx:for-item="log" wx:key="_id" class="data-row">
+          <view class="data-row-left">
+            <text class="data-row-name">{{log.user_name || '未知'}}</text>
+            <text class="data-row-sub">{{log.order_name}} · {{log.process_name}}</text>
+          </view>
+          <view class="data-row-right">
+            <text class="data-row-qty">×{{log.quantity}}</text>
+            <text class="data-row-amount">¥{{log.amount}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 薪资 Tab -->
+    <block wx:if="{{activeTab === 2}}">
+      <view class="card summary-card">
+        <view class="summary-row">
+          <view class="summary-item">
+            <text class="summary-val text-primary">{{salarySummary.headcount || 0}}</text>
+            <text class="summary-label">发薪人数</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-danger">¥{{salarySummary.totalSalary || '0.00'}}</text>
+            <text class="summary-label">总薪资</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-success">{{salarySummary.paidCount || 0}}/{{salarySummary.headcount || 0}}</text>
+            <text class="summary-label">已发放</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{salaryList.length === 0 && !loading}}" class="card empty-card">
+        <text class="empty-text">暂无薪资数据</text>
+      </view>
+
+      <view wx:for="{{salaryList}}" wx:key="user_id" class="card data-card">
+        <view class="data-card-header">
+          <view class="data-date-row">
+            <text class="data-date">{{item.user_name || '未知'}}</text>
+            <text wx:if="{{item.paid}}" class="paid-tag-sm">✓ 已发</text>
+            <text wx:else class="unpaid-tag-sm">未发</text>
+          </view>
+          <text class="data-badge-lg text-danger">¥{{item.displaySalary}}</text>
+        </view>
+        <view class="salary-detail-row">
+          <text class="salary-detail-label">计件</text>
+          <text class="salary-detail-val">¥{{item.displayPiece}}</text>
+        </view>
+        <view class="salary-detail-row" wx:if="{{item.join_date}}">
+          <text class="salary-detail-label">入厂时间</text>
+          <text class="salary-detail-val">{{item.join_date}}</text>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <!-- ==================== 按订单查看 ==================== -->
+  <block wx:if="{{viewMode === 'order'}}">
+
+    <!-- 订单详情 -->
+    <block wx:if="{{selectedOrder}}">
+      <view class="card">
+        <view class="back-row" bindtap="onBackToOrders">
+          <text class="back-arrow">← 返回订单列表</text>
+        </view>
+        <view class="order-detail-header">
+          <text class="order-detail-name">{{selectedOrder.order_name}}</text>
+          <text class="tag {{selectedOrder.status === 'completed' ? 'tag-success' : selectedOrder.status === 'cancelled' ? 'tag-danger' : 'tag-primary'}}">{{selectedOrder.statusText}}</text>
+        </view>
+      </view>
+
+      <view class="card summary-card">
+        <view class="summary-row">
+          <view class="summary-item">
+            <text class="summary-val text-primary">{{orderSummary.logCount || 0}}</text>
+            <text class="summary-label">报工条数</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-success">{{orderSummary.totalQty || 0}}</text>
+            <text class="summary-label">总数量</text>
+          </view>
+          <view class="summary-item">
+            <text class="summary-val text-danger">¥{{orderSummary.totalCost || '0.00'}}</text>
+            <text class="summary-label">总成本</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 工序进度 -->
+      <view wx:if="{{orderSummary.processes.length > 0}}" class="card">
+        <view class="section-title">工序进度</view>
+        <view wx:for="{{orderSummary.processes}}" wx:key="_id" class="process-row">
+          <view class="process-info">
+            <text class="process-name">{{item.process_name}}</text>
+            <text class="process-price">¥{{item.current_price}}/件</text>
+          </view>
+          <view class="progress-bar">
+            <view class="progress-fill" style="width: {{item.completion || 0}}%;"></view>
+          </view>
+          <text class="process-percent">{{item.completion || 0}}%</text>
+        </view>
+      </view>
+
+      <!-- 报工明细 -->
+      <view class="card">
+        <view class="section-title">报工明细</view>
+        <view wx:if="{{orderWorklogs.length === 0 && !loading}}" class="empty-card">
+          <text class="empty-text">暂无报工记录</text>
+        </view>
+        <view wx:for="{{orderWorklogs}}" wx:key="_id" class="data-row">
+          <view class="data-row-left">
+            <text class="data-row-name">{{item.user_name || '未知'}}</text>
+            <text class="data-row-sub">{{item.process_name}} · {{item.date}}</text>
+          </view>
+          <view class="data-row-right">
+            <text class="data-row-qty">×{{item.quantity}}</text>
+            <text class="data-row-amount">¥{{item.amount}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 订单列表 -->
+    <block wx:else>
+      <view class="month-header">
+        <text class="month-header-text">全部订单</text>
+      </view>
+
+      <view wx:if="{{orderList.length === 0 && !loading}}" class="card empty-card">
+        <text class="empty-text">暂无订单数据</text>
+      </view>
+
+      <view wx:for="{{orderList}}" wx:key="_id" class="card order-card" bindtap="onOrderTap" data-order="{{item}}">
+        <view class="order-card-top">
+          <text class="order-card-name">{{item.order_name}}</text>
+          <text class="tag {{item.status === 'completed' ? 'tag-success' : item.status === 'cancelled' ? 'tag-danger' : 'tag-primary'}}">{{item.statusText}}</text>
+        </view>
+        <view class="order-card-bottom">
+          <text class="order-card-info">金额: ¥{{item.displayAmount}}</text>
+          <text class="order-card-arrow">查看详情 ▸</text>
+        </view>
+      </view>
+    </block>
+
+  </block>
+
+  <!-- 全局 loading -->
+  <view wx:if="{{loading}}" class="loading-mask">
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>

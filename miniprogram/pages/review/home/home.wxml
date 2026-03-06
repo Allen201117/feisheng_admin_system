@@ -1,0 +1,28 @@
+<view class="container review-page">
+  <view class="card hero">
+    <view class="section-title">审核体验模式（免登录）</view>
+    <view class="text-sm text-gray mt-10">可浏览核心页面结构与流程说明；涉及真实写入（打卡、报工、发薪）将提示先登录。</view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">核心流程预览</view>
+    <view class="flow-item">1. 老板端：首页 > 考勤码 > 生成二维码 > 员工扫码进入打卡页</view>
+    <view class="flow-item">2. 员工端：首页 > 上班打卡 / 下班打卡 > 个人页查看考勤与薪资</view>
+    <view class="flow-item">3. 老板端：数据中心查看考勤、报工、薪资统计</view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">示例看板数据</view>
+    <view class="stat-row"><text>今日出勤</text><text>{{mockStats.todayAttendance}}</text></view>
+    <view class="stat-row"><text>待质检</text><text>{{mockStats.pendingQC}}</text></view>
+    <view class="stat-row"><text>进行中订单</text><text>{{mockStats.activeOrders}}</text></view>
+    <view class="stat-row"><text>本月应发薪资</text><text>¥{{mockStats.monthSalary}}</text></view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">协议与登录</view>
+    <button class="btn-default btn-block" bindtap="goPrivacyPolicy">查看隐私政策</button>
+    <button class="btn-default btn-block mt-20" bindtap="goUserAgreement">查看用户服务协议</button>
+    <button class="btn-primary btn-block mt-20" bindtap="goLogin">进入登录页（正式体验）</button>
+  </view>
+</view>

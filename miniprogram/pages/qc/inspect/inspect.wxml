@@ -1,0 +1,81 @@
+<!--pages/qc/inspect/inspect.wxml-->
+<view class="container" wx:if="{{logDetail}}">
+  <!-- 报工详情 -->
+  <view class="card">
+    <view class="section-title">报工详情</view>
+    <view class="detail-grid">
+      <view class="detail-item">
+        <text class="detail-label">员工</text>
+        <text class="detail-value">{{logDetail.user_name}}</text>
+      </view>
+      <view class="detail-item">
+        <text class="detail-label">订单</text>
+        <text class="detail-value">{{logDetail.order_name}}</text>
+      </view>
+      <view class="detail-item">
+        <text class="detail-label">工序</text>
+        <text class="detail-value">{{logDetail.process_name}}</text>
+      </view>
+      <view class="detail-item">
+        <text class="detail-label">提交数量</text>
+        <text class="detail-value text-bold text-xl">{{logDetail.quantity}} 件</text>
+      </view>
+      <view class="detail-item">
+        <text class="detail-label">单价</text>
+        <text class="detail-value">¥{{logDetail.snapshot_price}}/件</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 质检操作 -->
+  <view class="card">
+    <view class="section-title">质检操作</view>
+    
+    <view class="input-group">
+      <text class="input-label">合格数量</text>
+      <view class="qty-input-row">
+        <button class="qty-btn qty-btn-sub" bindtap="subQty">−</button>
+        <input 
+          class="qty-input" 
+          type="number" 
+          value="{{passedQty}}" 
+          bindinput="onPassedQtyInput"
+        />
+        <button class="qty-btn qty-btn-add" bindtap="addQty">+</button>
+      </view>
+    </view>
+
+    <button class="btn-default btn-block mt-20" bindtap="setAllPass">全部合格</button>
+
+    <!-- 质检预览 -->
+    <view class="inspect-preview mt-30">
+      <view class="preview-row">
+        <text>合格率</text>
+        <text class="text-bold {{passRateClass}}">
+          {{passRateDisplay}}%
+        </text>
+      </view>
+      <view class="preview-row">
+        <text>不合格数</text>
+        <text class="text-bold text-danger">{{rejectedQty}} 件</text>
+      </view>
+      <view class="preview-row">
+        <text>员工实得</text>
+        <text class="text-bold text-primary">¥{{actualAmountDisplay}}</text>
+      </view>
+    </view>
+
+    <button 
+      class="btn-primary btn-block btn-lg mt-30" 
+      bindtap="onSubmitInspect"
+      disabled="{{loading}}"
+      style="background: #722ED1;"
+    >
+      {{loading ? '提交中...' : '确认质检结果'}}
+    </button>
+  </view>
+</view>
+
+<view wx:else class="loading-mask">
+  <text>加载中...</text>
+</view>

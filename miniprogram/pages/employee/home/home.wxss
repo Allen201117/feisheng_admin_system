@@ -1,0 +1,256 @@
+/* pages/employee/home/home.wxss */
+.user-header {
+  display: flex;
+  align-items: center;
+  padding: 30rpx;
+  background: linear-gradient(135deg, #1890FF, #096DD9);
+  border-radius: 16rpx;
+  margin-bottom: 24rpx;
+  color: #fff;
+}
+
+.user-avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  font-weight: bold;
+  margin-right: 20rpx;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: 36rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.user-role {
+  font-size: 28rpx;
+  opacity: 0.85;
+}
+
+.user-join-date {
+  display: block;
+  font-size: 26rpx;
+  opacity: 0.8;
+  margin-top: 4rpx;
+  color: #fff !important;
+}
+
+.header-date {
+  text-align: right;
+}
+
+.date-text {
+  font-size: 28rpx;
+  opacity: 0.85;
+  display: block;
+}
+
+.time-text {
+  font-size: 32rpx;
+  font-weight: bold;
+}
+
+/* 打卡按钮 */
+.clock-section {
+  position: relative;
+}
+
+.scan-badge {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+}
+
+.clock-buttons {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 20rpx;
+}
+
+.clock-btn-wrap {
+  flex: 1;
+}
+
+.clock-btn {
+  width: 100%;
+  height: 200rpx;
+  border-radius: 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  color: #fff;
+  padding: 0;
+  line-height: 1.4;
+}
+
+.clock-btn::after {
+  border: none;
+}
+
+.clock-btn-in {
+  background: linear-gradient(135deg, #52C41A, #389E0D);
+  box-shadow: 0 8rpx 24rpx rgba(82,196,26,0.3);
+}
+
+.clock-btn-out {
+  background: linear-gradient(135deg, #FF7A45, #FA541C);
+  box-shadow: 0 8rpx 24rpx rgba(255,122,69,0.3);
+}
+
+.clock-btn-done {
+  background: #D9D9D9;
+}
+
+.clock-btn-disabled {
+  background: #F0F0F0;
+  color: #999;
+}
+
+.clock-btn-text {
+  font-size: 40rpx;
+  font-weight: bold;
+}
+
+.clock-btn-time {
+  font-size: 30rpx;
+  margin-top: 8rpx;
+  opacity: 0.9;
+}
+
+/* 统计行 */
+.stats-row {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 0;
+}
+
+.stat-item {
+  flex: 1;
+  text-align: center;
+  padding: 30rpx 20rpx;
+}
+
+.stat-item .stat-value {
+  font-size: 44rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.stat-item .stat-label {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* 菜单列表 */
+.menu-list {
+  margin-top: 10rpx;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  margin-right: 20rpx;
+}
+
+.bg-blue { background: #E6F7FF; }
+.bg-green { background: #F6FFED; }
+.bg-red { background: #FFF1F0; }
+.bg-orange { background: #FFF7E6; }
+.bg-purple { background: #F9F0FF; }
+
+.menu-text {
+  flex: 1;
+  font-size: 32rpx;
+  color: #333;
+}
+
+.menu-arrow {
+  font-size: 36rpx;
+  color: #CCC;
+}
+
+/* 修改密码弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+}
+.modal-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%;
+  background: #fff;
+  border-radius: 16rpx;
+  z-index: 1001;
+}
+.modal-title {
+  text-align: center;
+  font-size: 36rpx;
+  font-weight: bold;
+  padding: 32rpx 0 16rpx;
+}
+.modal-body {
+  padding: 16rpx 32rpx;
+}
+.modal-footer {
+  display: flex;
+  border-top: 1rpx solid #eee;
+}
+.modal-btn {
+  flex: 1;
+  border-radius: 0 !important;
+  font-size: 32rpx;
+  margin: 0 !important;
+  padding: 24rpx 0 !important;
+  background: none;
+  line-height: 1.5;
+}
+.modal-btn.btn-primary {
+  background: #1890FF;
+  color: #fff;
+}
+.pwd-input-wrap {
+  display: flex;
+  align-items: center;
+}
+.pwd-input-wrap .input-field {
+  flex: 1;
+}
+.pwd-toggle {
+  font-size: 26rpx;
+  color: #1890FF;
+  padding: 0 10rpx;
+  white-space: nowrap;
+}

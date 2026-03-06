@@ -1,0 +1,152 @@
+/* pages/boss/home/home.wxss */
+.boss-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  background: linear-gradient(135deg, #FA541C, #D4380D);
+  border-radius: 16rpx;
+  margin-bottom: 24rpx;
+  color: #fff;
+}
+
+.header-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.header-date {
+  font-size: 30rpx;
+  opacity: 0.85;
+}
+
+.logout-text {
+  font-size: 32rpx;
+  opacity: 0.8;
+}
+
+.header-right-info {
+  text-align: right;
+}
+
+.header-username {
+  font-size: 32rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 4rpx;
+}
+
+.stats-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.stat-card-sm {
+  flex: 1;
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx 16rpx;
+  text-align: center;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+}
+
+.stat-num {
+  font-size: 48rpx;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 6rpx;
+  color: #333;
+}
+
+.stat-desc {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.menu-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.menu-grid-item {
+  width: 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24rpx 0;
+}
+
+.menu-icon-box {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  margin-bottom: 12rpx;
+}
+
+.menu-label {
+  font-size: 34rpx;
+  color: #666;
+}
+
+/* 修改密码弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+}
+.modal-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%;
+  background: #fff;
+  border-radius: 16rpx;
+  z-index: 1001;
+}
+.modal-title {
+  text-align: center;
+  font-size: 36rpx;
+  font-weight: bold;
+  padding: 32rpx 0 16rpx;
+}
+.modal-body {
+  padding: 16rpx 32rpx;
+}
+.modal-footer {
+  display: flex;
+  border-top: 1rpx solid #eee;
+}
+.modal-btn {
+  flex: 1;
+  border-radius: 0 !important;
+  font-size: 32rpx;
+  margin: 0 !important;
+  padding: 24rpx 0 !important;
+  background: none;
+  line-height: 1.5;
+}
+.modal-btn.btn-primary {
+  background: #1890FF;
+  color: #fff;
+}
+.pwd-input-wrap {
+  display: flex;
+  align-items: center;
+}
+.pwd-input-wrap .input-field {
+  flex: 1;
+}
+.pwd-toggle {
+  font-size: 26rpx;
+  color: #1890FF;
+  padding: 0 10rpx;
+  white-space: nowrap;
+}

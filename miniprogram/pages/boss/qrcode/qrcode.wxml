@@ -1,0 +1,98 @@
+<!--pages/boss/qrcode/qrcode.wxml-->
+<view class="container">
+  <view class="card qr-card">
+    <view class="section-title text-center">考勤二维码</view>
+    <view class="qr-desc text-sm text-gray text-center mb-30">
+      员工使用微信扫一扫此码，即可快速进入打卡页面
+    </view>
+
+    <!-- 二维码显示区域 -->
+    <view class="qr-image-wrap" bindtap="onPreview">
+      <image 
+        wx:if="{{qrcodeUrl && qrType !== 'text'}}" 
+        class="qr-image" 
+        src="{{qrcodeUrl}}" 
+        mode="aspectFit"
+        show-menu-by-longpress="true"
+      />
+      <view wx:if="{{qrType === 'text'}}" class="qr-placeholder">
+        <text class="qr-placeholder-text">当前环境无小程序码权限</text>
+        <text class="qr-placeholder-text mt-20">已生成场景码：{{scene}}</text>
+        <button class="btn-default btn-block mt-20" bindtap="onCopyScene">复制场景码</button>
+        <button wx:if="{{debugPath}}" class="btn-default btn-block mt-20" bindtap="onCopyDebugPath">复制联调路径</button>
+      </view>
+      <view wx:if="{{!qrcodeUrl && qrType !== 'text'}}" class="qr-placeholder">
+        <text class="qr-placeholder-text">点击下方按钮生成二维码</text>
+      </view>
+    </view>
+    <!-- 体验版普通二维码提示（图片下方） -->
+    <view wx:if="{{qrType === 'fallback'}}" class="qr-fallback-hint">
+      <text class="tag tag-pending">体验版模式</text>
+      <text class="qr-fallback-text">员工需在小程序内点"扫码打卡"扫此码</text>
+    </view>
+    <view wx:if="{{qrType === 'scheme'}}" class="qr-fallback-hint">
+      <text class="tag tag-success">直跳模式</text>
+      <text class="qr-fallback-text qr-scheme-text">员工可直接微信扫一扫跳转并打卡</text>
+    </view>
+
+    <!-- 二维码信息 -->
+    <view wx:if="{{lastGenerated}}" class="qr-info mt-20">
+      <view class="info-row">
+        <text class="text-sm text-gray">生成时间:</text>
+        <text class="text-sm">{{lastGenerated}}</text>
+      </view>
+      <view class="info-row" wx:if="{{expireTime}}">
+        <text class="text-sm text-gray">有效期至:</text>
+        <text class="text-sm text-warning">{{expireTime}}</text>
+      </view>
+    </view>
+    <view wx:if="{{qrId}}" class="qr-info mt-20">
+      <view class="info-row">
+        <text class="text-sm text-gray">二维码ID:</text>
+        <text class="text-sm">{{qrId}}</text>
+      </view>
+      <view class="info-row" wx:if="{{scene}}">
+        <text class="text-sm text-gray">场景参数:</text>
+        <text class="text-sm">{{scene}}</text>
+      </view>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="qr-actions mt-30">
+      <button 
+        class="btn-primary btn-block btn-lg" 
+        bindtap="onGenerate" 
+        disabled="{{generating}}"
+      >
+        {{generating ? '生成中...' : (qrcodeUrl ? '重新生成' : '生成考勤二维码')}}
+      </button>
+      <button 
+        wx:if="{{qrcodeUrl && qrType !== 'text'}}" 
+        class="btn-success btn-block btn-lg mt-20" 
+        bindtap="onSaveImage"
+      >
+        保存到手机相册
+      </button>
+      <button 
+        wx:if="{{qrId}}" 
+        class="btn-default btn-block btn-lg mt-20" 
+        bindtap="onRevoke"
+      >
+        作废当前二维码
+      </button>
+    </view>
+  </view>
+
+  <!-- 说明 -->
+  <view class="card">
+    <view class="section-title">使用说明</view>
+    <view class="tip-list">
+      <view class="tip-item">1. 点击"生成考勤二维码"按钮</view>
+      <view class="tip-item">2. 将二维码展示给员工或保存并打印</view>
+      <view class="tip-item">3. 员工用微信扫码后自动进入打卡页面</view>
+      <view class="tip-item">4. 扫码打卡会标记为"扫码入口"，便于审计</view>
+      <view class="tip-item">5. 二维码有效期默认24小时，可在设置中修改</view>
+      <view class="tip-item">6. 若账号能力不足，将自动回退为小程序内扫码模式</view>
+    </view>
+  </view>
+</view>

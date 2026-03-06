@@ -1,0 +1,26 @@
+<view class="container">
+  <view class="card">
+    <view class="section-title">用户服务协议</view>
+    <view class="text-sm text-gray">版本：2026-03-05-v1，生效日期：{{updatedAt}}</view>
+  </view>
+
+  <view class="card">
+    <view class="policy-title">1. 服务内容</view>
+    <view class="policy-text">本小程序提供考勤打卡、报工记录、质检记录、薪资展示等生产管理功能。</view>
+
+    <view class="policy-title">2. 账号使用规范</view>
+    <view class="policy-text">账号仅限本人使用，不得转借。你需妥善保管手机号与密码信息，若发现异常登录请及时联系管理员处理。</view>
+
+    <view class="policy-title">3. 用户义务</view>
+    <view class="policy-text">你应保证提交的信息真实有效，不得利用系统进行任何违法违规行为。</view>
+
+    <view class="policy-title">4. 数据与权限</view>
+    <view class="policy-text">不同角色仅能访问授权范围内数据。涉及个人信息的处理遵循《隐私政策》。</view>
+
+    <view class="policy-title">5. 协议变更</view>
+    <view class="policy-text">当协议条款发生重大变更时，我们会通过弹窗提示并要求重新确认后继续使用相关功能。</view>
+
+    <view class="policy-title">6. 争议与联系</view>
+    <view class="policy-text">如有争议，双方应优先协商解决。联系邮箱：service@example.com。</view>
+  </view>
+</view>

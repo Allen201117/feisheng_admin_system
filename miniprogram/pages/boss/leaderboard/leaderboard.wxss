@@ -1,0 +1,179 @@
+/* pages/boss/leaderboard/leaderboard.wxss */
+.board-header {
+  text-align: center;
+  padding: 30rpx;
+}
+
+.board-title {
+  font-size: 44rpx;
+  font-weight: bold;
+  color: #FA8C16;
+}
+
+/* 周期 Tabs */
+.period-tabs {
+  display: flex;
+  background: #fff;
+  border-radius: 12rpx;
+  margin-bottom: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+}
+
+.dim-tabs {
+  display: flex;
+  background: #FFF7E6;
+  border-radius: 12rpx;
+  margin-bottom: 20rpx;
+  overflow: hidden;
+}
+
+.tabs .tab {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  font-size: 34rpx;
+  color: #666;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.tab-active {
+  color: #FA8C16;
+  font-weight: bold;
+}
+
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background: #FA8C16;
+  border-radius: 2rpx;
+}
+
+.dim-active {
+  background: #FA8C16;
+  color: #fff !important;
+  border-radius: 12rpx;
+}
+
+.dim-active::after {
+  display: none;
+}
+
+/* picker 卡片 */
+.picker-card {
+  padding: 16rpx 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.picker-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 80rpx;
+  font-size: 34rpx;
+  color: #333;
+}
+
+.picker-arrow {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* 排行卡片 */
+.rank-card {
+  padding: 24rpx;
+}
+
+.rank-summary {
+  margin-bottom: 16rpx;
+  text-align: right;
+}
+
+.rank-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.rank-item:last-child { border-bottom: none; }
+
+.rank-num {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #F0F0F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #999;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.rank-top {
+  background: #FFF7E6;
+  color: #FA8C16;
+}
+
+.rank-top-1 { background: #FFD700; color: #fff; }
+.rank-top-2 { background: #C0C0C0; color: #fff; }
+.rank-top-3 { background: #CD7F32; color: #fff; }
+
+.rank-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-name {
+  font-size: 36rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.rank-sub {
+  display: block;
+  margin-top: 4rpx;
+}
+
+.rank-value {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #1890FF;
+  margin-right: 12rpx;
+  flex-shrink: 0;
+}
+
+.rank-medal {
+  font-size: 36rpx;
+  flex-shrink: 0;
+}
+
+/* 空状态 & loading */
+.empty-state {
+  padding: 60rpx 0;
+  text-align: center;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #999;
+}
+
+.loading-mask {
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+.loading-text {
+  font-size: 32rpx;
+  color: #999;
+}

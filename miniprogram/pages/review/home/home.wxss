@@ -1,0 +1,27 @@
+.review-page {
+  background: #f5f7fb;
+  min-height: 100vh;
+}
+
+.hero {
+  border-left: 8rpx solid #1890ff;
+}
+
+.flow-item {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #eef2f7;
+  font-size: 28rpx;
+}
+
+.stat-row:last-child {
+  border-bottom: none;
+}

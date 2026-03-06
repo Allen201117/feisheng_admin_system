@@ -1,0 +1,359 @@
+/* app.wxss - 全局样式（老年人友好大字体版） */
+
+/*
+ * 全局字号体系（老年人友好）:
+ *   --font-xs:   28rpx   辅助/次要信息
+ *   --font-sm:   32rpx   次要正文
+ *   --font-base: 36rpx   基础正文
+ *   --font-lg:   40rpx   卡片标题/按钮
+ *   --font-xl:   48rpx   页面标题/高亮数字
+ *   --font-xxl:  64rpx   数据大字
+ *   最小点击热区: 88rpx
+ */
+
+page {
+  background-color: #F5F5F5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 36rpx;
+  color: #333;
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+
+/* 通用容器 */
+.container {
+  padding: 24rpx 30rpx;
+  min-height: 100vh;
+}
+
+/* 卡片样式 */
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 32rpx;
+  margin-bottom: 28rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+}
+
+/* 标题 */
+.section-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 24rpx;
+}
+
+.sub-title {
+  font-size: 32rpx;
+  color: #999;
+  margin-bottom: 18rpx;
+}
+
+/* 按钮样式 - 增大点击热区与字号 */
+.btn-primary {
+  background: #1890FF;
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  text-align: center;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+.btn-primary:active { background: #096DD9; }
+
+.btn-success {
+  background: #52C41A;
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  text-align: center;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+.btn-success:active { background: #389E0D; }
+
+.btn-danger {
+  background: #FF4D4F;
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  text-align: center;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+.btn-danger:active { background: #CF1322; }
+
+.btn-warning {
+  background: #FAAD14;
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+
+.btn-default {
+  background: #fff;
+  color: #333;
+  border: 2rpx solid #D9D9D9;
+  border-radius: 12rpx;
+  padding: 24rpx 40rpx;
+  font-size: 36rpx;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+
+.btn-block {
+  display: block;
+  width: 100%;
+}
+
+.btn-lg {
+  padding: 30rpx 50rpx;
+  font-size: 40rpx;
+  min-height: 100rpx;
+}
+
+.btn-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* 输入框 - 增大行高与字号 */
+.input-group {
+  margin-bottom: 32rpx;
+}
+
+.input-label {
+  font-size: 34rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+  display: block;
+}
+
+.input-field {
+  width: 100%;
+  height: 96rpx;
+  border: 2rpx solid #D9D9D9;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 36rpx;
+  box-sizing: border-box;
+  background: #fff;
+}
+.input-field:focus { border-color: #1890FF; }
+
+/* 列表 - 增大行高 */
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+  min-height: 88rpx;
+}
+.list-item:last-child { border-bottom: none; }
+
+/* 状态标签 */
+.tag {
+  display: inline-block;
+  padding: 6rpx 18rpx;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  font-weight: bold;
+}
+.tag-pending { background: #FFF7E6; color: #FA8C16; }
+.tag-success { background: #F6FFED; color: #52C41A; }
+.tag-danger  { background: #FFF1F0; color: #FF4D4F; }
+.tag-info    { background: #E6F7FF; color: #1890FF; }
+
+/* 网格菜单 */
+.grid-menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.grid-item {
+  width: 30%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30rpx 0;
+  margin-bottom: 20rpx;
+}
+.grid-icon {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12rpx;
+  font-size: 44rpx;
+}
+.grid-text {
+  font-size: 30rpx;
+  color: #666;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 100rpx 0;
+}
+.empty-text {
+  font-size: 34rpx;
+  color: #999;
+}
+
+/* Flex 工具类 */
+.flex-row { display: flex; flex-direction: row; align-items: center; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-center { display: flex; justify-content: center; align-items: center; }
+.flex-1 { flex: 1; }
+
+/* 间距工具类 */
+.mt-20 { margin-top: 20rpx; }
+.mt-30 { margin-top: 30rpx; }
+.mb-20 { margin-bottom: 20rpx; }
+.mb-30 { margin-bottom: 30rpx; }
+.ml-20 { margin-left: 20rpx; }
+.mr-20 { margin-right: 20rpx; }
+.p-20 { padding: 20rpx; }
+.p-30 { padding: 30rpx; }
+
+/* 文字工具类 - 老年人友好字号 */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-bold { font-weight: bold; }
+.text-sm { font-size: 28rpx; }
+.text-md { font-size: 34rpx; }
+.text-lg { font-size: 40rpx; }
+.text-xl { font-size: 48rpx; }
+.text-xxl { font-size: 64rpx; }
+.text-primary { color: #1890FF; }
+.text-success { color: #52C41A; }
+.text-danger  { color: #FF4D4F; }
+.text-warning { color: #FAAD14; }
+.text-gray { color: #999; }
+.text-dark { color: #333; }
+
+/* 加载状态 */
+.loading-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+}
+
+/* 数据统计卡片 */
+.stat-card {
+  background: linear-gradient(135deg, #1890FF 0%, #096DD9 100%);
+  border-radius: 16rpx;
+  padding: 36rpx;
+  color: #fff;
+  margin-bottom: 28rpx;
+}
+.stat-value {
+  font-size: 64rpx;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+  display: block;
+}
+.stat-label {
+  font-size: 30rpx;
+  opacity: 0.85;
+}
+
+/* 通用弹窗 */
+.modal-mask {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+  width: 85%; max-height: 80vh;
+  background: #fff; border-radius: 20rpx;
+  padding: 40rpx; overflow-y: auto;
+}
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 30rpx;
+}
+.modal-close {
+  font-size: 40rpx; color: #999; padding: 10rpx;
+}
+
+/* 底部安全区 */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* 选择器字段通用样式 */
+.picker-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 96rpx;
+  border: 2rpx solid #D9D9D9;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  background: #fff;
+  font-size: 34rpx;
+}
+.picker-arrow {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* Tab 切换通用 */
+.tabs, .tab-bar {
+  display: flex;
+  background: #fff;
+  border-radius: 12rpx;
+  margin-bottom: 24rpx;
+  overflow: hidden;
+}
+.tab, .tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  font-size: 34rpx;
+  color: #666;
+  position: relative;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab-active {
+  color: #1890FF;
+  font-weight: bold;
+  border-bottom: 4rpx solid #1890FF;
+}
+
+/* 小按钮 - 保证点击热区 */
+.btn-xs {
+  font-size: 28rpx;
+  padding: 10rpx 20rpx;
+  border-radius: 8rpx;
+  border: none;
+  min-height: 64rpx;
+  line-height: 1.6;
+  background: #E6F7FF;
+  color: #1890FF;
+}
+.btn-xs::after { border: none; }

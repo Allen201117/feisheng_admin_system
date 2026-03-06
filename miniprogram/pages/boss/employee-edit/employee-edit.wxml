@@ -1,0 +1,44 @@
+<!--pages/boss/employee-edit/employee-edit.wxml-->
+<view class="container">
+  <view class="card">
+    <view class="input-group">
+      <text class="input-label">姓名 *</text>
+      <input class="input-field" placeholder="请输入员工姓名" value="{{name}}" bindinput="onInputName" maxlength="20" />
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">手机号 *</text>
+      <input class="input-field" placeholder="请输入手机号" type="number" value="{{phone}}" bindinput="onInputPhone" maxlength="11" />
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">角色 *</text>
+      <picker mode="selector" range="{{roleNames}}" value="{{roleIndex}}" bindchange="onRoleChange">
+        <view class="picker-field">
+          <text>{{roleNames[roleIndex]}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">密码 <text class="text-sm text-gray">（不填则默认为手机号）</text></text>
+      <input class="input-field" placeholder="默认为手机号" password="true" value="{{password}}" bindinput="onInputPassword" maxlength="20" />
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">入厂时间 <text class="text-sm text-gray">（选填，仅老板可设置）</text></text>
+      <picker mode="date" value="{{joinDate}}" bindchange="onJoinDateChange">
+        <view class="picker-field">
+          <text wx:if="{{joinDate}}">{{joinDate}}</text>
+          <text wx:else class="text-gray">请选择入厂时间</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <button class="btn-primary btn-block btn-lg mt-30" bindtap="onSave" disabled="{{loading}}">
+      {{loading ? '保存中...' : (isEdit ? '保存修改' : '添加员工')}}
+    </button>
+  </view>
+</view>

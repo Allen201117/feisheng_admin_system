@@ -1,0 +1,13 @@
+.policy-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-top: 24rpx;
+  color: #1f2d3d;
+}
+
+.policy-text {
+  margin-top: 12rpx;
+  color: #4a5568;
+  font-size: 26rpx;
+  line-height: 1.8;
+}

@@ -1,0 +1,186 @@
+/* pages/employee/profile/profile.wxss */
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-total {
+  border-top: 2rpx solid #E8E8E8;
+  margin-top: 10rpx;
+  padding-top: 24rpx;
+}
+
+.detail-label {
+  font-size: 34rpx;
+  color: #666;
+}
+
+.detail-value {
+  font-size: 36rpx;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+
+.stat-box {
+  padding: 20rpx;
+}
+
+.stat-box-value {
+  font-size: 44rpx;
+  font-weight: bold;
+  color: #1890FF;
+  display: block;
+  margin-bottom: 8rpx;
+}
+
+.stat-box-label {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.adj-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.adj-item:last-child {
+  border-bottom: none;
+}
+
+.adj-reason {
+  font-size: 34rpx;
+  display: block;
+}
+
+.adj-date {
+  display: block;
+  margin-top: 4rpx;
+}
+
+.adj-amount {
+  font-size: 38rpx;
+  font-weight: bold;
+}
+
+.att-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+  gap: 16rpx;
+}
+
+.att-item:last-child {
+  border-bottom: none;
+}
+
+.att-date {
+  font-size: 32rpx;
+  color: #333;
+  width: 170rpx;
+}
+
+.att-time {
+  flex: 1;
+  font-size: 30rpx;
+  color: #666;
+}
+
+.att-hours {
+  font-size: 32rpx;
+  color: #1890FF;
+  font-weight: bold;
+  margin-right: 10rpx;
+}
+
+/* 已发薪标记 */
+.paid-badge {
+  display: inline-block;
+  font-size: 28rpx;
+  color: #52C41A;
+  background: #F6FFED;
+  border: 1rpx solid #B7EB8F;
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+  margin-top: 12rpx;
+}
+
+.privacy-notice {
+  font-size: 28rpx;
+  color: #999;
+  background: #FAFAFA;
+  padding: 16rpx;
+  border-radius: 8rpx;
+  margin-top: 16rpx;
+  text-align: center;
+}
+
+/* 修改密码弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-dialog {
+  width: 85%;
+  background: #fff;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+.modal-title {
+  text-align: center;
+  font-size: 36rpx;
+  font-weight: bold;
+  padding: 32rpx 0 16rpx;
+}
+.modal-body {
+  padding: 16rpx 32rpx;
+}
+.modal-footer {
+  display: flex;
+  border-top: 1rpx solid #eee;
+}
+.modal-btn {
+  flex: 1;
+  border-radius: 0 !important;
+  font-size: 32rpx;
+  margin: 0 !important;
+  padding: 24rpx 0 !important;
+  background: none;
+  line-height: 1.5;
+}
+.modal-btn.btn-primary {
+  background: #1890FF;
+  color: #fff;
+}
+.pwd-input-wrap {
+  display: flex;
+  align-items: center;
+}
+.pwd-input-wrap .input-field {
+  flex: 1;
+}
+.pwd-toggle {
+  font-size: 26rpx;
+  color: #1890FF;
+  padding: 0 10rpx;
+  white-space: nowrap;
+}

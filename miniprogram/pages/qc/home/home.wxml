@@ -1,0 +1,89 @@
+<!--pages/qc/home/home.wxml-->
+<view class="container">
+  <!-- 头部信息 -->
+  <view class="qc-header">
+    <view class="user-avatar">{{userInfo.name[0]}}</view>
+    <view class="user-info">
+      <text class="user-name">{{userInfo.name}}</text>
+      <text class="user-role">{{userInfo.role === 'boss' ? '管理员(质检)' : '质检员'}}</text>
+    </view>
+    <view class="header-right" bindtap="{{userInfo.role === 'boss' ? 'goBack' : 'onLogout'}}">
+      <text class="text-sm" style="color:rgba(255,255,255,0.8)">{{userInfo.role === 'boss' ? '返回' : '退出'}}</text>
+    </view>
+  </view>
+
+  <!-- 选项卡 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === 'pending' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="pending">
+      待质检 ({{pendingLogs.length}})
+    </view>
+    <view class="tab {{activeTab === 'inspected' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="inspected">
+      今日已质检 ({{inspectedLogs.length}})
+    </view>
+  </view>
+
+  <!-- 待质检列表 -->
+  <view wx:if="{{activeTab === 'pending'}}">
+    <view wx:if="{{pendingLogs.length === 0}}" class="empty-state">
+      <text class="empty-text">暂无待质检记录 ✓</text>
+    </view>
+
+    <view wx:for="{{pendingLogs}}" wx:key="_id" class="card log-card" bindtap="goInspect" data-id="{{item._id}}">
+      <view class="log-header">
+        <text class="log-employee">{{item.user_name}}</text>
+        <text class="tag tag-pending">待质检</text>
+      </view>
+      <view class="log-body">
+        <view class="log-row">
+          <text class="log-label">订单:</text>
+          <text>{{item.order_name}}</text>
+        </view>
+        <view class="log-row">
+          <text class="log-label">工序:</text>
+          <text>{{item.process_name}}</text>
+        </view>
+        <view class="log-row">
+          <text class="log-label">提交数量:</text>
+          <text class="text-bold">{{item.quantity}} 件</text>
+        </view>
+        <view class="log-row">
+          <text class="log-label">提交时间:</text>
+          <text class="text-sm text-gray">{{item.created_at_display}}</text>
+        </view>
+      </view>
+      <view class="log-footer">
+        <text class="text-primary">点击进行质检 →</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 已质检列表 -->
+  <view wx:if="{{activeTab === 'inspected'}}">
+    <view wx:if="{{inspectedLogs.length === 0}}" class="empty-state">
+      <text class="empty-text">今日暂无质检记录</text>
+    </view>
+
+    <view wx:for="{{inspectedLogs}}" wx:key="_id" class="card log-card">
+      <view class="log-header">
+        <text class="log-employee">{{item.user_name}}</text>
+        <text class="tag tag-success">已质检</text>
+      </view>
+      <view class="log-body">
+        <view class="log-row">
+          <text class="log-label">工序:</text>
+          <text>{{item.process_name}}</text>
+        </view>
+        <view class="log-row">
+          <text class="log-label">提交/合格:</text>
+          <text class="text-bold">{{item.quantity}} / {{item.passed_qty}} 件</text>
+        </view>
+        <view class="log-row">
+          <text class="log-label">合格率:</text>
+          <text class="{{item.pass_rate >= 95 ? 'text-success' : 'text-danger'}}">
+            {{item.pass_rate}}%
+          </text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
