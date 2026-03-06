@@ -1,0 +1,26 @@
+<view class="container">
+  <view class="card">
+    <view class="section-title">隐私政策</view>
+    <view class="text-sm text-gray">版本：2026-03-05-v1，生效日期：{{updatedAt}}</view>
+  </view>
+
+  <view class="card">
+    <view class="policy-title">1. 我们收集的信息</view>
+    <view class="policy-text">为完成账号登录、工资发放通知和账号找回，我们会收集并存储你的手机号、姓名、openid、登录时间及必要操作日志。</view>
+
+    <view class="policy-title">2. 使用目的与方式</view>
+    <view class="policy-text">手机号用于账号绑定、身份识别、发薪通知与安全校验；不会用于营销推送。仅在业务必须范围内处理，不做超范围采集。</view>
+
+    <view class="policy-title">3. 存储期限与安全</view>
+    <view class="policy-text">用户信息在账号有效期间保存，账号停用或你提出删除申请后，我们将在合理期限内删除或匿名化处理。数据存储在微信云开发服务，采用访问控制与审计日志。</view>
+
+    <view class="policy-title">4. 信息共享</view>
+    <view class="policy-text">我们不会向第三方共享你的手机号等个人信息，法律法规另有规定的除外。</view>
+
+    <view class="policy-title">5. 你的权利</view>
+    <view class="policy-text">你可申请查询、更正、删除个人信息，或撤回同意。撤回后将无法继续使用依赖手机号的登录与相关功能。</view>
+
+    <view class="policy-title">6. 联系方式</view>
+    <view class="policy-text">如有隐私问题，请联系管理员或通过企业邮箱：privacy@example.com。</view>
+  </view>
+</view>

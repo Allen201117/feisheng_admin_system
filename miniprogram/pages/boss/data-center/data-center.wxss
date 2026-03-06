@@ -1,0 +1,418 @@
+/* pages/boss/data-center/data-center.wxss */
+
+/* 模式切换 */
+.mode-switch {
+  display: flex;
+  background: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.mode-btn {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx 0;
+  font-size: 34rpx;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.mode-active {
+  background: #1890FF;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* 月份标题 */
+.month-header {
+  padding: 20rpx 0 12rpx;
+}
+
+.month-header-text {
+  font-size: 38rpx;
+  font-weight: bold;
+  color: #1890FF;
+}
+
+/* 月份选择器 */
+.picker-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 88rpx;
+  border: 2rpx solid #D9D9D9;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  background: #fff;
+  font-size: 34rpx;
+}
+
+.picker-arrow {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* Tab 栏 */
+.tab-bar {
+  display: flex;
+  background: #fff;
+  border-radius: 12rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 0;
+  font-size: 32rpx;
+  color: #666;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.tab-active {
+  color: #1890FF;
+  font-weight: bold;
+}
+
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 30%;
+  width: 40%;
+  height: 6rpx;
+  background: #1890FF;
+  border-radius: 3rpx;
+}
+
+/* 统计摘要卡片 */
+.summary-card {
+  padding: 24rpx 20rpx;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-around;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summary-val {
+  font-size: 44rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.summary-label {
+  font-size: 28rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+/* 颜色 */
+.text-primary {
+  color: #1890FF;
+}
+
+.text-success {
+  color: #52C41A;
+}
+
+.text-danger {
+  color: #FF4D4F;
+}
+
+.text-warning {
+  color: #FAAD14;
+}
+
+/* 数据卡片 */
+.data-card {
+  padding: 20rpx 24rpx;
+}
+
+.data-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.data-date {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.data-badge {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.data-badge-lg {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+/* 数据行 */
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #FAFAFA;
+}
+
+.data-row:last-child {
+  border-bottom: none;
+}
+
+.data-row-left {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.data-row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.data-row-name {
+  font-size: 32rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.data-row-sub {
+  font-size: 28rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
+.data-row-info {
+  font-size: 28rpx;
+  color: #666;
+  flex: 1;
+  margin: 0 16rpx;
+}
+
+.data-row-qty {
+  font-size: 30rpx;
+  color: #666;
+}
+
+.data-row-amount {
+  font-size: 32rpx;
+  color: #FF4D4F;
+  font-weight: bold;
+  margin-top: 4rpx;
+}
+
+/* 标签 */
+.tag {
+  font-size: 26rpx;
+  padding: 6rpx 18rpx;
+  border-radius: 8rpx;
+  white-space: nowrap;
+}
+
+.tag-success {
+  background: #F6FFED;
+  color: #52C41A;
+}
+
+.tag-danger {
+  background: #FFF1F0;
+  color: #FF4D4F;
+}
+
+.tag-primary {
+  background: #E6F7FF;
+  color: #1890FF;
+}
+
+/* 薪资详情行 */
+.salary-detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  font-size: 30rpx;
+}
+
+.salary-detail-label {
+  color: #999;
+}
+
+.salary-detail-val {
+  color: #333;
+}
+
+/* 订单卡片 */
+.order-card {
+  padding: 24rpx;
+}
+
+.order-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.order-card-name {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+  flex: 1;
+}
+
+.order-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-card-info {
+  font-size: 30rpx;
+  color: #666;
+}
+
+.order-card-arrow {
+  font-size: 30rpx;
+  color: #1890FF;
+}
+
+/* 订单详情 */
+.back-row {
+  margin-bottom: 16rpx;
+}
+
+.back-arrow {
+  font-size: 32rpx;
+  color: #1890FF;
+}
+
+.order-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-detail-name {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+/* 工序进度 */
+.process-row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #FAFAFA;
+}
+
+.process-row:last-child {
+  border-bottom: none;
+}
+
+.process-info {
+  width: 200rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.process-name {
+  font-size: 30rpx;
+  color: #333;
+}
+
+.process-price {
+  font-size: 26rpx;
+  color: #999;
+  margin-top: 4rpx;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 16rpx;
+  background: #F0F0F0;
+  border-radius: 8rpx;
+  margin: 0 16rpx;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1890FF, #36CFC9);
+  border-radius: 8rpx;
+  transition: width 0.5s;
+}
+
+.process-percent {
+  font-size: 28rpx;
+  color: #1890FF;
+  width: 80rpx;
+  text-align: right;
+}
+
+/* 空状态 */
+.empty-card {
+  padding: 60rpx 0;
+  text-align: center;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #999;
+}
+
+/* Loading */
+.loading-mask {
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+.loading-text {
+  font-size: 32rpx;
+  color: #999;
+}
+
+/* 发放状态标签 */
+.data-date-row {
+  display: flex;
+  align-items: center;
+}
+
+.paid-tag-sm {
+  font-size: 26rpx;
+  color: #52C41A;
+  background: #F6FFED;
+  border: 1rpx solid #B7EB8F;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  margin-left: 12rpx;
+}
+
+.unpaid-tag-sm {
+  font-size: 26rpx;
+  color: #FA8C16;
+  background: #FFF7E6;
+  border: 1rpx solid #FFD591;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  margin-left: 12rpx;
+}

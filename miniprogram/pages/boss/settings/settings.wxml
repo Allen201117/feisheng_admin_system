@@ -1,0 +1,57 @@
+<!--pages/boss/settings/settings.wxml-->
+<view class="container">
+  <!-- 工厂位置 -->
+  <view class="card">
+    <view class="section-title">工厂位置（打卡围栏中心）</view>
+    <view class="input-group">
+      <text class="input-label">纬度</text>
+      <input class="input-field" type="digit" placeholder="如: 39.9042" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">经度</text>
+      <input class="input-field" type="digit" placeholder="如: 116.4074" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" />
+    </view>
+    <button class="btn-default btn-block" bindtap="getLocation">获取当前位置</button>
+  </view>
+
+  <!-- 围栏与阈值 -->
+  <view class="card">
+    <view class="section-title">参数配置</view>
+    <view class="input-group">
+      <text class="input-label">地理围栏半径（米）</text>
+      <input class="input-field" type="number" placeholder="默认100" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">合格率阈值（%）— 排行榜用</text>
+      <input class="input-field" type="number" placeholder="默认95" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">二维码有效期（天）</text>
+      <input class="input-field" type="number" placeholder="默认1" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
+    </view>
+  </view>
+
+  <!-- 打卡方式 -->
+  <view class="card">
+    <view class="section-title">打卡方式</view>
+    <view class="switch-row">
+      <view class="switch-info">
+        <text class="switch-label">允许居家打卡</text>
+        <text class="switch-desc text-sm text-gray">开启后员工可在非围栏范围内打卡，标记为居家打卡</text>
+      </view>
+      <switch checked="{{allow_home_checkin}}" data-field="allow_home_checkin" bindchange="onSwitchChange" color="#1890FF" />
+    </view>
+  </view>
+
+  <button class="btn-primary btn-block btn-lg mt-30" bindtap="onSave" disabled="{{loading}}">
+    {{loading ? '保存中...' : '保存设置'}}
+  </button>
+
+  <view class="card">
+    <view class="section-title">协议与隐私</view>
+    <button class="btn-default btn-block" bindtap="goPrivacyPolicy">查看隐私政策</button>
+    <button class="btn-default btn-block mt-20" bindtap="goUserAgreement">查看用户服务协议</button>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

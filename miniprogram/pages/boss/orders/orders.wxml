@@ -1,0 +1,71 @@
+<!--pages/boss/orders/orders.wxml-->
+<view class="container">
+  <view class="top-bar">
+    <text class="section-title">订单列表 ({{orders.length}})</text>
+    <button class="btn-primary add-btn" bindtap="toggleAddForm">
+      {{showAddForm ? '取消' : '+ 新建订单'}}
+    </button>
+  </view>
+
+  <!-- 新建订单表单 -->
+  <view wx:if="{{showAddForm}}" class="card">
+    <view class="section-title">新建订单</view>
+    <view class="input-group">
+      <text class="input-label">订单名称 *</text>
+      <input class="input-field" placeholder="如：XX客户-T恤1000件" value="{{newOrder.order_name}}" bindinput="onInputOrderName" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">开始日期 *</text>
+      <picker mode="date" value="{{newOrder.start_date}}" bindchange="onStartDateChange">
+        <view class="picker-field">
+          <text>{{newOrder.start_date || '请选择日期'}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    <view class="input-group">
+      <text class="input-label">截止日期</text>
+      <picker mode="date" value="{{newOrder.end_date}}" bindchange="onEndDateChange">
+        <view class="picker-field">
+          <text>{{newOrder.end_date || '请选择日期（可选）'}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    <view class="input-group">
+      <text class="input-label">总数量 *</text>
+      <input class="input-field" type="number" placeholder="订单总件数" value="{{newOrder.total_quantity}}" bindinput="onInputQuantity" />
+    </view>
+    <button class="btn-success btn-block mt-20" bindtap="onAddOrder">确认创建</button>
+  </view>
+
+  <!-- 订单列表 -->
+  <view wx:if="{{orders.length === 0 && !loading}}" class="empty-state">
+    <text class="empty-text">暂无订单</text>
+  </view>
+
+  <view wx:for="{{orders}}" wx:key="_id" class="card order-card" bindtap="goOrderDetail" data-id="{{item._id}}">
+    <view class="order-header">
+      <text class="order-name">{{item.order_name}}</text>
+      <text class="tag {{item.status_class}}">{{item.status_text}}</text>
+    </view>
+    <view class="order-body">
+      <view class="order-row">
+        <text class="order-label">总数量:</text>
+        <text>{{item.total_quantity}} 件</text>
+      </view>
+      <view class="order-row">
+        <text class="order-label">时间:</text>
+        <text>{{item.start_date}} ~ {{item.end_date || '未设定'}}</text>
+      </view>
+      <view class="order-row">
+        <text class="order-label">工序数:</text>
+        <text>{{item.process_count || 0}} 道</text>
+      </view>
+    </view>
+    <view class="order-footer" wx:if="{{item.status === 'active'}}">
+      <text class="text-primary text-sm">点击查看详情/管理工序 →</text>
+      <button class="btn-sm btn-complete" catchtap="onCompleteOrder" data-order="{{item}}">完成</button>
+    </view>
+  </view>
+</view>

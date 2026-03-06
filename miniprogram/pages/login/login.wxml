@@ -1,0 +1,147 @@
+<!--pages/login/login.wxml-->
+<view class="login-page">
+  <view class="login-header">
+    <image class="login-logo" src="/images/logo.png" mode="aspectFit"></image>
+    <view class="app-title">工厂记账系统</view>
+    <view class="app-desc">考勤 · 计件 · 薪酬 一站式管理</view>
+  </view>
+
+  <view class="login-form card">
+    <view class="input-group">
+      <text class="input-label">姓名</text>
+      <input 
+        class="input-field" 
+        placeholder="请输入真实姓�? 
+        value="{{name}}" 
+        bindinput="onInputName"
+        maxlength="20"
+      />
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">手机�?/text>
+      <input 
+        class="input-field" 
+        placeholder="请输入手机号" 
+        type="number" 
+        value="{{phone}}" 
+        bindinput="onInputPhone"
+        maxlength="11"
+      />
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">密码</text>
+      <view class="password-wrap">
+        <input 
+          class="input-field password-input" 
+          placeholder="请输入密�? 
+          password="{{!showPassword}}" 
+          value="{{password}}" 
+          bindinput="onInputPassword"
+          maxlength="20"
+        />
+        <view class="toggle-pwd" bindtap="togglePassword">
+          <text>{{showPassword ? '隐藏' : '显示'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <button 
+      class="btn-primary btn-block btn-lg login-btn" 
+      bindtap="onLogin" 
+      disabled="{{loading}}"
+    >
+      {{loading ? '登录�?..' : '�?�?}}
+    </button>
+
+    <button
+      wx:if="{{existingUser}}"
+      class="btn-default btn-block btn-lg mt-20"
+      bindtap="onQuickEnterStored"
+    >
+      使用当前登录态进�?
+    </button>
+
+    <button
+      class="btn-default btn-block btn-lg mt-20"
+      bindtap="onEnterDemo"
+    >
+      体验模式（免登录浏览�?
+    </button>
+
+    <view class="login-tip text-sm text-gray text-center mt-30">
+      首次登录请联系管理员开通账�?
+    </view>
+
+    <view class="login-tip text-sm text-gray text-center mt-20">
+      登录即表示同�?
+      <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策�?/text>
+      �?
+      <text class="text-primary" bindtap="openUserAgreement">《用户服务协议�?/text>
+    </view>
+  </view>
+
+  <view wx:if="{{needConsentDialog}}" class="modal-mask">
+    <view class="modal-dialog">
+      <view class="modal-header">
+        <text class="modal-title">隐私保护与服务协议确�?/text>
+        <text class="modal-desc text-sm text-gray">在收集手机号前，请先阅读并同意协�?/text>
+      </view>
+      <view class="modal-body">
+        <view class="text-sm text-gray">
+          我们将收集手机号用于账号登录绑定、工资发放通知与账号找回，不会向第三方共享。你可在设置中查看协议并申请查询、更正、删除或撤回同意�?
+        </view>
+        <view class="consent-link-row mt-20">
+          <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策�?/text>
+          <text class="text-primary" bindtap="openUserAgreement">《用户服务协议�?/text>
+        </view>
+        <label class="consent-check mt-20">
+          <checkbox-group bindchange="onConsentCheck">
+            <checkbox value="agree" checked="{{consentChecked}}" color="#1890FF" />
+          </checkbox-group>
+          <text class="text-sm">我已阅读并同意以上协议（版本 {{consentVersion || '最�?}}�?/text>
+        </label>
+      </view>
+      <view class="modal-footer">
+        <button class="btn-default modal-btn" bindtap="onContinueWithoutConsent">暂不同意</button>
+        <button class="btn-primary modal-btn" bindtap="onConfirmConsent">同意并继�?/button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 强制改密弹窗 -->
+  <view wx:if="{{showChangePwd}}" class="modal-mask">
+    <view class="modal-dialog">
+      <view class="modal-header">
+        <text class="modal-title">首次登录 �?修改密码</text>
+        <text class="modal-desc text-sm text-gray">为保障账号安全，首次登录须修改默认密�?/text>
+      </view>
+      <view class="modal-body">
+        <view class="input-group">
+          <text class="input-label">旧密�?/text>
+          <input class="input-field" password="{{true}}" placeholder="输入当前密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" maxlength="20" />
+        </view>
+        <view class="input-group">
+          <text class="input-label">新密�?/text>
+          <view class="password-wrap">
+            <input class="input-field password-input" password="{{!showNewPwd}}" placeholder="至少8�?含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" maxlength="20" />
+            <view class="toggle-pwd" bindtap="toggleNewPwd">
+              <text>{{showNewPwd ? '隐藏' : '显示'}}</text>
+            </view>
+          </view>
+        </view>
+        <view class="input-group">
+          <text class="input-label">确认新密�?/text>
+          <input class="input-field" password="{{true}}" placeholder="再次输入新密�? value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" maxlength="20" />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn-default modal-btn" bindtap="onCancelChangePwd" disabled="{{changePwdLoading}}">取消</button>
+        <button class="btn-primary modal-btn" bindtap="onSubmitChangePwd" disabled="{{changePwdLoading}}">
+          {{changePwdLoading ? '修改�?..' : '确认修改'}}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>

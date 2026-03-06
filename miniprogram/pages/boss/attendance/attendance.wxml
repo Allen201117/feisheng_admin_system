@@ -1,0 +1,95 @@
+<!--pages/boss/attendance/attendance.wxml-->
+<view class="container">
+  <!-- 选项卡 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === 'today' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="today">
+      每日考勤
+    </view>
+    <view class="tab {{activeTab === 'abnormal' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="abnormal">
+      异常记录 ({{abnormalRecords.length}})
+    </view>
+  </view>
+
+  <!-- 每日考勤 -->
+  <view wx:if="{{activeTab === 'today'}}">
+    <view class="card">
+      <view class="flex-between mb-20">
+        <text class="section-title" style="margin-bottom:0;">考勤记录</text>
+        <picker mode="date" value="{{selectedDate}}" bindchange="onDateChange">
+          <view class="date-picker">{{selectedDate}} ▼</view>
+        </picker>
+      </view>
+
+      <view wx:if="{{records.length === 0}}" class="empty-state">
+        <text class="empty-text">当日暂无考勤记录</text>
+      </view>
+
+      <view wx:for="{{records}}" wx:key="_id" class="att-row">
+        <view class="att-name">{{item.user_name}}</view>
+        <view class="att-times">
+          <text class="text-sm">签到: {{item.clock_in_display || '--'}}</text>
+          <text class="text-sm">签退: {{item.clock_out_display || '--'}}</text>
+        </view>
+        <view class="att-hours">{{item.hours || 0}}h</view>
+        <text class="tag {{item.status === 'normal' ? 'tag-success' : (item.status === 'abnormal' ? 'tag-danger' : 'tag-info')}}">
+          {{item.status === 'normal' ? '正常' : (item.status === 'abnormal' ? '异常' : '已补签')}}
+        </text>
+        <button 
+          wx:if="{{item.status === 'abnormal'}}" 
+          class="btn-xs btn-supplement" 
+          bindtap="showSupplementForm" 
+          data-record="{{item}}"
+        >补签</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 异常记录 -->
+  <view wx:if="{{activeTab === 'abnormal'}}">
+    <view class="card">
+      <view class="section-title">待处理异常</view>
+      <view wx:if="{{abnormalRecords.length === 0}}" class="empty-state">
+        <text class="empty-text">暂无异常记录 ✓</text>
+      </view>
+      <view wx:for="{{abnormalRecords}}" wx:key="_id" class="att-row">
+        <view class="att-name">{{item.user_name}}</view>
+        <view class="att-date">{{item.date}}</view>
+        <view class="att-times">
+          <text class="text-sm">签到: {{item.clock_in_display || '--'}}</text>
+          <text class="text-sm text-danger">未签退</text>
+        </view>
+        <button class="btn-xs btn-supplement" bindtap="showSupplementForm" data-record="{{item}}">补签</button>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 补签弹窗 -->
+<view wx:if="{{showSupplement}}" class="modal-mask" bindtap="hideSupplementForm">
+  <view class="modal-content" catchtap>
+    <view class="modal-header">
+      <text class="section-title" style="margin-bottom:0;">手动补签</text>
+      <text class="modal-close" bindtap="hideSupplementForm">✕</text>
+    </view>
+    <view class="modal-body">
+      <view class="info-row">
+        <text class="info-label">员工:</text>
+        <text>{{supplementData.user_name}}</text>
+      </view>
+      <view class="info-row">
+        <text class="info-label">日期:</text>
+        <text>{{supplementData.date}}</text>
+      </view>
+      <view class="input-group mt-20">
+        <text class="input-label">下班时间</text>
+        <picker mode="time" value="{{supplementData.clock_out_time}}" bindchange="onSupplementTimeChange">
+          <view class="picker-field">
+            <text>{{supplementData.clock_out_time || '请选择时间'}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+    <button class="btn-primary btn-block mt-20" bindtap="onSubmitSupplement">确认补签</button>
+  </view>
+</view>

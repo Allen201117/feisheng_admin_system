@@ -1,0 +1,40 @@
+<!--pages/boss/employees/employees.wxml-->
+<view class="container">
+  <view class="top-bar">
+    <text class="section-title">员工列表 ({{employees.length}}人)</text>
+    <button class="btn-primary add-btn" bindtap="goAddEmployee">+ 添加员工</button>
+  </view>
+
+  <view wx:if="{{employees.length === 0 && !loading}}" class="empty-state">
+    <text class="empty-text">暂无员工，请添加</text>
+  </view>
+
+  <view wx:for="{{employees}}" wx:key="_id" class="card emp-card">
+    <view class="emp-header">
+      <view class="emp-avatar">{{item.name[0]}}</view>
+      <view class="emp-info">
+        <text class="emp-name">{{item.name}}</text>
+        <text class="emp-phone text-sm text-gray">{{item.phone}}</text>
+      </view>
+      <text class="tag {{item.status === 'active' ? 'tag-success' : 'tag-danger'}}">
+        {{item.status_text}}
+      </text>
+    </view>
+    <view class="emp-body">
+      <text class="emp-role">角色: {{item.role_name}}</text>
+      <text class="emp-join-date text-sm text-gray" wx:if="{{item.join_date}}"> | 入厂: {{item.join_date}}</text>
+      <text class="emp-join-date text-sm text-gray" wx:else> | 入厂时间: 未设置</text>
+    </view>
+    <view class="emp-actions">
+      <button class="btn-sm btn-edit" bindtap="goEditEmployee" data-id="{{item._id}}">编辑</button>
+      <button class="btn-sm btn-reset" bindtap="resetPassword" data-emp="{{item}}">重置密码</button>
+      <button 
+        class="btn-sm {{item.status === 'active' ? 'btn-disable' : 'btn-enable'}}" 
+        bindtap="toggleStatus" 
+        data-emp="{{item}}"
+      >
+        {{item.status === 'active' ? '停用' : '启用'}}
+      </button>
+    </view>
+  </view>
+</view>

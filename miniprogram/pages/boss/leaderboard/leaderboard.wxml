@@ -1,0 +1,83 @@
+<!--pages/boss/leaderboard/leaderboard.wxml-->
+<view class="container">
+  <view class="board-header">
+    <text class="board-title">🏆 排行榜</text>
+  </view>
+
+  <!-- 周期 Tabs -->
+  <view class="tabs period-tabs">
+    <view wx:for="{{periodTabs}}" wx:key="key"
+      class="tab {{periodTab === item.key ? 'tab-active' : ''}}"
+      bindtap="switchPeriod" data-key="{{item.key}}">
+      {{item.label}}
+    </view>
+  </view>
+
+  <!-- 月份选择（月维度时显示） -->
+  <view wx:if="{{periodTab === 'monthly'}}" class="card picker-card">
+    <picker mode="date" fields="month" value="{{month}}" bindchange="onMonthChange">
+      <view class="picker-field">
+        <text>{{monthDisplay}}</text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 年份选择（年维度时显示） -->
+  <view wx:if="{{periodTab === 'yearly'}}" class="card picker-card">
+    <picker range="{{['2026','2025','2024','2023','2022','2021']}}" value="0" bindchange="onYearChange">
+      <view class="picker-field">
+        <text>{{yearDisplay}}</text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 订单选择（订单维度时显示） -->
+  <view wx:if="{{periodTab === 'order'}}" class="card picker-card">
+    <picker range="{{orderNames}}" value="{{selectedOrderIdx}}" bindchange="onOrderChange">
+      <view class="picker-field">
+        <text>{{orderNames[selectedOrderIdx] || '请选择订单'}}</text>
+        <text class="picker-arrow">▼</text>
+      </view>
+    </picker>
+  </view>
+
+  <!-- 维度 Tabs -->
+  <view class="tabs dim-tabs">
+    <view wx:for="{{dimTabs}}" wx:key="key"
+      class="tab {{dimTab === item.key ? 'tab-active dim-active' : ''}}"
+      bindtap="switchDim" data-key="{{item.key}}">
+      {{item.label}}
+    </view>
+  </view>
+
+  <!-- 排行列表 -->
+  <view class="card rank-card">
+    <view class="rank-summary">
+      <text class="text-sm text-gray">共 {{totalEmployees}} 名员工</text>
+    </view>
+
+    <view wx:if="{{rankList.length === 0 && !loading}}" class="empty-state">
+      <text class="empty-text">暂无排行数据</text>
+    </view>
+
+    <view wx:for="{{rankList}}" wx:key="user_id" class="rank-item">
+      <view class="rank-num {{item.rank <= 3 ? 'rank-top rank-top-' + item.rank : ''}}">
+        {{item.rank}}
+      </view>
+      <view class="rank-info">
+        <text class="rank-name">{{item.user_name}}</text>
+        <text wx:if="{{item.displaySub}}" class="rank-sub text-sm text-gray">{{item.displaySub}}</text>
+      </view>
+      <view class="rank-value">{{item.displayValue}}</view>
+      <view wx:if="{{item.rank === 1}}" class="rank-medal">🥇</view>
+      <view wx:elif="{{item.rank === 2}}" class="rank-medal">🥈</view>
+      <view wx:elif="{{item.rank === 3}}" class="rank-medal">🥉</view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-mask">
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>

@@ -1,0 +1,45 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/employee/home/home",
+    "pages/employee/worklog/worklog",
+    "pages/employee/profile/profile",
+    "pages/qc/home/home",
+    "pages/qc/inspect/inspect",
+    "pages/boss/home/home",
+    "pages/boss/employees/employees",
+    "pages/boss/employee-edit/employee-edit",
+    "pages/boss/orders/orders",
+    "pages/boss/order-detail/order-detail",
+    "pages/boss/attendance/attendance",
+    "pages/boss/salary/salary",
+    "pages/boss/salary-detail/salary-detail",
+    "pages/boss/leaderboard/leaderboard",
+    "pages/boss/settings/settings",
+    "pages/boss/qrcode/qrcode",
+    "pages/boss/export/export",
+    "pages/boss/data-center/data-center",
+    "pages/privacy-policy/privacy-policy",
+    "pages/user-agreement/user-agreement",
+    "pages/review/home/home"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#1890FF",
+    "navigationBarTitleText": "工厂记账",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F5F5F5"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json",
+  "cloud": true,
+  "permission": {
+    "scope.userFuzzyLocation": {
+      "desc": "用于考勤打卡地理位置校验"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getFuzzyLocation"
+  ]
+}

@@ -1,0 +1,130 @@
+<!--pages/employee/profile/profile.wxml-->
+<view class="container">
+  <!-- 薪资概览 -->
+  <view class="stat-card">
+    <text class="stat-label">{{currentMonth}} {{isPaid ? '实发薪资' : '预估薪资'}}</text>
+    <text class="stat-value">¥{{finalSalary}}</text>
+    <text wx:if="{{isPaid}}" class="paid-badge">已发放</text>
+  </view>
+
+  <!-- 薪资明细 -->
+  <view class="card">
+    <view class="section-title">薪资明细</view>
+    <view class="detail-row">
+      <text class="detail-label">计件工资</text>
+      <text class="detail-value">{{isPaid ? '***' : '¥' + monthlySalary}}</text>
+    </view>
+    <view class="detail-row">
+      <text class="detail-label">奖惩合计</text>
+      <text class="detail-value {{totalAdjustment >= 0 ? 'text-success' : 'text-danger'}}">
+        {{totalAdjustment >= 0 ? '+' : ''}}¥{{totalAdjustment}}
+      </text>
+    </view>
+    <view class="detail-row detail-total">
+      <text class="detail-label text-bold">应发合计</text>
+      <text class="detail-value text-bold text-primary">¥{{finalSalary}}</text>
+    </view>
+    <view wx:if="{{isPaid}}" class="privacy-notice">
+      工资已发放，计件明细已归档。如有疑问请联系管理员。
+    </view>
+  </view>
+
+  <!-- 工作统计 -->
+  <view class="card">
+    <view class="section-title">本月统计</view>
+    <view class="stats-grid">
+      <view class="stat-box">
+        <text class="stat-box-value">{{monthlyHours}}h</text>
+        <text class="stat-box-label">累计工时</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-box-value">{{monthlyOutput}}</text>
+        <text class="stat-box-label">{{isPaid ? '产出(已归档)' : '合格产出'}}</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-box-value">{{passRate}}{{isPaid ? '' : '%'}}</text>
+        <text class="stat-box-label">{{isPaid ? '合格率(已归档)' : '合格率'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 奖惩记录 -->
+  <view class="card" wx:if="{{adjustments.length > 0}}">
+    <view class="section-title">奖惩记录</view>
+    <view wx:for="{{adjustments}}" wx:key="_id" class="adj-item">
+      <view class="adj-info">
+        <text class="adj-reason">{{item.reason}}</text>
+        <text class="adj-date text-sm text-gray">{{item.date}}</text>
+      </view>
+      <text class="adj-amount {{item.amount >= 0 ? 'text-success' : 'text-danger'}}">
+        {{item.amount >= 0 ? '+' : ''}}¥{{item.amount}}
+      </text>
+    </view>
+  </view>
+
+  <!-- 考勤记录 -->
+  <view class="card">
+    <view class="section-title flex-between" bindtap="toggleAttendance">
+      <text>考勤记录</text>
+      <text class="text-sm text-primary">{{showAttendance ? '收起 ▲' : '展开 ▼'}}</text>
+    </view>
+    
+    <view wx:if="{{showAttendance}}">
+      <view wx:if="{{attendanceRecords.length === 0}}" class="empty-state">
+        <text class="empty-text">暂无考勤记录</text>
+      </view>
+      <view wx:for="{{attendanceRecords}}" wx:key="_id" class="att-item">
+        <view class="att-date">{{item.date}}</view>
+        <view class="att-time">{{item.clock_in_display || '--'}} ~ {{item.clock_out_display || '--'}}</view>
+        <view class="att-hours">{{item.hours || 0}}h</view>
+        <text class="tag {{item.status === 'normal' ? 'tag-success' : (item.status === 'abnormal' ? 'tag-danger' : 'tag-info')}}">
+          {{item.status === 'normal' ? '正常' : (item.status === 'abnormal' ? '异常' : '已补签')}}
+        </text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 修改密码 -->
+  <view class="card">
+    <button class="btn-default btn-block" bindtap="openChangePwd">修改密码</button>
+  </view>
+
+  <view class="card">
+    <view class="section-title">协议与隐私</view>
+    <button class="btn-default btn-block" bindtap="goPrivacyPolicy">查看隐私政策</button>
+    <button class="btn-default btn-block mt-20" bindtap="goUserAgreement">查看用户服务协议</button>
+  </view>
+
+  <!-- 修改密码弹窗 -->
+  <view class="modal-mask" wx:if="{{showChangePwd}}" bindtap="closeChangePwd">
+    <view class="modal-dialog" catchtap="">
+      <view class="modal-title">修改密码</view>
+      <view class="modal-body">
+        <view class="input-group">
+          <text class="input-label">旧密码</text>
+          <view class="pwd-input-wrap">
+            <input class="input-field" type="{{showOldPwd ? 'text' : 'password'}}" placeholder="请输入旧密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" />
+            <text class="pwd-toggle" bindtap="toggleOldPwd">{{showOldPwd ? '隐藏' : '显示'}}</text>
+          </view>
+        </view>
+        <view class="input-group">
+          <text class="input-label">新密码</text>
+          <view class="pwd-input-wrap">
+            <input class="input-field" type="{{showNewPwd ? 'text' : 'password'}}" placeholder="至少8位，含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" />
+            <text class="pwd-toggle" bindtap="toggleNewPwd">{{showNewPwd ? '隐藏' : '显示'}}</text>
+          </view>
+        </view>
+        <view class="input-group">
+          <text class="input-label">确认新密码</text>
+          <input class="input-field" type="password" placeholder="再次输入新密码" value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="btn-default modal-btn" bindtap="closeChangePwd">取消</button>
+        <button class="btn-primary modal-btn" bindtap="onSubmitChangePwd" disabled="{{changePwdLoading}}">
+          {{changePwdLoading ? '提交中...' : '确认修改'}}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>

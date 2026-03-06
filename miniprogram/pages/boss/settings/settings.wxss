@@ -1,0 +1,26 @@
+/* pages/boss/settings/settings.wxss */
+
+.switch-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 0;
+}
+
+.switch-info {
+  flex: 1;
+  margin-right: 20rpx;
+}
+
+.switch-label {
+  font-size: 34rpx;
+  color: #333;
+  display: block;
+  margin-bottom: 6rpx;
+}
+
+.switch-desc {
+  display: block;
+  line-height: 1.4;
+}
+

@@ -1,0 +1,183 @@
+<!--pages/boss/salary-detail/salary-detail.wxml-->
+<view class="container" wx:if="{{salaryData}}">
+  <!-- 薪资概览 -->
+  <view class="stat-card" style="background:linear-gradient(135deg, #FA541C, #D4380D);">
+    <text class="stat-label">{{userName}} 本月应发工资</text>
+    <text class="stat-value">¥{{salaryData.finalSalary}}</text>
+  </view>
+
+  <!-- 薪资明细 -->
+  <view class="card">
+    <view class="section-title">薪资构成</view>
+    <view class="detail-row">
+      <text>计件工资</text>
+      <text class="text-bold">¥{{salaryData.baseSalary}}</text>
+    </view>
+    <view class="detail-row">
+      <text>奖惩合计</text>
+      <text class="text-bold">¥{{salaryData.adjustmentTotal}}</text>
+    </view>
+    <view class="detail-row total-row">
+      <text class="text-bold">应发合计</text>
+      <text class="text-bold text-danger" style="font-size:36rpx;">¥{{salaryData.finalSalary}}</text>
+    </view>
+  </view>
+
+  <!-- 工作统计 -->
+  <view class="card">
+    <view class="section-title">工作统计</view>
+    <view class="stats-grid">
+      <view class="stat-box">
+        <text class="stat-box-val">{{salaryData.monthlyHours}}h</text>
+        <text class="stat-box-lbl">工时</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-box-val">{{salaryData.totalOutput}}</text>
+        <text class="stat-box-lbl">总产出</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-box-val">{{salaryData.totalPassed}}</text>
+        <text class="stat-box-lbl">合格数</text>
+      </view>
+      <view class="stat-box">
+        <text class="stat-box-val">{{salaryData.passRate}}%</text>
+        <text class="stat-box-lbl">合格率(仅参考)</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 奖惩管理 -->
+  <view class="card">
+    <view class="flex-between mb-20">
+      <text class="section-title" style="margin-bottom:0;">奖惩记录</text>
+      <button class="btn-sm btn-add-adj" bindtap="toggleAddAdj">
+        {{showAddAdj ? '取消' : '+ 添加'}}
+      </button>
+    </view>
+
+    <!-- 添加奖惩表单 -->
+    <view wx:if="{{showAddAdj}}" class="adj-form">
+      <view class="adj-type-toggle" bindtap="toggleAdjType">
+        <text class="adj-type {{newAdj.isReward ? 'adj-reward-active' : ''}}">奖励</text>
+        <text class="adj-type {{!newAdj.isReward ? 'adj-punish-active' : ''}}">扣款</text>
+      </view>
+      <view class="input-group">
+        <text class="input-label">金额（元）</text>
+        <input class="input-field" type="digit" placeholder="请输入金额" value="{{newAdj.amount}}" bindinput="onAdjAmountInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">原因</text>
+        <input class="input-field" placeholder="请输入奖惩原因" value="{{newAdj.reason}}" bindinput="onAdjReasonInput" />
+      </view>
+      <button class="btn-primary btn-block" bindtap="onSubmitAdj">确认提交</button>
+    </view>
+
+    <!-- 奖惩列表 -->
+    <view wx:if="{{adjustments.length === 0 && !showAddAdj}}" class="empty-state">
+      <text class="empty-text">暂无奖惩记录</text>
+    </view>
+    <view wx:for="{{adjustments}}" wx:key="_id" class="adj-item">
+      <view class="adj-info">
+        <text class="adj-reason">{{item.reason}}</text>
+        <text class="adj-date text-sm text-gray">{{item.date}}</text>
+      </view>
+      <view class="adj-right">
+        <text class="adj-amount {{item.type === 'reward' ? 'text-success' : 'text-danger'}}">
+          {{item.type === 'reward' ? '+' : '-'}}¥{{item.amount}}
+        </text>
+        <view class="adj-btns">
+          <text class="adj-edit-btn" bindtap="onEditAdj" data-adj="{{item}}">编辑</text>
+          <text class="adj-del-btn" bindtap="onDeleteAdj" data-adj="{{item}}">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 报工记录 -->
+  <view class="card">
+    <view class="section-title">本月报工记录</view>
+    <view wx:if="{{workLogs.length === 0}}" class="empty-state">
+      <text class="empty-text">暂无报工记录</text>
+    </view>
+    <view wx:for="{{workLogs}}" wx:key="_id" class="work-item">
+      <view class="work-info">
+        <text class="work-process">{{item.process_name}}</text>
+        <text class="text-sm text-gray">{{item.order_name}} | {{item.date}}</text>
+      </view>
+      <view class="work-detail">
+        <text class="text-sm">{{item.quantity}}件</text>
+        <text wx:if="{{item.status === 'inspected'}}" class="text-sm text-gray"> (合格{{item.passed_qty}})</text>
+        <text class="work-amount">¥{{item.amount_display}}</text>
+        <button wx:if="{{!item.is_locked}}" class="btn-sm btn-edit-wl" bindtap="onEditWorkLog" data-log="{{item}}">编辑</button>
+        <text wx:if="{{item.is_locked}}" class="text-sm text-gray">🔒已锁定</text>
+      </view>
+    </view>
+  </view>
+</view>
+
+<!-- 编辑报工弹窗 -->
+<view wx:if="{{showEditWorkLog}}" class="modal-mask" bindtap="closeEditWorkLog">
+  <view class="modal-dialog" catchtap="true">
+    <view class="modal-title">修改报工记录</view>
+    <view class="modal-body">
+      <view class="edit-info text-sm text-gray mb-20">
+        员工：{{userName}} | 工序：{{editWL.process_name}} | 日期：{{editWL.date}}
+      </view>
+      <view class="input-group">
+        <text class="input-label">报工数量</text>
+        <input class="input-field" type="number" value="{{editWLQuantity}}" bindinput="onEditWLQtyInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">备注</text>
+        <input class="input-field" placeholder="可选" value="{{editWLNote}}" bindinput="onEditWLNoteInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">修改原因 *</text>
+        <picker mode="selector" range="{{editWLReasons}}" value="{{editWLReasonIndex}}" bindchange="onEditWLReasonChange">
+          <view class="picker-field">
+            <text wx:if="{{editWLReasonIndex >= 0}}">{{editWLReasons[editWLReasonIndex]}}</text>
+            <text wx:else class="text-gray">请选择原因</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+      <view wx:if="{{editWLReasonIndex === 4}}" class="input-group">
+        <text class="input-label">详细原因</text>
+        <input class="input-field" placeholder="请输入具体原因" value="{{editWLReason}}" bindinput="onEditWLReasonCustom" />
+      </view>
+    </view>
+    <view class="modal-footer">
+      <button class="btn-default modal-btn" bindtap="closeEditWorkLog">取消</button>
+      <button class="btn-primary modal-btn" bindtap="onSaveEditWorkLog">保存</button>
+    </view>
+  </view>
+</view>
+
+<!-- 编辑奖惩弹窗 -->
+<view wx:if="{{showEditAdj}}" class="modal-mask" bindtap="closeEditAdj">
+  <view class="modal-dialog" catchtap="true">
+    <view class="modal-title">修改奖惩记录</view>
+    <view class="modal-body">
+      <view class="edit-info text-sm text-gray mb-20">
+        类型：{{editAdj.type === 'reward' ? '奖励' : '处罚'}}
+        <text wx:if="{{isPaidLocked}}" class="text-danger">（已发薪，将通过冲正修改）</text>
+      </view>
+      <view class="input-group">
+        <text class="input-label">金额（元）</text>
+        <input class="input-field" type="digit" value="{{editAdjAmount}}" bindinput="onEditAdjAmountInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">原因</text>
+        <input class="input-field" value="{{editAdjReason}}" bindinput="onEditAdjReasonInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">修改原因 *</text>
+        <input class="input-field" placeholder="请输入修改原因" value="{{editAdjEditReason}}" bindinput="onEditAdjEditReasonInput" />
+      </view>
+    </view>
+    <view class="modal-footer">
+      <button class="btn-default modal-btn" bindtap="closeEditAdj">取消</button>
+      <button class="btn-primary modal-btn" bindtap="onSaveEditAdj">保存</button>
+    </view>
+  </view>
+</view>

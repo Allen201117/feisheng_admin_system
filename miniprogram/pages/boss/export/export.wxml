@@ -1,0 +1,90 @@
+<!--pages/boss/export/export.wxml-->
+<view class="container">
+  <!-- 筛选条件 -->
+  <view class="card">
+    <view class="section-title">📊 报表查看与导出</view>
+    
+    <view class="input-group">
+      <text class="input-label">报表类型</text>
+      <picker mode="selector" range="{{exportTypes}}" range-key="label" bindchange="onTypeChange">
+        <view class="picker-field">
+          <text>{{selectedTypeLabel}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="input-group">
+      <text class="input-label">月份</text>
+      <picker mode="date" fields="month" value="{{month}}" bindchange="onMonthChange">
+        <view class="picker-field">
+          <text>{{month}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <view class="btn-row" style="display:flex; gap:20rpx; margin-top:30rpx;">
+      <button 
+        class="btn-primary" 
+        style="flex:1;"
+        bindtap="onLoadTable"
+        disabled="{{loading}}"
+      >
+        {{loading ? '加载中...' : '查看报表'}}
+      </button>
+      <button 
+        class="btn-success" 
+        style="flex:1; background:#52c41a; color:#fff;"
+        bindtap="onExport"
+        disabled="{{exporting}}"
+      >
+        {{exporting ? '导出中...' : '导出Excel'}}
+      </button>
+    </view>
+  </view>
+
+  <!-- 在线表格 -->
+  <view wx:if="{{tableLoaded}}" class="card table-card">
+    <view class="section-title">{{tableTitle}}</view>
+    <view class="table-tip" style="font-size:24rpx; color:#999; margin-bottom:16rpx;">
+      点击单元格可编辑数据，编辑仅影响当前预览
+    </view>
+
+    <scroll-view scroll-x="true" class="table-scroll">
+      <view class="table">
+        <!-- 表头 -->
+        <view class="table-row table-header-row">
+          <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header"
+            class="table-cell table-header-cell">
+            <text>{{header}}</text>
+          </view>
+        </view>
+
+        <!-- 数据行 -->
+        <view wx:for="{{tableRows}}" wx:key="rowIdx" wx:for-item="row" wx:for-index="rowIdx"
+          class="table-row {{rowIdx % 2 === 1 ? 'table-row-alt' : ''}}">
+          <view wx:for="{{row}}" wx:key="colIdx" wx:for-item="cell" wx:for-index="colIdx"
+            class="table-cell"
+            data-row="{{rowIdx}}" data-col="{{colIdx}}"
+            bindtap="onCellTap">
+            <input 
+              wx:if="{{editingRow === rowIdx && editingCol === colIdx}}"
+              class="cell-input"
+              value="{{cell}}"
+              data-row="{{rowIdx}}" data-col="{{colIdx}}"
+              bindinput="onCellInput"
+              bindblur="onCellBlur"
+              focus="{{true}}"
+            />
+            <text wx:else class="cell-text">{{cell}}</text>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{tableRows.length === 0}}" class="empty-state" style="padding:40rpx 0;">
+      <text class="empty-text">暂无数据</text>
+    </view>
+  </view>
+</view>

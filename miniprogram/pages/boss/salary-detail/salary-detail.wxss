@@ -1,0 +1,231 @@
+/* pages/boss/salary-detail/salary-detail.wxss */
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+  font-size: 34rpx;
+}
+
+.total-row {
+  border-top: 2rpx solid #E8E8E8;
+  border-bottom: none;
+  padding-top: 20rpx;
+  margin-top: 10rpx;
+}
+
+.stats-grid {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+
+.stat-box {
+  padding: 16rpx;
+}
+
+.stat-box-val {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #1890FF;
+  display: block;
+}
+
+.stat-box-lbl {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.btn-sm {
+  font-size: 30rpx;
+  padding: 10rpx 28rpx;
+  border-radius: 8rpx;
+  border: none;
+  min-height: 0;
+  line-height: 1.8;
+  background: #FFF7E6;
+  color: #FA8C16;
+}
+
+.btn-sm::after { border: none; }
+
+.btn-add-adj {
+  background: #E6F7FF;
+  color: #1890FF;
+}
+
+.adj-form {
+  background: #FAFAFA;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.adj-type-toggle {
+  display: flex;
+  margin-bottom: 20rpx;
+  background: #F0F0F0;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.adj-type {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx;
+  font-size: 32rpx;
+  color: #999;
+}
+
+.adj-reward-active {
+  background: #52C41A;
+  color: #fff;
+  border-radius: 8rpx;
+}
+
+.adj-punish-active {
+  background: #FF4D4F;
+  color: #fff;
+  border-radius: 8rpx;
+}
+
+.adj-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.adj-item:last-child { border-bottom: none; }
+
+.adj-reason {
+  font-size: 32rpx;
+  display: block;
+}
+
+.adj-date { display: block; margin-top: 4rpx; }
+
+.adj-amount {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.work-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.work-item:last-child { border-bottom: none; }
+
+.work-process {
+  font-size: 32rpx;
+  font-weight: bold;
+  display: block;
+}
+
+.work-detail {
+  text-align: right;
+}
+
+.work-amount {
+  font-size: 32rpx;
+  color: #FA541C;
+  font-weight: bold;
+  display: block;
+}
+
+.adj-right {
+  text-align: right;
+}
+
+.adj-btns {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 8rpx;
+  justify-content: flex-end;
+}
+
+.adj-edit-btn {
+  font-size: 26rpx;
+  color: #1890FF;
+}
+
+.adj-del-btn {
+  font-size: 26rpx;
+  color: #FF4D4F;
+}
+
+.btn-edit-wl {
+  font-size: 26rpx;
+  padding: 6rpx 20rpx;
+  background: #E6F7FF;
+  color: #1890FF;
+  border: none;
+  border-radius: 8rpx;
+  min-height: 0;
+  line-height: 1.8;
+  margin-top: 8rpx;
+}
+.btn-edit-wl::after { border: none; }
+
+/* 弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-dialog {
+  background: #fff;
+  width: 85%;
+  border-radius: 16rpx;
+  padding: 40rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-size: 40rpx;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 30rpx;
+}
+.modal-body {
+  margin-bottom: 30rpx;
+}
+.modal-footer {
+  display: flex;
+  gap: 20rpx;
+}
+.modal-btn {
+  flex: 1;
+  font-size: 34rpx;
+}
+
+.edit-info {
+  background: #FAFAFA;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.picker-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 88rpx;
+  border: 2rpx solid #D9D9D9;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  background: #fff;
+  font-size: 34rpx;
+}
+
+.picker-arrow {
+  font-size: 28rpx;
+  color: #999;
+}
