@@ -94,9 +94,15 @@ async function listUsers(event) {
   }
 
   try {
-    const res = await db.collection('Users')
-      .orderBy('created_at', 'desc').limit(100).get()
-    return { code: 0, data: res.data }
+    const allUsers = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Users')
+        .orderBy('created_at', 'desc').skip(allUsers.length).limit(100).get()
+      batchLen = res.data.length
+      allUsers.push(...res.data)
+    } while (batchLen === 100)
+    return { code: 0, data: allUsers }
   } catch (err) {
     return { code: -1, msg: '获取用户列表失败' }
   }

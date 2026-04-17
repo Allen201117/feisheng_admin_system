@@ -471,6 +471,11 @@ async function clockOut(event, wxContext) {
   const clockInTime = new Date(record.clock_in_time)
   const hours = Math.round((now - clockInTime) / (1000 * 60 * 60) * 100) / 100
 
+  if (hours < 0) {
+    await writeAudit('clock_out_failed', `user_id=${user_id}; reason=negative_hours; hours=${hours}`)
+    return { code: -1, msg: '签退时间早于签到时间，无法签退' }
+  }
+
   try {
     await db.collection('Attendances').doc(record._id).update({
       data: {
@@ -570,13 +575,19 @@ async function getMonthlyHours(event) {
   const range = bjTime.getBeijingMonthRange()
 
   try {
-    const res = await db.collection('Attendances').where({
-      user_id,
-      date: _.gte(range.startDate).and(_.lt(range.endDate))
-    }).get()
+    let allRecords = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Attendances').where({
+        user_id,
+        date: _.gte(range.startDate).and(_.lt(range.endDate))
+      }).skip(allRecords.length).limit(100).get()
+      batchLen = (res.data || []).length
+      allRecords = allRecords.concat(res.data || [])
+    } while (batchLen === 100)
 
     let totalHours = 0
-    res.data.forEach(r => { totalHours += r.hours || 0 })
+    allRecords.forEach(r => { totalHours += r.hours || 0 })
 
     return { code: 0, data: { hours: Math.round(totalHours * 10) / 10 } }
   } catch (err) {
@@ -587,13 +598,19 @@ async function getMonthlyHours(event) {
 async function updateMonthlyHours(userId) {
   const range = bjTime.getBeijingMonthRange()
 
-  const res = await db.collection('Attendances').where({
-    user_id: userId,
-    date: _.gte(range.startDate).and(_.lt(range.endDate))
-  }).get()
+  let allRecords = []
+  let batchLen = 0
+  do {
+    const res = await db.collection('Attendances').where({
+      user_id: userId,
+      date: _.gte(range.startDate).and(_.lt(range.endDate))
+    }).skip(allRecords.length).limit(100).get()
+    batchLen = (res.data || []).length
+    allRecords = allRecords.concat(res.data || [])
+  } while (batchLen === 100)
 
   let totalHours = 0
-  res.data.forEach(r => { totalHours += r.hours || 0 })
+  allRecords.forEach(r => { totalHours += r.hours || 0 })
 
   await db.collection('Users').doc(userId).update({
     data: { monthly_hours: Math.round(totalHours * 10) / 10 }
@@ -642,11 +659,17 @@ async function getDailyRecords(event, wxContext) {
 
   const { date } = event
   try {
-    const res = await db.collection('Attendances').where({
-      date: date || getDateStr(new Date())
-    }).orderBy('clock_in_time', 'desc').get()
+    let allRecords = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Attendances').where({
+        date: date || getDateStr(new Date())
+      }).orderBy('clock_in_time', 'desc').skip(allRecords.length).limit(100).get()
+      batchLen = (res.data || []).length
+      allRecords = allRecords.concat(res.data || [])
+    } while (batchLen === 100)
 
-    const records = res.data.map(r => ({
+    const records = allRecords.map(r => ({
       ...r,
       clock_in_display: r.clock_in_time ? formatTimeStr(r.clock_in_time) : null,
       clock_out_display: r.clock_out_time ? formatTimeStr(r.clock_out_time) : null
@@ -665,11 +688,17 @@ async function getAbnormalRecords(event, wxContext) {
   }
 
   try {
-    const res = await db.collection('Attendances').where({
-      status: 'abnormal'
-    }).orderBy('date', 'desc').limit(50).get()
+    let allRecords = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Attendances').where({
+        status: 'abnormal'
+      }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
+      batchLen = (res.data || []).length
+      allRecords = allRecords.concat(res.data || [])
+    } while (batchLen === 100)
 
-    const records = res.data.map(r => ({
+    const records = allRecords.map(r => ({
       ...r,
       clock_in_display: r.clock_in_time ? formatTimeStr(r.clock_in_time) : null
     }))
@@ -716,7 +745,7 @@ async function supplement(event, wxContext) {
     })
 
     // 更新月工时
-    await updateMonthlyHours(user_id)
+    await updateMonthlyHours(record.data.user_id)
 
     // 审计日志
     await db.collection('audit_logs').add({
@@ -745,12 +774,18 @@ async function getUserMonthlyRecords(event) {
   const range = bjTime.getBeijingMonthRange()
 
   try {
-    const res = await db.collection('Attendances').where({
-      user_id,
-      date: _.gte(range.startDate).and(_.lt(range.endDate))
-    }).orderBy('date', 'desc').get()
+    let allRecords = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Attendances').where({
+        user_id,
+        date: _.gte(range.startDate).and(_.lt(range.endDate))
+      }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
+      batchLen = (res.data || []).length
+      allRecords = allRecords.concat(res.data || [])
+    } while (batchLen === 100)
 
-    const records = res.data.map(r => ({
+    const records = allRecords.map(r => ({
       ...r,
       clock_in_display: r.clock_in_time ? formatTimeStr(r.clock_in_time) : null,
       clock_out_display: r.clock_out_time ? formatTimeStr(r.clock_out_time) : null
@@ -772,20 +807,27 @@ async function checkAbnormalAttendances() {
     String(yesterdayDate.getUTCDate()).padStart(2, '0')
 
   try {
-    const res = await db.collection('Attendances').where({
-      date: yesterdayStr,
-      clock_in_time: _.exists(true),
-      clock_out_time: null,
-      status: _.in(['normal', 'pending_review'])
-    }).get()
+  try {
+    let allRecords = []
+    let batchLen = 0
+    do {
+      const batch = await db.collection('Attendances').where({
+        date: yesterdayStr,
+        clock_in_time: _.exists(true),
+        clock_out_time: null,
+        status: _.in(['normal', 'pending_review'])
+      }).skip(allRecords.length).limit(100).get()
+      batchLen = (batch.data || []).length
+      allRecords = allRecords.concat(batch.data || [])
+    } while (batchLen === 100)
 
-    for (const record of res.data) {
+    for (const record of allRecords) {
       await db.collection('Attendances').doc(record._id).update({
         data: { status: 'abnormal' }
       })
     }
 
-    return { code: 0, msg: `已标记 ${res.data.length} 条异常记录` }
+    return { code: 0, msg: `已标记 ${allRecords.length} 条异常记录` }
   } catch (err) {
     return { code: -1, msg: '检查异常失败' }
   }

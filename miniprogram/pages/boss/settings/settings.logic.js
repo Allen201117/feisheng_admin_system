@@ -40,7 +40,7 @@ function buildCheckpointPayload(state) {
       name: item.name || '附加打卡点',
       latitude: lat,
       longitude: lng,
-      radius: globalRadius
+      radius: parseInt(item.radius, 10) || globalRadius
     })
   })
 

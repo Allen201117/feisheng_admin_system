@@ -168,7 +168,7 @@ Page({
           item.displayValue = (item.total_hours || 0) + 'h'
           item.displaySub = '出勤' + (item.attend_days || 0) + '天'
         } else if (dim === 'salary') {
-          item.displayValue = '¥' + (item.total_salary || 0).toFixed(2)
+          item.displayValue = '¥' + Number(item.total_salary || 0).toFixed(2)
           item.displaySub = ''
         } else {
           item.displayValue = (item.pass_rate || 0) + '%'

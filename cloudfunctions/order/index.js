@@ -48,14 +48,21 @@ exports.main = async (event, context) => {
 
 async function listOrders() {
   try {
-    const res = await db.collection('Orders')
-      .orderBy('created_at', 'desc')
-      .limit(100)
-      .get()
+    let allOrderData = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Orders')
+        .orderBy('created_at', 'desc')
+        .skip(allOrderData.length)
+        .limit(100)
+        .get()
+      batchLen = (res.data || []).length
+      allOrderData = allOrderData.concat(res.data || [])
+    } while (batchLen === 100)
 
     // 获取每个订单的工序数量
     const orders = []
-    for (const order of res.data) {
+    for (const order of allOrderData) {
       const processCount = await db.collection('Processes')
         .where({ order_id: order._id })
         .count()
@@ -75,14 +82,22 @@ async function getOrderDetail(event) {
   const { order_id } = event
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
-    const processRes = await db.collection('Processes')
-      .where({ order_id })
-      .orderBy('created_at', 'asc')
-      .get()
+    let allProcessData = []
+    let procBatchLen = 0
+    do {
+      const res = await db.collection('Processes')
+        .where({ order_id })
+        .orderBy('created_at', 'asc')
+        .skip(allProcessData.length)
+        .limit(100)
+        .get()
+      procBatchLen = (res.data || []).length
+      allProcessData = allProcessData.concat(res.data || [])
+    } while (procBatchLen === 100)
 
     // 为每个工序获取分配的员工名称
     const processes = []
-    for (const p of processRes.data) {
+    for (const p of allProcessData) {
       let assignedNames = '未分配'
       if (p.assigned_user_ids && p.assigned_user_ids.length > 0) {
         const userRes = await db.collection('Users')
@@ -440,7 +455,7 @@ async function deleteOrder(event, wxContext) {
 
 async function addProcess(event) {
   const { order_id, process_name, current_price, note } = event
-  if (!order_id || !process_name || !current_price) {
+  if (!order_id || !process_name || (current_price === undefined || current_price === null || current_price === '')) {
     return { code: -1, msg: '请填写完整的工序信息' }
   }
 
@@ -630,14 +645,20 @@ async function getAssignedProcesses(event) {
   const { user_id } = event
   try {
     // 查找分配给该员工的工序
-    const processRes = await db.collection('Processes').where({
-      assigned_user_ids: user_id,
-      status: 'active'
-    }).get()
+    let allAssignedProcesses = []
+    let assignBatchLen = 0
+    do {
+      const res = await db.collection('Processes').where({
+        assigned_user_ids: user_id,
+        status: 'active'
+      }).skip(allAssignedProcesses.length).limit(100).get()
+      assignBatchLen = (res.data || []).length
+      allAssignedProcesses = allAssignedProcesses.concat(res.data || [])
+    } while (assignBatchLen === 100)
 
     // 关联订单名
     const processes = []
-    for (const p of processRes.data) {
+    for (const p of allAssignedProcesses) {
       let orderName = ''
       try {
         const orderRes = await db.collection('Orders').doc(p.order_id).get()
@@ -728,16 +749,24 @@ async function clearOrderPrices(event, wxContext) {
   }
 
   try {
-    const processRes = await db.collection('Processes')
-      .where({ order_id })
-      .get()
+    let allProcesses = []
+    let clearBatchLen = 0
+    do {
+      const res = await db.collection('Processes')
+        .where({ order_id })
+        .skip(allProcesses.length)
+        .limit(100)
+        .get()
+      clearBatchLen = (res.data || []).length
+      allProcesses = allProcesses.concat(res.data || [])
+    } while (clearBatchLen === 100)
 
-    if (processRes.data.length === 0) {
+    if (allProcesses.length === 0) {
       return { code: -1, msg: '该订单没有工序' }
     }
 
     const caller = await getCallerUser(wxContext)
-    const processesToClear = processRes.data.filter((p) => p.current_price !== null && p.current_price !== undefined)
+    const processesToClear = allProcesses.filter((p) => p.current_price !== null && p.current_price !== undefined)
 
     if (processesToClear.length === 0) {
       return { code: 0, msg: '所有工序工价已经是空的' }
@@ -787,11 +816,19 @@ async function getPriceChangeLogs(event) {
 
   try {
     // 先获取该订单的所有工序 ID
-    const processRes = await db.collection('Processes')
-      .where({ order_id })
-      .field({ _id: true })
-      .get()
-    const processIds = processRes.data.map(p => p._id)
+    let allProcData = []
+    let procIdBatchLen = 0
+    do {
+      const res = await db.collection('Processes')
+        .where({ order_id })
+        .field({ _id: true })
+        .skip(allProcData.length)
+        .limit(100)
+        .get()
+      procIdBatchLen = (res.data || []).length
+      allProcData = allProcData.concat(res.data || [])
+    } while (procIdBatchLen === 100)
+    const processIds = allProcData.map(p => p._id)
 
     // 查询该订单相关的工价变更日志
     const priceActions = ['update_process_price', 'process_update', 'clear_price']

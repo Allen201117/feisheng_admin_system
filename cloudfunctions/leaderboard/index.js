@@ -5,6 +5,17 @@ const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
 
+function toDateStr(val) {
+  if (!val) return ''
+  if (typeof val === 'string') return val
+  if (val instanceof Date) {
+    return val.getFullYear() + '-' +
+      String(val.getMonth() + 1).padStart(2, '0') + '-' +
+      String(val.getDate()).padStart(2, '0')
+  }
+  return String(val)
+}
+
 function getMonthRange(monthStr) {
   if (monthStr) {
     var range = bjTime.getBeijingMonthRange(monthStr)
@@ -62,8 +73,8 @@ async function getRank(event, period) {
     orderInfo = await getOrderRange(event.order_id)
     if (!orderInfo) return { code: -1, msg: '订单不存在' }
     // 订单维度使用订单创建到现在（或结束）的范围
-    startDate = orderInfo.created_at || '2020-01-01'
-    endDate = orderInfo.completed_at || '2099-12-31'
+    startDate = toDateStr(orderInfo.created_at) || '2020-01-01'
+    endDate = toDateStr(orderInfo.completed_at) || '2099-12-31'
   }
 
   try {
@@ -96,7 +107,7 @@ async function getRank(event, period) {
           // 订单维度工时：取该时间段的出勤
           // 注意：出勤不区分订单，故只能用日期范围
         }
-        var attRes = await db.collection('Attendances').where(attQuery).get()
+        var attRes = await db.collection('Attendances').where(attQuery).limit(1000).get()
         var totalHours = 0, attendDays = 0
         attRes.data.forEach(function(r) {
           totalHours += r.hours || 0
@@ -112,7 +123,7 @@ async function getRank(event, period) {
         if (period === 'order' && event.order_id) {
           logQuery.order_id = event.order_id
         }
-        var logRes = await db.collection('WorkLogs').where(logQuery).get()
+        var logRes = await db.collection('WorkLogs').where(logQuery).limit(1000).get()
         var totalSalary = 0
         logRes.data.forEach(function(log) {
           totalSalary += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
@@ -126,7 +137,7 @@ async function getRank(event, period) {
         if (period === 'order' && event.order_id) {
           qLogQuery.order_id = event.order_id
         }
-        var qLogRes = await db.collection('WorkLogs').where(qLogQuery).get()
+        var qLogRes = await db.collection('WorkLogs').where(qLogQuery).limit(1000).get()
         var totalQty = 0, totalPassed = 0
         qLogRes.data.forEach(function(log) {
           totalQty += log.quantity || 0

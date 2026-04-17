@@ -168,10 +168,17 @@ async function migrateV2() {
 
   // 1. 为所有用户添加 password_changed / must_change_password / session_token 字段
   try {
-    const usersRes = await db.collection('Users').limit(200).get()
+    const allUsers = []
+    let batchLen = 0
+    do {
+      var usersRes = await db.collection('Users').skip(allUsers.length).limit(200).get()
+      batchLen = usersRes.data.length
+      allUsers.push(...usersRes.data)
+    } while (batchLen === 200)
+
     var updatedCount = 0
-    for (var i = 0; i < usersRes.data.length; i++) {
-      var user = usersRes.data[i]
+    for (var i = 0; i < allUsers.length; i++) {
+      var user = allUsers[i]
       var updateData = {}
       var needUpdate = false
 
@@ -193,7 +200,7 @@ async function migrateV2() {
         updatedCount++
       }
     }
-    results.push({ step: '用户字段迁移', status: '更新 ' + updatedCount + '/' + usersRes.data.length + ' 条' })
+    results.push({ step: '用户字段迁移', status: '更新 ' + updatedCount + '/' + allUsers.length + ' 条' })
   } catch (err) {
     results.push({ step: '用户字段迁移', status: '失败: ' + err.message })
   }

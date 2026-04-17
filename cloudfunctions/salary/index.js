@@ -38,7 +38,7 @@ function getMonthRange(monthStr) {
   const range = monthStr
     ? bjTime.getBeijingMonthRange(monthStr)
     : bjTime.getBeijingMonthRange(bjTime.getBeijingMonth())
-  return { startDate: range.start, endDate: range.end }
+  return { startDate: range.startDate, endDate: range.endDate }
 }
 
 function getCurrentMonth(month) {
@@ -172,7 +172,7 @@ exports.main = async (event, context) => {
     case 'addAdjustment': return await addAdjustment(event, wxContext)
     case 'updateAdjustment': return await updateAdjustment(event, wxContext)
     case 'deleteAdjustment': return await deleteAdjustment(event, wxContext)
-    case 'getAdjustments': return await getAdjustments(event)
+    case 'getAdjustments': return await getAdjustments(event, wxContext)
     case 'getDashboard': return await getDashboard(event, wxContext)
     case 'markPaid': return await markPaid(event, wxContext)
     case 'getPaidStatus': return await getPaidStatus(event, wxContext)
@@ -185,6 +185,13 @@ exports.main = async (event, context) => {
 async function getUserMonthlySalary(event, wxContext) {
   const { user_id, month } = event
   const currentMonth = getCurrentMonth(month)
+
+  // Auth check: caller must be the user themselves or a boss
+  const caller = await getCallerUser(wxContext)
+  if (!caller) return { code: -1, msg: '登录已失效' }
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
 
   try {
     var data = await calcUserSalary(user_id, month)
@@ -641,9 +648,16 @@ async function deleteAdjustment(event, wxContext) {
 }
 
 // 获取奖惩记录
-async function getAdjustments(event) {
+async function getAdjustments(event, wxContext) {
   const { user_id, month } = event
   const currentMonth = month || bjTime.getBeijingMonth()
+
+  // Auth check
+  const caller = await getCallerUser(wxContext)
+  if (!caller) return { code: -1, msg: '登录已失效' }
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
 
   try {
     const res = await db.collection('SalaryAdjustments').where({
@@ -666,8 +680,8 @@ async function getDashboard(event, wxContext) {
 
   const todayStr = bjTime.getBeijingToday()
   const monthRange = bjTime.getBeijingMonthRange(bjTime.getBeijingMonth())
-  const monthStart = monthRange.start
-  const monthEnd = monthRange.end
+  const monthStart = monthRange.startDate
+  const monthEnd = monthRange.endDate
 
   try {
     const [employeeCount, todayAttendance, activeOrders, pendingQC, monthLogs] = await Promise.all([
@@ -836,14 +850,14 @@ async function getPaidStatus(event, wxContext) {
   const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
-    const res = await db.collection('SalaryPayments').where({
+    const paidRecords = await fetchAllByWhere('SalaryPayments', {
       month: currentMonth,
       paid: true
-    }).get()
+    })
 
     // 返回一个 { user_id: true } 的map
     const paidMap = {}
-    res.data.forEach(r => {
+    paidRecords.forEach(r => {
       paidMap[r.user_id] = {
         paid: true,
         paid_at: r.paid_at,

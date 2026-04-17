@@ -60,6 +60,7 @@ Page({
   },
 
   onPassedQtyInput(e) {
+    if (!this.data.logDetail) return
     let val = parseInt(e.detail.value) || 0
     // 合格数不能超过提交数
     if (val > this.data.logDetail.quantity) {
@@ -71,18 +72,21 @@ Page({
   },
 
   addQty() {
+    if (!this.data.logDetail) return
     if (this.data.passedQty < this.data.logDetail.quantity) {
       this.updatePreview(this.data.passedQty + 1)
     }
   },
 
   subQty() {
+    if (!this.data.logDetail) return
     if (this.data.passedQty > 0) {
       this.updatePreview(this.data.passedQty - 1)
     }
   },
 
   setAllPass() {
+    if (!this.data.logDetail) return
     this.updatePreview(this.data.logDetail.quantity)
   },
 
@@ -109,6 +113,10 @@ Page({
     }
     if (this.data.passedQty > this.data.logDetail.quantity) {
       showError('合格数量不能超过提交数量')
+      return
+    }
+    if (this.data.logDetail.quantity === 0) {
+      showError('提交数量为零，无法质检')
       return
     }
 
