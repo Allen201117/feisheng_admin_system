@@ -147,8 +147,8 @@ function resolveCloudCallResult(result) {
  * 金额格式化（保留2位小数）
  */
 function formatMoney(num) {
-  if (num === null || num === undefined) return '0.00'
-  return Number(num).toFixed(2)
+  const n = Number(num)
+  return Number.isFinite(n) ? n.toFixed(2) : '0.00'
 }
 
 /**

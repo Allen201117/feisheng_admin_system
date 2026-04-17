@@ -128,9 +128,11 @@ Page({
         paid: !currentPaid
       })
 
-      // 更新本地状态
-      const employees = this.data.employees
-      employees[idx].paid = !currentPaid
+      // 更新本地状态（shallow copy to avoid direct mutation）
+      const employees = this.data.employees.map((emp, i) => {
+        if (i === idx) return { ...emp, paid: !currentPaid }
+        return { ...emp }
+      })
       let paidCount = 0
       employees.forEach(emp => { if (emp.paid) paidCount++ })
       this.setData({ employees, paidCount })

@@ -72,10 +72,10 @@ Page({
           baseSalary: formatMoney(data.piece_rate || 0),
           adjustmentTotal: formatMoney((data.reward || 0) - (data.penalty || 0)),
           finalSalary: formatMoney(data.total || 0),
-          monthlyHours: (ws.total_hours || 0).toFixed(1),
+          monthlyHours: Number(ws.total_hours || 0).toFixed(1),
           totalOutput: ws.total_quantity || 0,
           totalPassed: ws.total_passed || 0,
-          passRate: (ws.pass_rate || 0).toFixed(1)
+          passRate: Number(ws.pass_rate || 0).toFixed(1)
         },
         adjustments: (data.adjustments || []).map(a => ({
           ...a,

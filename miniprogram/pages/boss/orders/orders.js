@@ -1,5 +1,5 @@
 // pages/boss/orders/orders.js
-const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm, formatDate } = require('../../../utils/util')
+const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { buildDeleteOrderConfirmContent } = require('./orders.logic')
 
 function parseSafeDate(dateStr) {

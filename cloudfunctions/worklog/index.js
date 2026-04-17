@@ -292,17 +292,17 @@ exports.main = async (event, context) => {
   const { action } = event
 
   switch (action) {
-    case 'submit': return await submitWorkLog(event)
+    case 'submit': return await submitWorkLog(event, wxContext)
     case 'getProcessQuota': return await getProcessQuota(event)
-    case 'getTodayEarnings': return await getTodayEarnings(event)
-    case 'getUserLogs': return await getUserLogs(event)
+    case 'getTodayEarnings': return await getTodayEarnings(event, wxContext)
+    case 'getUserLogs': return await getUserLogs(event, wxContext)
     case 'getMonthLogs': return await getMonthLogs(event, wxContext)
     case 'getPeriodLogs': return await getPeriodLogs(event, wxContext)
     case 'getManageLogs': return await getManageLogs(event, wxContext)
     case 'getOrderProgress': return await getOrderProgress(event, wxContext)
     case 'getPendingLogs': return await getPendingLogs(event, wxContext)
     case 'getInspectedLogs': return await getInspectedLogs(event, wxContext)
-    case 'getLogDetail': return await getLogDetail(event)
+    case 'getLogDetail': return await getLogDetail(event, wxContext)
     case 'inspect': return await inspect(event, wxContext)
     case 'updateWorkLog': return await updateWorkLog(event, wxContext)
     case 'deleteWorkLog': return await deleteWorkLog(event, wxContext)
@@ -537,10 +537,20 @@ async function getOrderProgress(event, wxContext) {
 }
 
 // 员工提交报工 - 快照单价
-async function submitWorkLog(event) {
+async function submitWorkLog(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
+
   const { user_id, user_name, process_id, order_id, quantity } = event
   if (!user_id || !process_id || !quantity || quantity <= 0) {
     return { code: -1, msg: '参数不完整' }
+  }
+
+  // 只允许本人报工或老板代报
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '无权为他人提交报工' }
   }
 
   try {
@@ -557,7 +567,7 @@ async function submitWorkLog(event) {
     const snapshotPrice = normalizeSnapshotPrice(process.current_price)
 
     // 工价未设置时禁止报工
-    if (false && (snapshotPrice === null || snapshotPrice === undefined)) {
+    if (snapshotPrice === null || snapshotPrice === undefined) {
       return { code: -1, msg: '该工序尚未设置工价，请联系管理员设置后再报工' }
     }
 
@@ -587,8 +597,18 @@ async function submitWorkLog(event) {
 }
 
 // 获取今日收入
-async function getTodayEarnings(event) {
+async function getTodayEarnings(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
+
   const { user_id } = event
+
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '无权查看他人收入' }
+  }
+
   const dateStr = bjTime.getBeijingToday()
 
   try {
@@ -635,8 +655,18 @@ async function getTodayEarnings(event) {
 }
 
 // 获取用户报工记录
-async function getUserLogs(event) {
+async function getUserLogs(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
+
   const { user_id, month } = event
+
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '无权查看他人报工记录' }
+  }
+
   let startDate, endDate, currentMonth
 
   if (month) {
@@ -783,10 +813,21 @@ async function getInspectedLogs(event, wxContext) {
 }
 
 // 获取报工详情
-async function getLogDetail(event) {
+async function getLogDetail(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
+
   const { log_id } = event
   try {
     const res = await db.collection('WorkLogs').doc(log_id).get()
+
+    // 只允许本人或老板查看
+    if (res.data && String(caller._id) !== String(res.data.user_id) && caller.role !== 'boss') {
+      return { code: -1, msg: '无权查看该报工详情' }
+    }
+
     return { code: 0, data: res.data }
   } catch (err) {
     return { code: -1, msg: '获取详情失败' }

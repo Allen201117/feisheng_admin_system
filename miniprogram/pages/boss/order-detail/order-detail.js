@@ -118,6 +118,11 @@ Page({
   },
 
   onLoad(options) {
+    if (!options || !options.id) {
+      showError('缺少订单ID')
+      setTimeout(() => wx.navigateBack(), 1500)
+      return
+    }
     this.setData({ orderId: options.id })
   },
 
