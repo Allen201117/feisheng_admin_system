@@ -1,27 +1,67 @@
 // pages/boss/salary/salary.js
 const { callCloud, showError, formatMoney } = require('../../../utils/util')
 
+function formatMonthLabel(monthValue) {
+  const parts = monthValue.split('-')
+  return `${parts[0]}年${parseInt(parts[1])}月`
+}
+
 Page({
   data: {
     employees: [],
     totalSalary: '0.00',
     currentMonth: '',
     currentMonthValue: '',
+    availableMonths: [],
+    monthLabels: [],
+    selectedMonthIndex: 0,
     loading: false,
     paidMap: {},
     paidCount: 0
   },
 
   onLoad() {
-    const now = new Date()
-    const monthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const bjTime = require('../../../utils/beijing-time')
+    const monthValue = bjTime.getBeijingMonth()
     this.setData({
-      currentMonth: `${now.getFullYear()}年${now.getMonth() + 1}月`,
+      currentMonth: formatMonthLabel(monthValue),
       currentMonthValue: monthValue
     })
   },
 
   onShow() {
+    this.loadAvailableMonths()
+  },
+
+  async loadAvailableMonths() {
+    try {
+      const res = await callCloud('salary', { action: 'getAvailableMonths' })
+      const months = res.data || [this.data.currentMonthValue]
+      const labels = months.map(m => formatMonthLabel(m))
+      let selectedIdx = months.indexOf(this.data.currentMonthValue)
+      if (selectedIdx < 0) selectedIdx = 0
+      this.setData({
+        availableMonths: months,
+        monthLabels: labels,
+        selectedMonthIndex: selectedIdx,
+        currentMonthValue: months[selectedIdx],
+        currentMonth: labels[selectedIdx]
+      })
+      this.loadSalaryOverview()
+    } catch (e) {
+      this.loadSalaryOverview()
+    }
+  },
+
+  onMonthTap(e) {
+    const idx = e.currentTarget.dataset.idx
+    if (idx === this.data.selectedMonthIndex) return
+    const months = this.data.availableMonths
+    this.setData({
+      selectedMonthIndex: idx,
+      currentMonthValue: months[idx],
+      currentMonth: this.data.monthLabels[idx]
+    })
     this.loadSalaryOverview()
   },
 
@@ -107,8 +147,9 @@ Page({
   goDetail(e) {
     const userId = e.currentTarget.dataset.id
     const userName = e.currentTarget.dataset.name
+    const month = this.data.currentMonthValue
     wx.navigateTo({
-      url: `/pages/boss/salary-detail/salary-detail?id=${userId}&name=${userName}`
+      url: `/pages/boss/salary-detail/salary-detail?id=${userId}&name=${encodeURIComponent(userName)}&month=${month}`
     })
   }
 })

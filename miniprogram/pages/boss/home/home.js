@@ -75,6 +75,24 @@ Page({
     wx.navigateTo({ url: `/pages/boss/${page}/${page}` })
   },
 
+  onStatTap(e) {
+    const target = e.currentTarget.dataset.target
+    const targetMap = {
+      salary: '/pages/boss/salary/salary',
+      orders: '/pages/boss/orders/orders',
+      employees: '/pages/boss/employees/employees',
+      attendance: '/pages/boss/attendance/attendance',
+      qc: '/pages/qc/home/home'
+    }
+
+    const url = targetMap[target]
+    if (!url) {
+      return
+    }
+
+    wx.navigateTo({ url })
+  },
+
   goToQC() {
     wx.navigateTo({ url: '/pages/qc/home/home' })
   },

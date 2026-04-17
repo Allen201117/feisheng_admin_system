@@ -21,8 +21,8 @@
         bindchange="onProcessChange"
       >
         <view class="picker-field">
-          <text wx:if="{{selectedProcess}}">{{selectedProcess.display}}</text>
-          <text wx:else class="text-gray">请选择工序</text>
+          <text wx:if="{{selectedProcess}}" class="picker-main">{{selectedProcess.display}}</text>
+          <text wx:else class="text-gray picker-main">请选择工序</text>
           <text class="picker-arrow">▼</text>
         </view>
       </picker>
@@ -31,29 +31,56 @@
     <!-- 数量输入 -->
     <view class="input-group">
       <text class="input-label">完成数量</text>
-      <view class="qty-input-row">
-        <button class="qty-btn qty-btn-sub" bindtap="subQty">−</button>
-        <input 
-          class="qty-input" 
-          type="number" 
-          value="{{quantity}}" 
+      <view class="qty-card">
+        <input
+          class="qty-input-lg"
+          type="number"
+          placeholder="请输入本次报工数量"
+          value="{{quantity > 0 ? quantity : ''}}"
           bindinput="onQuantityInput"
+          confirm-type="done"
         />
-        <button class="qty-btn qty-btn-add" bindtap="addQty">+</button>
-        <button class="qty-btn-fast" bindtap="addQty10">+10</button>
+        <button class="qty-clear-btn" bindtap="onClearQuantity" disabled="{{quantity <= 0}}">清空</button>
+      </view>
+
+      <view class="quick-qty-wrap">
+        <text class="quick-qty-label">快捷输入</text>
+        <view class="quick-qty-list">
+          <view wx:for="{{quickQuantities}}" wx:key="index" class="quick-qty-item" data-value="{{item}}" bindtap="onQuickQuantityTap">{{item}}</view>
+        </view>
       </view>
     </view>
 
+    <view wx:if="{{selectedProcess}}" class="quota-card">
+      <view wx:if="{{quotaLoading}}" class="text-sm text-gray">正在获取可报数量...</view>
+      <block wx:elif="{{quotaInfo}}">
+        <view class="quota-row">
+          <text class="quota-label">订单数量：</text>
+          <text class="quota-value">{{quotaInfo.order_total_quantity}}</text>
+        </view>
+        <view class="quota-row">
+          <text class="quota-label">已报数量：</text>
+          <text class="quota-value">{{quotaInfo.current_total}}</text>
+        </view>
+        <view class="quota-row">
+          <text class="quota-label">剩余可报：</text>
+          <text class="quota-value quota-remain">{{quotaInfo.remaining_quantity}}</text>
+        </view>
+      </block>
+    </view>
+
     <!-- 预估金额 -->
-    <view wx:if="{{selectedProcess && quantity > 0}}" class="preview-amount">
+    <view wx:if="{{selectedProcess && quantity > 0 && !selectedProcess.price_hidden}}" class="preview-amount">
       预估金额：<text class="text-primary text-bold">¥{{quantity * selectedProcess.current_price}}</text>
       <text class="text-sm text-gray">（{{quantity}}件 × ¥{{selectedProcess.current_price}}）</text>
     </view>
-
+    <view wx:elif="{{selectedProcess && quantity > 0 && selectedProcess.price_hidden}}" class="preview-amount">
+      预估金额：<text class="text-gray">已隐藏</text>
+    </view>
     <button 
       class="btn-success btn-block btn-lg mt-30" 
       bindtap="onSubmit"
-      disabled="{{loading || !selectedProcess || quantity <= 0}}"
+      disabled="{{loading || !selectedProcess || quantity <= 0 || (quotaInfo && quantity > quotaInfo.remaining_quantity)}}"
     >
       {{loading ? '提交中...' : '提交报工'}}
     </button>
@@ -68,23 +95,37 @@
     </view>
 
     <view wx:for="{{todayLogs}}" wx:key="_id" class="log-item">
-      <view class="log-info">
+      <view class="log-head">
         <text class="log-process">{{item.process_name}}</text>
-        <text class="log-order text-sm text-gray">{{item.order_name}}</text>
-      </view>
-      <view class="log-detail">
         <text class="log-qty">{{item.quantity}}件</text>
-        <text class="tag {{item.status === 'inspected' ? 'tag-success' : 'tag-pending'}}">
+      </view>
+
+      <view class="log-meta-row">
+        <text class="log-order text-sm text-gray">{{item.order_name}}</text>
+        <text class="log-time text-sm text-gray">{{item.report_time_text}}</text>
+      </view>
+
+      <view class="log-meta-row">
+        <text wx:if="{{!item.price_hidden}}" class="log-amount text-primary">¥{{item.quantity * item.snapshot_price}}</text>
+        <text wx:else class="log-amount text-gray">已隐藏</text>
+      </view>
+
+      <view class="log-status-row">
+        <text class="tag {{item.status === 'inspected' ? 'tag-success' : 'tag-pending'}} log-tag">
           {{item.status === 'inspected' ? '已质检' : '待质检'}}
         </text>
-        <text wx:if="{{item.status === 'inspected'}}" class="text-sm">
+
+        <text wx:if="{{item.status === 'inspected'}}" class="text-sm text-gray">
           合格: {{item.passed_qty}}件
         </text>
-        <text class="log-amount text-primary">¥{{item.quantity * item.snapshot_price}}</text>
-        <view class="log-edit-wrap">
-          <button wx:if="{{item.is_today && !item.is_locked}}" class="btn-sm btn-edit-log" bindtap="onEditLog" data-log="{{item}}">编辑</button>
-          <text wx:elif="{{item.is_locked}}" class="text-sm text-gray">🔒{{item.lock_reason}}</text>
+      </view>
+
+      <view class="log-edit-wrap">
+        <view wx:if="{{item.is_today && !item.is_locked}}" class="log-action-row">
+          <button class="btn-sm btn-edit-log" bindtap="onEditLog" data-log="{{item}}">编辑数量</button>
+          <button class="btn-sm btn-cancel-log" bindtap="onCancelLog" data-log="{{item}}">撤销本条</button>
         </view>
+        <text wx:elif="{{item.is_locked}}" class="text-sm text-gray">🔒{{item.lock_reason}}</text>
       </view>
     </view>
   </view>

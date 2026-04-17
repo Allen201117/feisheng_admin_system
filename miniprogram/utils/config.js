@@ -1,7 +1,7 @@
 // config.js - 全局配置
 module.exports = {
   // 云环境ID（部署时替换）
-  CLOUD_ENV: 'factory-accounting-env',
+  CLOUD_ENV: 'cloud1-5gr08st9c198f437',
 
   // 角色常量
   ROLES: {
@@ -49,8 +49,8 @@ module.exports = {
     factory_longitude: 116.4074,   // 默认经度
     geofence_radius: 100,          // 地理围栏半径（米）
     quality_threshold: 95,         // 合格率阈值（%）
-    export_email: 'hanyifan424@gmail.com',
-    qrcode_expire_hours: 24        // 二维码有效期（小时）
+    export_email: '',
+    qrcode_expire_days: 1            // 二维码有效期（天）
   },
 
   // 打卡来源

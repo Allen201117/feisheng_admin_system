@@ -2,60 +2,53 @@
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
+const { buildStrictAuthWhere } = require('./auth.logic')
+const { sanitizeSettingsRecord, normalizeCheckpoints } = require('./settings.logic')
 
-async function getCallerUser(wxContext) {
-  var res = await db.collection('Users').where({
-    openid: wxContext.OPENID, status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
+async function getCallerUserByEvent(event) {
+  const strictWhere = buildStrictAuthWhere(event)
+  if (!strictWhere) return null
+
+  try {
+    const res = await db.collection('Users').where(strictWhere).limit(1).get()
+    return res.data.length > 0 ? res.data[0] : null
+  } catch (err) {
+    return null
+  }
+}
+
+async function getBossUserByEvent(event) {
+  const caller = await getCallerUserByEvent(event)
+  if (!caller || caller.role !== 'boss') return null
+  return caller
 }
 
 exports.main = async function(event, context) {
-  var wxContext = cloud.getWXContext()
   var action = event.action
   switch (action) {
-    case 'getAll': return await getAll()
-    case 'save': return await save(event, wxContext)
+    case 'getAll': return await getAll(event)
+    case 'save': return await save(event)
     default: return { code: -1, msg: '未知操作' }
   }
 }
 
-async function getAll() {
+async function getAll(event) {
+  const caller = await getBossUserByEvent(event)
+  if (!caller) {
+    return { code: -1, msg: '权限不足，仅管理员可查看设置' }
+  }
+
   try {
     var res = await db.collection('factory_settings').doc('main').get()
-    var data = res.data
-    // 兼容：如果存在旧的 qrcode_expire_hours，转换为天
-    if (data.qrcode_expire_hours && !data.qrcode_expire_days) {
-      data.qrcode_expire_days = Math.round(data.qrcode_expire_hours / 24) || 1
-    }
-    if (!data.qrcode_expire_days) data.qrcode_expire_days = 1
-    if (data.face_recognition_enabled === undefined) data.face_recognition_enabled = false
-    if (data.allow_home_checkin === undefined) data.allow_home_checkin = false
-    return { code: 0, data: data }
+    return { code: 0, data: sanitizeSettingsRecord(res.data) }
   } catch (err) {
-    return {
-      code: 0,
-      data: {
-        factory_latitude: 39.9042,
-        factory_longitude: 116.4074,
-        geofence_radius: 100,
-        quality_threshold: 95,
-        export_email: 'hanyifan424@gmail.com',
-        qrcode_expire_days: 1,
-        face_recognition_enabled: false,
-        allow_home_checkin: false,
-        smtp_host: '',
-        smtp_port: '465',
-        smtp_user: '',
-        smtp_pass: ''
-      }
-    }
+    return { code: -1, msg: '加载设置失败' }
   }
 }
 
-async function save(event, wxContext) {
-  var caller = await getCallerUser(wxContext)
-  if (!caller || caller.role !== 'boss') {
+async function save(event) {
+  var caller = await getBossUserByEvent(event)
+  if (!caller) {
     return { code: -1, msg: '权限不足，仅管理员可修改设置' }
   }
 
@@ -65,12 +58,61 @@ async function save(event, wxContext) {
     existing = ex.data || {}
   } catch (e) {}
 
-  var settingsData = {
-    factory_latitude: parseFloat(event.factory_latitude) || 39.9042,
-    factory_longitude: parseFloat(event.factory_longitude) || 116.4074,
+  function resolveCoordinate(inputValue, existingValue, label) {
+    if (inputValue === undefined || inputValue === null || inputValue === '') {
+      if (typeof existingValue === 'number' && Number.isFinite(existingValue)) {
+        return { ok: true, value: existingValue }
+      }
+      return { ok: false, msg: label + '不能为空' }
+    }
+
+    var parsed = Number(inputValue)
+    if (!Number.isFinite(parsed)) {
+      return { ok: false, msg: label + '格式无效' }
+    }
+
+    if (label === '纬度' && (parsed < -90 || parsed > 90 || parsed === 0)) {
+      return { ok: false, msg: '纬度范围无效，请重新获取工厂位置' }
+    }
+
+    if (label === '经度' && (parsed < -180 || parsed > 180 || parsed === 0)) {
+      return { ok: false, msg: '经度范围无效，请重新获取工厂位置' }
+    }
+
+    return { ok: true, value: parsed }
+  }
+
+  var latitudeResult = resolveCoordinate(event.factory_latitude, existing.factory_latitude, '纬度')
+  if (!latitudeResult.ok) {
+    return { code: -1, msg: latitudeResult.msg }
+  }
+
+  var longitudeResult = resolveCoordinate(event.factory_longitude, existing.factory_longitude, '经度')
+  if (!longitudeResult.ok) {
+    return { code: -1, msg: longitudeResult.msg }
+  }
+
+  var nextFactoryLatitude = latitudeResult.value
+  var nextFactoryLongitude = longitudeResult.value
+  var normalizedCheckpoints = normalizeCheckpoints({
+    factory_latitude: nextFactoryLatitude,
+    factory_longitude: nextFactoryLongitude,
     geofence_radius: parseInt(event.geofence_radius) || 100,
+    checkpoints: event.checkpoints || []
+  })
+
+  if (normalizedCheckpoints.length > 0) {
+    nextFactoryLatitude = normalizedCheckpoints[0].latitude
+    nextFactoryLongitude = normalizedCheckpoints[0].longitude
+  }
+
+  var settingsData = {
+    factory_latitude: nextFactoryLatitude,
+    factory_longitude: nextFactoryLongitude,
+    geofence_radius: parseInt(event.geofence_radius) || 100,
+    checkpoints: normalizedCheckpoints,
     quality_threshold: parseInt(event.quality_threshold) || 95,
-    export_email: event.export_email || 'hanyifan424@gmail.com',
+    export_email: event.export_email || existing.export_email || '',
     qrcode_expire_days: parseInt(event.qrcode_expire_days) || 1,
     face_recognition_enabled: !!event.face_recognition_enabled,
     allow_home_checkin: !!event.allow_home_checkin,
@@ -78,6 +120,19 @@ async function save(event, wxContext) {
     smtp_port: event.smtp_port || '465',
     smtp_user: event.smtp_user || '',
     smtp_pass: event.smtp_pass || '',
+    // 坐标元数据
+    coordinate_system: event.coordinate_system || existing.coordinate_system || 'gcj02',
+    location_source: event.location_source || existing.location_source || 'unknown',
+    location_confirmed: true,
+    location_updated_by: caller._id,
+    location_updated_by_name: caller.name,
+    location_updated_at: db.serverDate(),
+    // 保留旧坐标用于迁移对比（如果坐标发生变化）
+    ...(existing.factory_latitude !== undefined &&
+      (nextFactoryLatitude !== existing.factory_latitude ||
+       nextFactoryLongitude !== existing.factory_longitude)
+      ? { prev_factory_latitude: existing.factory_latitude, prev_factory_longitude: existing.factory_longitude }
+      : {}),
     review_mode_enabled: existing.review_mode_enabled !== false,
     review_mode_note: existing.review_mode_note || '审核模式可快速登录只读账号并体验核心流程',
     review_user_phone: existing.review_user_phone || '',

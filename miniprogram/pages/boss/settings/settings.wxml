@@ -1,25 +1,81 @@
-<!--pages/boss/settings/settings.wxml-->
+﻿<!--pages/boss/settings/settings.wxml-->
 <view class="container">
-  <!-- 工厂位置 -->
+  <!-- 打卡点管理 -->
   <view class="card">
-    <view class="section-title">工厂位置（打卡围栏中心）</view>
-    <view class="input-group">
-      <text class="input-label">纬度</text>
-      <input class="input-field" type="digit" placeholder="如: 39.9042" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" />
+    <view class="section-title">打卡点管理</view>
+    <view class="location-tip">到工厂各入口/区域，点击下方按钮采样后一键添加打卡点。员工在任意打卡点附近即可打卡。</view>
+
+    <!-- 采样按钮 -->
+    <button class="btn-primary btn-block" bindtap="getLocation" disabled="{{locating}}">
+      {{locating ? '正在采样定位...' : '📍 采样当前位置'}}
+    </button>
+
+    <!-- 采样结果（简洁版） -->
+    <view wx:if="{{locationResult}}" class="location-result">
+      <view class="result-summary">
+        ✅ 采样成功（精度{{locationResult.accuracy}}）
+      </view>
+      <view wx:if="{{sampledLocation}}" class="sample-actions">
+        <button class="btn-default sample-btn" bindtap="applySampleToMain">{{factory_latitude ? '更新主打卡点' : '设为主打卡点'}}</button>
+        <button class="btn-default sample-btn" bindtap="quickAddCheckpoint">添加为附加打卡点</button>
+      </view>
     </view>
-    <view class="input-group">
-      <text class="input-label">经度</text>
-      <input class="input-field" type="digit" placeholder="如: 116.4074" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" />
+
+    <!-- 打卡点列表 -->
+    <view class="checkpoint-list">
+      <!-- 主打卡点 -->
+      <view wx:if="{{factory_latitude}}" class="checkpoint-item main-checkpoint">
+        <view class="checkpoint-item-left">
+          <text class="checkpoint-icon">📍</text>
+          <view class="checkpoint-info">
+            <text class="checkpoint-name">主打卡点</text>
+            <text class="checkpoint-coord">{{factory_latitude}}, {{factory_longitude}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-checkpoint">
+        <text>未设置主打卡点，请采样当前位置</text>
+      </view>
+
+      <!-- 附加打卡点 -->
+      <view wx:for="{{checkpoints}}" wx:key="index" class="checkpoint-item">
+        <view class="checkpoint-item-left">
+          <text class="checkpoint-icon">🏷</text>
+          <view class="checkpoint-info">
+            <text class="checkpoint-name">{{item.name || '附加打卡点 ' + (index + 1)}}</text>
+            <text class="checkpoint-coord">{{item.latitude}}, {{item.longitude}}</text>
+          </view>
+        </view>
+        <text class="checkpoint-remove" data-index="{{index}}" bindtap="removeCheckpoint">删除</text>
+      </view>
     </view>
-    <button class="btn-default btn-block" bindtap="getLocation">获取当前位置</button>
+
+    <!-- 高级选项折叠 -->
+    <view class="advanced-toggle" bindtap="toggleAdvancedInput">
+      <text class="text-sm text-gray">{{showAdvancedInput ? '收起高级选项 ▲' : '高级选项 ▼'}}</text>
+    </view>
+    <view wx:if="{{showAdvancedInput}}" class="advanced-section">
+      <view class="advanced-warn">
+        ⚠️ 手动输入请使用 GCJ-02 坐标（微信/高德/腾讯地图），不要用百度地图坐标。
+      </view>
+      <view class="input-group">
+        <text class="input-label">主打卡点纬度</text>
+        <input class="input-field" type="digit" placeholder="自动采样获取" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">主打卡点经度</text>
+        <input class="input-field" type="digit" placeholder="自动采样获取" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" />
+      </view>
+    </view>
   </view>
 
-  <!-- 围栏与阈值 -->
+  <!-- 参数配置 -->
   <view class="card">
     <view class="section-title">参数配置</view>
     <view class="input-group">
-      <text class="input-label">地理围栏半径（米）</text>
+      <text class="input-label">打卡范围半径（米）</text>
       <input class="input-field" type="number" placeholder="默认100" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
+      <text class="input-hint">所有打卡点共用此半径。GPS精度差时会自动补偿容差。</text>
     </view>
     <view class="input-group">
       <text class="input-label">合格率阈值（%）— 排行榜用</text>

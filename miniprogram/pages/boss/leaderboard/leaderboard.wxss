@@ -1,64 +1,73 @@
 /* pages/boss/leaderboard/leaderboard.wxss */
+.container {
+  background:
+    radial-gradient(circle at 20% 0%, #f0f9ff 0%, transparent 34%),
+    radial-gradient(circle at 90% 10%, #fff3e8 0%, transparent 30%),
+    #f7f8fb;
+}
+
 .board-header {
   text-align: center;
-  padding: 30rpx;
+  padding: 20rpx 24rpx 24rpx;
+  border-radius: 18rpx;
+  border: 2rpx solid #e8eef8;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
+  margin-bottom: 18rpx;
 }
 
 .board-title {
   font-size: 44rpx;
-  font-weight: bold;
-  color: #FA8C16;
+  font-weight: 700;
+  color: #1f3554;
 }
 
 /* 周期 Tabs */
 .period-tabs {
   display: flex;
   background: #fff;
-  border-radius: 12rpx;
+  border-radius: 999rpx;
   margin-bottom: 20rpx;
   overflow: hidden;
-  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.04);
+  border: 2rpx solid #d8e4f3;
+  box-shadow: 0 8rpx 20rpx rgba(17, 38, 84, 0.06);
+  padding: 8rpx;
 }
 
 .dim-tabs {
   display: flex;
-  background: #FFF7E6;
-  border-radius: 12rpx;
+  background: #fff;
+  border-radius: 999rpx;
   margin-bottom: 20rpx;
   overflow: hidden;
+  border: 2rpx solid #d8e4f3;
+  padding: 8rpx;
 }
 
 .tabs .tab {
   flex: 1;
   text-align: center;
-  padding: 24rpx 0;
-  font-size: 34rpx;
-  color: #666;
+  padding: 16rpx 0;
+  font-size: 30rpx;
+  color: #4f6584;
   position: relative;
   transition: all 0.3s;
+  border-radius: 999rpx;
 }
 
 .tab-active {
-  color: #FA8C16;
-  font-weight: bold;
+  color: #0b62b4;
+  font-weight: 700;
+  background: #e8f4ff;
 }
 
 .tab-active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60rpx;
-  height: 4rpx;
-  background: #FA8C16;
-  border-radius: 2rpx;
+  display: none;
 }
 
 .dim-active {
-  background: #FA8C16;
-  color: #fff !important;
-  border-radius: 12rpx;
+  background: #e8f4ff;
+  color: #0b62b4 !important;
+  border-radius: 999rpx;
 }
 
 .dim-active::after {
@@ -69,6 +78,7 @@
 .picker-card {
   padding: 16rpx 24rpx;
   margin-bottom: 20rpx;
+  border: 2rpx solid #e8eef8;
 }
 
 .picker-field {
@@ -82,12 +92,13 @@
 
 .picker-arrow {
   font-size: 28rpx;
-  color: #999;
+  color: #666;
 }
 
 /* 排行卡片 */
 .rank-card {
   padding: 24rpx;
+  border: 2rpx solid #e8eef8;
 }
 
 .rank-summary {
@@ -99,7 +110,7 @@
   display: flex;
   align-items: center;
   padding: 24rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  border-bottom: 1rpx solid #edf2f8;
 }
 
 .rank-item:last-child { border-bottom: none; }
@@ -114,7 +125,7 @@
   justify-content: center;
   font-size: 32rpx;
   font-weight: bold;
-  color: #999;
+  color: #666;
   margin-right: 20rpx;
   flex-shrink: 0;
 }
@@ -135,8 +146,9 @@
 
 .rank-name {
   font-size: 36rpx;
-  font-weight: bold;
+  font-weight: 700;
   display: block;
+  color: #1f3554;
 }
 
 .rank-sub {
@@ -165,7 +177,7 @@
 
 .empty-text {
   font-size: 32rpx;
-  color: #999;
+  color: #666;
 }
 
 .loading-mask {
@@ -175,5 +187,5 @@
 
 .loading-text {
   font-size: 32rpx;
-  color: #999;
+  color: #666;
 }

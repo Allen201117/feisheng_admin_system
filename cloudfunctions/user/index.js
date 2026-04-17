@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 const crypto = require('crypto')
+const { buildStrictAuthWhere } = require('./auth.logic')
 
 function hashPassword(password, salt) {
   return crypto.createHash('sha256').update(password + salt).digest('hex')
@@ -12,19 +13,31 @@ function generateSalt() {
   return crypto.randomBytes(16).toString('hex')
 }
 
-async function getBossUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID, role: 'boss', status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
+async function getCallerUserByEvent(event) {
+  const strictWhere = buildStrictAuthWhere(event)
+  if (!strictWhere) return null
+
+  try {
+    const exactRes = await db.collection('Users').where(strictWhere).limit(1).get()
+    if (exactRes.data.length > 0) {
+      return exactRes.data[0]
+    }
+  } catch (err) {}
+
+  return null
+}
+
+async function getBossUserByEvent(event) {
+  const caller = await getCallerUserByEvent(event)
+  if (!caller || caller.role !== 'boss') return null
+  return caller
 }
 
 exports.main = async (event, context) => {
-  const wxContext = cloud.getWXContext()
   const { action } = event
 
   if (['create', 'update', 'updateStatus', 'resetPassword', 'updateJoinDate'].includes(action)) {
-    const boss = await getBossUser(wxContext)
+    const boss = await getBossUserByEvent(event)
     if (!boss) return { code: -1, msg: '权限不足，仅管理员可操作' }
     event._boss = boss
   }
@@ -39,37 +52,6 @@ exports.main = async (event, context) => {
     case 'resetPassword': return await resetPassword(event)
     case 'updateJoinDate': return await updateJoinDate(event)
     default: return { code: -1, msg: '未知操作' }
-  }
-}
-
-async function listUsers() {
-  try {
-    const res = await db.collection('Users')
-      .orderBy('created_at', 'desc').limit(100).get()
-    return { code: 0, data: res.data }
-  } catch (err) {
-    return { code: -1, msg: '获取用户列表失败' }
-  }
-}
-
-async function listEmployees() {
-  try {
-    const res = await db.collection('Users')
-      .where({ status: 'active', role: _.in(['employee', 'qc']) })
-      .orderBy('name', 'asc').get()
-    return { code: 0, data: res.data.map(u => ({ _id: u._id, name: u.name, role: u.role, join_date: u.join_date || '' })) }
-  } catch (err) {
-    return { code: -1, msg: '获取员工列表失败' }
-  }
-}
-
-async function getUser(event) {
-  try {
-    const res = await db.collection('Users').doc(event.user_id).get()
-    const user = res.data
-    return { code: 0, data: { _id: user._id, name: user.name, phone: user.phone, role: user.role, status: user.status, join_date: user.join_date || '' } }
-  } catch (err) {
-    return { code: -1, msg: '获取用户信息失败' }
   }
 }
 
@@ -102,6 +84,67 @@ async function createUser(event) {
     return { code: 0, msg: '创建成功' }
   } catch (err) {
     return { code: -1, msg: '创建用户失败' }
+  }
+}
+
+async function listUsers(event) {
+  const caller = await getCallerUserByEvent(event)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足，仅管理员可查看员工列表' }
+  }
+
+  try {
+    const res = await db.collection('Users')
+      .orderBy('created_at', 'desc').limit(100).get()
+    return { code: 0, data: res.data }
+  } catch (err) {
+    return { code: -1, msg: '获取用户列表失败' }
+  }
+}
+
+async function listEmployees(event) {
+  const caller = await getCallerUserByEvent(event)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足，仅管理员可查看员工列表' }
+  }
+
+  try {
+    const allUsers = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Users')
+        .where({ status: 'active', role: _.in(['employee', 'qc']) })
+        .orderBy('name', 'asc').skip(allUsers.length).limit(100).get()
+      batchLen = res.data.length
+      allUsers.push(...res.data)
+    } while (batchLen === 100)
+    return { code: 0, data: allUsers.map(u => ({ _id: u._id, name: u.name, role: u.role, join_date: u.join_date || '' })) }
+  } catch (err) {
+    return { code: -1, msg: '获取员工列表失败' }
+  }
+}
+
+async function getUser(event) {
+  const caller = await getCallerUserByEvent(event)
+  if (!caller) {
+    return { code: -1, msg: '登录已失效，请重新登录' }
+  }
+
+  const targetUserId = event.user_id
+  if (!targetUserId) {
+    return { code: -1, msg: '缺少用户ID' }
+  }
+
+  if (caller.role !== 'boss' && String(caller._id) !== String(targetUserId)) {
+    return { code: -1, msg: '无权查看其他员工信息' }
+  }
+
+  try {
+    const res = await db.collection('Users').doc(targetUserId).get()
+    const user = res.data
+    return { code: 0, data: { _id: user._id, name: user.name, phone: user.phone, role: user.role, status: user.status, join_date: user.join_date || '' } }
+  } catch (err) {
+    return { code: -1, msg: '获取用户信息失败' }
   }
 }
 

@@ -35,11 +35,11 @@ Page({
   },
 
   onLoad(options) {
-    const now = new Date()
+    const bjTime = require('../../../utils/beijing-time')
     this.setData({
       userId: options.id,
       userName: decodeURIComponent(options.name || ''),
-      month: options.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      month: options.month || bjTime.getBeijingMonth()
     })
     wx.setNavigationBarTitle({ title: `${this.data.userName} - 薪资详情` })
   },
@@ -131,7 +131,8 @@ Page({
         user_name: this.data.userName,
         type: isReward ? 'reward' : 'penalty',
         amount: finalAmount,
-        reason
+        reason,
+        month: this.data.month
       })
       hideLoading()
       showSuccess('操作成功')

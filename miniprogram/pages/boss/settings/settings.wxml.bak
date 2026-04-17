@@ -1,0 +1,122 @@
+<!--pages/boss/settings/settings.wxml-->
+<view class="container">
+  <!-- 工厂位置 -->
+  <view class="card">
+    <view class="section-title">工厂位置与打卡点</view>
+    <view class="location-tip">请在工厂现场采样。先设置主打卡点，再根据实际入口或区域补充附加打卡点。你这边没有 Wi-Fi，也可以只靠多点围栏正常运行。</view>
+    <button class="btn-primary btn-block" bindtap="getLocation" disabled="{{locating}}">
+      {{locating ? '正在采样定位...' : '📍 采样当前位置（推荐）'}}
+    </button>
+
+    <!-- 采样结果展示 -->
+    <view wx:if="{{locationResult}}" class="location-result">
+      <view class="result-summary">
+        ✅ 采样完成：{{locationResult.validCount}}/{{locationResult.totalCount}}次成功，精度{{locationResult.accuracy}}
+        <text wx:if="{{!locationResult.isPrecise}}" class="text-warn">（模糊定位）</text>
+      </view>
+      <view wx:for="{{locationSamples}}" wx:key="index" class="sample-row">
+        <text>第{{item.index}}次：</text>
+        <text wx:if="{{item.status === '成功'}}">{{item.latitude}}, {{item.longitude}} | {{item.accuracy}} | {{item.isPrecise}}</text>
+        <text wx:else class="text-red">失败 - {{item.error}}</text>
+      </view>
+      <view wx:if="{{sampledLocation}}" class="sample-actions">
+        <button class="btn-default sample-btn" bindtap="applySampleToMain">设为主打卡点</button>
+        <button class="btn-default sample-btn" bindtap="addCheckpointFromSample">添加为附加打卡点</button>
+      </view>
+    </view>
+
+    <!-- 主打卡点 -->
+    <view class="subsection-title">主打卡点</view>
+    <view class="input-group">
+      <text class="input-label">纬度（GCJ-02）</text>
+      <input class="input-field" type="digit" placeholder="点击上方按钮自动获取" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" disabled="{{!showAdvancedInput}}" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">经度（GCJ-02）</text>
+      <input class="input-field" type="digit" placeholder="点击上方按钮自动获取" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" disabled="{{!showAdvancedInput}}" />
+    </view>
+
+    <!-- 坐标来源信息 -->
+    <view wx:if="{{coordinate_system || location_source}}" class="coord-meta">
+      <text wx:if="{{coordinate_system}}">坐标系：{{coordinate_system}}</text>
+      <text wx:if="{{location_source}}"> | 来源：{{location_source === 'on_site' ? '现场采集' : location_source === 'manual_input' ? '手动输入' : location_source}}</text>
+    </view>
+
+    <!-- 手动输入（高级选项） -->
+    <view class="advanced-toggle" bindtap="toggleAdvancedInput">
+      <text class="text-sm text-gray">{{showAdvancedInput ? '收起手动输入' : '⚠️ 高级选项：手动输入经纬度'}}</text>
+    </view>
+    <view wx:if="{{showAdvancedInput}}" class="advanced-warn">
+      ⚠️ 手动输入经纬度可能导致坐标不准确。请确保输入的是 GCJ-02（微信/高德/腾讯地图）坐标，不要使用百度地图坐标。
+    </view>
+
+    <view class="subsection-title mt-20">附加打卡点</view>
+    <view class="location-tip">建议按“大门 / 车间入口 / 办公楼入口”来配置。主打卡点半径沿用上面的围栏半径，附加点可单独设置半径。</view>
+    <view wx:if="{{checkpoints.length === 0}}" class="empty-checkpoint">暂无附加打卡点</view>
+    <view wx:for="{{checkpoints}}" wx:key="index" class="checkpoint-card">
+      <view class="checkpoint-header">
+        <text class="checkpoint-title">附加点 {{index + 1}}</text>
+        <text class="checkpoint-remove" data-index="{{index}}" bindtap="removeCheckpoint">删除</text>
+      </view>
+      <view class="input-group">
+        <text class="input-label">名称</text>
+        <input class="input-field" placeholder="例如：1号车间入口" value="{{item.name}}" data-index="{{index}}" data-field="name" bindinput="onCheckpointInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">纬度</text>
+        <input class="input-field" type="digit" placeholder="采样后可自动填入" value="{{item.latitude}}" data-index="{{index}}" data-field="latitude" bindinput="onCheckpointInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">经度</text>
+        <input class="input-field" type="digit" placeholder="采样后可自动填入" value="{{item.longitude}}" data-index="{{index}}" data-field="longitude" bindinput="onCheckpointInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">半径（米）</text>
+        <input class="input-field" type="number" placeholder="默认100" value="{{item.radius}}" data-index="{{index}}" data-field="radius" bindinput="onCheckpointInput" />
+      </view>
+      <button class="btn-default btn-block" bindtap="applySampleToCheckpoint" data-index="{{index}}">用当前采样坐标填入</button>
+    </view>
+    <button class="btn-default btn-block" bindtap="addCheckpoint">新增附加打卡点</button>
+  </view>
+
+  <!-- 围栏与阈值 -->
+  <view class="card">
+    <view class="section-title">参数配置</view>
+    <view class="input-group">
+      <text class="input-label">地理围栏半径（米）</text>
+      <input class="input-field" type="number" placeholder="默认100" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">合格率阈值（%）— 排行榜用</text>
+      <input class="input-field" type="number" placeholder="默认95" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
+    </view>
+    <view class="input-group">
+      <text class="input-label">二维码有效期（天）</text>
+      <input class="input-field" type="number" placeholder="默认1" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
+    </view>
+  </view>
+
+  <!-- 打卡方式 -->
+  <view class="card">
+    <view class="section-title">打卡方式</view>
+    <view class="switch-row">
+      <view class="switch-info">
+        <text class="switch-label">允许居家打卡</text>
+        <text class="switch-desc text-sm text-gray">开启后员工可在非围栏范围内打卡，标记为居家打卡</text>
+      </view>
+      <switch checked="{{allow_home_checkin}}" data-field="allow_home_checkin" bindchange="onSwitchChange" color="#1890FF" />
+    </view>
+  </view>
+
+  <button class="btn-primary btn-block btn-lg mt-30" bindtap="onSave" disabled="{{loading}}">
+    {{loading ? '保存中...' : '保存设置'}}
+  </button>
+
+  <view class="card">
+    <view class="section-title">协议与隐私</view>
+    <button class="btn-default btn-block" bindtap="goPrivacyPolicy">查看隐私政策</button>
+    <button class="btn-default btn-block mt-20" bindtap="goUserAgreement">查看用户服务协议</button>
+  </view>
+
+  <view class="safe-bottom"></view>
+</view>

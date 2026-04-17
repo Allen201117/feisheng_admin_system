@@ -1,13 +1,25 @@
+.container {
+  background:
+    radial-gradient(circle at 10% 8%, rgba(128, 196, 255, 0.14) 0%, transparent 24%),
+    radial-gradient(circle at 88% 12%, rgba(255, 212, 150, 0.14) 0%, transparent 22%),
+    linear-gradient(180deg, #f3f8fd 0%, #fafcff 100%);
+}
+
+.card {
+  border-radius: 24rpx;
+  border: 2rpx solid #e6edf5;
+}
+
 .policy-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  margin-top: 24rpx;
-  color: #1f2d3d;
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-top: 28rpx;
+  color: #1f3550;
 }
 
 .policy-text {
   margin-top: 12rpx;
-  color: #4a5568;
-  font-size: 26rpx;
-  line-height: 1.8;
+  color: #5f7288;
+  font-size: 28rpx;
+  line-height: 1.9;
 }

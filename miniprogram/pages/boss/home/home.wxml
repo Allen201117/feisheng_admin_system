@@ -1,91 +1,145 @@
 <!--pages/boss/home/home.wxml-->
 <view class="container">
-  <!-- 头部 -->
-  <view class="boss-header">
-    <view class="header-left">
-      <text class="header-title">管理后台</text>
-      <text class="header-date">{{todayDate}}</text>
+  <view class="boss-hero hero-panel">
+    <view class="hero-top-row">
+      <view>
+        <text class="hero-title">管理后台</text>
+        <text class="hero-subtitle">{{todayDate}}</text>
+        <text class="hero-user">{{userInfo.name}}</text>
+      </view>
+      <view class="hero-action-pill" bindtap="onLogout">退出</view>
     </view>
-    <view class="header-right-info">
-      <text class="header-username">{{userInfo.name}}</text>
-      <text class="logout-text" bindtap="onLogout">退出</text>
+
+    <view class="hero-highlight-card is-clickable" bindtap="onStatTap" data-target="salary">
+      <view class="hero-highlight-main">
+        <text class="hero-highlight-label">本月薪资支出</text>
+        <text class="hero-highlight-value">¥{{stats.monthSalary}}</text>
+        <text class="hero-highlight-tip">点击查看本月薪酬明细与发放情况</text>
+      </view>
     </view>
   </view>
 
-  <!-- 统计卡片 -->
-  <view class="stats-row">
-    <view class="stat-card-sm">
-      <text class="stat-num">{{stats.totalEmployees}}</text>
-      <text class="stat-desc">员工总数</text>
+  <view class="stats-panel card">
+    <view class="panel-title-row">
+      <text class="section-title">经营概览</text>
+      <text class="panel-title-note">点击卡片直达对应页面</text>
     </view>
-    <view class="stat-card-sm">
-      <text class="stat-num text-success">{{stats.todayAttendance}}</text>
-      <text class="stat-desc">今日出勤</text>
-    </view>
-    <view class="stat-card-sm">
-      <text class="stat-num text-primary">{{stats.activeOrders}}</text>
-      <text class="stat-desc">进行中订单</text>
+
+    <view class="stats-grid">
+      <view class="data-card data-card-blue is-clickable" bindtap="onStatTap" data-target="employees">
+        <text class="data-card-label">员工总数</text>
+        <text class="data-card-value">{{stats.totalEmployees}}</text>
+        <text class="data-card-note">查看员工管理</text>
+      </view>
+      <view class="data-card data-card-green is-clickable" bindtap="onStatTap" data-target="attendance">
+        <text class="data-card-label">今日出勤</text>
+        <text class="data-card-value">{{stats.todayAttendance}}</text>
+        <text class="data-card-note">查看当日考勤</text>
+      </view>
+      <view class="data-card data-card-orange is-clickable" bindtap="onStatTap" data-target="orders">
+        <text class="data-card-label">进行中订单</text>
+        <text class="data-card-value">{{stats.activeOrders}}</text>
+        <text class="data-card-note">进入订单管理</text>
+      </view>
+      <view class="data-card data-card-ink is-clickable" bindtap="onStatTap" data-target="qc">
+        <text class="data-card-label">待质检</text>
+        <text class="data-card-value">{{stats.pendingQC}}</text>
+        <text class="data-card-note">进入质检工作台</text>
+      </view>
     </view>
   </view>
 
-  <view class="stats-row">
-    <view class="stat-card-sm" style="flex:1;">
-      <text class="stat-num text-warning">{{stats.pendingQC}}</text>
-      <text class="stat-desc">待质检</text>
+  <view class="card menu-panel">
+    <view class="panel-title-row">
+      <text class="section-title">业务入口</text>
+      <text class="panel-title-note">按业务分组</text>
     </view>
-    <view class="stat-card-sm" style="flex:2;">
-      <text class="stat-num text-danger">¥{{stats.monthSalary}}</text>
-      <text class="stat-desc">本月薪资支出</text>
-    </view>
-  </view>
 
-  <!-- 功能菜单 -->
-  <view class="card">
-    <view class="section-title">功能菜单</view>
-    <view class="menu-grid">
-      <view class="menu-grid-item" bindtap="goTo" data-page="employees">
-        <view class="menu-icon-box" style="background:#E6F7FF;">👥</view>
-        <text class="menu-label">员工管理</text>
+    <view class="menu-group">
+      <view class="menu-group-head">
+        <text class="menu-group-title">人员</text>
+        <text class="menu-group-note">员工、考勤与质检协同</text>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="orders">
-        <view class="menu-icon-box" style="background:#FFF7E6;">📋</view>
-        <text class="menu-label">订单管理</text>
+
+      <view class="menu-grid">
+        <view class="menu-grid-item" bindtap="goTo" data-page="employees">
+          <view class="menu-icon-box menu-icon-blue">👥</view>
+          <text class="menu-label">员工管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="attendance">
+          <view class="menu-icon-box menu-icon-green">📅</view>
+          <text class="menu-label">考勤管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goToQC">
+          <view class="menu-icon-box menu-icon-violet">🔍</view>
+          <text class="menu-label">质检管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="leaderboard">
+          <view class="menu-icon-box menu-icon-purple">🏆</view>
+          <text class="menu-label">排行榜</text>
+        </view>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="attendance">
-        <view class="menu-icon-box" style="background:#F6FFED;">📅</view>
-        <text class="menu-label">考勤管理</text>
+    </view>
+
+    <view class="menu-group">
+      <view class="menu-group-head">
+        <text class="menu-group-title">生产</text>
+        <text class="menu-group-note">订单、报工与现场工具</text>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="salary">
-        <view class="menu-icon-box" style="background:#FFF1F0;">💰</view>
-        <text class="menu-label">薪酬管理</text>
+
+      <view class="menu-grid">
+        <view class="menu-grid-item" bindtap="goTo" data-page="orders">
+          <view class="menu-icon-box menu-icon-orange">📋</view>
+          <text class="menu-label">订单管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="worklog-manage">
+          <view class="menu-icon-box menu-icon-amber">🧾</view>
+          <text class="menu-label">报工管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="qrcode">
+          <view class="menu-icon-box menu-icon-teal">📱</view>
+          <text class="menu-label">考勤码</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="data-center">
+          <view class="menu-icon-box menu-icon-sky">🗄️</view>
+          <text class="menu-label">数据中心</text>
+        </view>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="leaderboard">
-        <view class="menu-icon-box" style="background:#F9F0FF;">🏆</view>
-        <text class="menu-label">排行榜</text>
+    </view>
+
+    <view class="menu-group">
+      <view class="menu-group-head">
+        <text class="menu-group-title">财务</text>
+        <text class="menu-group-note">薪酬统计与报表输出</text>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="qrcode">
-        <view class="menu-icon-box" style="background:#E6FFFB;">📱</view>
-        <text class="menu-label">考勤码</text>
+
+      <view class="menu-grid">
+        <view class="menu-grid-item" bindtap="goTo" data-page="salary">
+          <view class="menu-icon-box menu-icon-red">💰</view>
+          <text class="menu-label">薪酬管理</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goTo" data-page="export">
+          <view class="menu-icon-box menu-icon-gold">📊</view>
+          <text class="menu-label">导出报表</text>
+        </view>
       </view>
-      <view class="menu-grid-item" bindtap="goToQC">
-        <view class="menu-icon-box" style="background:#F0F5FF;">🔍</view>
-        <text class="menu-label">质检管理</text>
+    </view>
+
+    <view class="menu-group menu-group-last">
+      <view class="menu-group-head">
+        <text class="menu-group-title">系统</text>
+        <text class="menu-group-note">基础配置与账号安全</text>
       </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="export">
-        <view class="menu-icon-box" style="background:#FCFFE6;">📊</view>
-        <text class="menu-label">导出报表</text>
-      </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="data-center">
-        <view class="menu-icon-box" style="background:#F0F5FF;">🗄️</view>
-        <text class="menu-label">数据中心</text>
-      </view>
-      <view class="menu-grid-item" bindtap="goTo" data-page="settings">
-        <view class="menu-icon-box" style="background:#F0F0F0;">⚙️</view>
-        <text class="menu-label">系统设置</text>
-      </view>
-      <view class="menu-grid-item" bindtap="openChangePwd">
-        <view class="menu-icon-box" style="background:#FFF7E6;">🔒</view>
-        <text class="menu-label">修改密码</text>
+
+      <view class="menu-grid">
+        <view class="menu-grid-item" bindtap="goTo" data-page="settings">
+          <view class="menu-icon-box menu-icon-gray">⚙️</view>
+          <text class="menu-label">系统设置</text>
+        </view>
+        <view class="menu-grid-item" bindtap="openChangePwd">
+          <view class="menu-icon-box menu-icon-sand">🔒</view>
+          <text class="menu-label">修改密码</text>
+        </view>
       </view>
     </view>
   </view>

@@ -1,33 +1,202 @@
 /* pages/boss/export/export.wxss */
+
+/* ===== 页面背景 ===== */
+.container {
+  background:
+    radial-gradient(circle at 12% 6%, rgba(142, 183, 223, 0.16) 0%, transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(205, 216, 228, 0.18) 0%, transparent 24%),
+    linear-gradient(180deg, #eef3f7 0%, #f8fbfd 100%);
+}
+
+.card {
+  border: 2rpx solid #e8eef8;
+}
+
+/* ===== 第一层：维度选择 Tab ===== */
+.dim-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  margin-top: 16rpx;
+}
+
+.dim-tab {
+  flex: 1 1 180rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24rpx 0;
+  border-radius: 16rpx;
+  background: #f5f7fa;
+  border: 2rpx solid #e8eef8;
+  transition: all 0.2s;
+}
+
+.dim-tab-active {
+  background: #e6f4ff;
+  border-color: #1890ff;
+  box-shadow: 0 2rpx 12rpx rgba(24, 144, 255, 0.15);
+}
+
+.dim-tab-icon {
+  font-size: 48rpx;
+  margin-bottom: 8rpx;
+}
+
+.dim-tab-text {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #666;
+}
+
+.dim-tab-active .dim-tab-text {
+  color: #1890ff;
+}
+
+/* ===== 筛选卡片 ===== */
+.filter-card {
+  padding-bottom: 24rpx;
+}
+
 .picker-field {
   display: flex;
   justify-content: space-between;
   align-items: center;
   height: 88rpx;
-  border: 2rpx solid #D9D9D9;
+  border: 2rpx solid #d8e4f3;
   border-radius: 12rpx;
   padding: 0 24rpx;
   background: #fff;
   font-size: 34rpx;
+  gap: 12rpx;
 }
 
 .picker-arrow {
   font-size: 28rpx;
-  color: #999;
+  color: #666;
+}
+
+/* ===== 第二层：报表类型 ===== */
+.report-type-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+  margin-top: 28rpx;
+}
+
+.report-type-btn {
+  flex: 1 1 220rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  border-radius: 12rpx;
+  background: #f5f7fa;
+  border: 2rpx solid #e0e6ed;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.report-type-active {
+  background: linear-gradient(135deg, #1890ff, #40a9ff);
+  border-color: #1890ff;
+  color: #fff;
+  box-shadow: 0 4rpx 16rpx rgba(24, 144, 255, 0.3);
+}
+
+/* ===== 路径提示 ===== */
+.path-hint {
+  margin-top: 20rpx;
+  padding: 16rpx 20rpx;
+  background: #fafbfc;
+  border-radius: 8rpx;
+  border-left: 6rpx solid #1890ff;
+}
+
+.path-hint-text {
+  font-size: 28rpx;
+  color: #1890ff;
+  font-weight: 500;
+}
+
+/* ===== 操作按钮 ===== */
+.action-card {
+  padding: 20rpx 32rpx;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
 }
 
 .btn-success {
   background: #52c41a;
   color: #fff;
   border-radius: 12rpx;
-  font-size: 34rpx;
-  height: 88rpx;
+  font-size: 36rpx;
+  font-weight: bold;
+  min-height: 88rpx;
   line-height: 88rpx;
+  border: none;
 }
 
-/* 表格样式 */
+.btn-success:active {
+  background: #389e0d;
+}
+
+.btn-success[disabled] {
+  background: #b7eb8f;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ===== 统计概要 ===== */
+.summary-card {
+  padding: 24rpx 32rpx;
+}
+
+.summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+}
+
+.summary-item {
+  flex: 1 1 180rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16rpx 0;
+  background: #f0f9ff;
+  border-radius: 12rpx;
+}
+
+.summary-num {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+.summary-label {
+  font-size: 26rpx;
+  color: #666;
+  margin-top: 4rpx;
+}
+
+/* ===== 表格 ===== */
 .table-card {
   padding: 20rpx;
+  border: 2rpx solid #e8eef8;
+}
+
+.table-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
 }
 
 .table-scroll {
@@ -46,44 +215,108 @@
 }
 
 .table-row-alt {
-  background: #FAFAFA;
+  background: #f8fbff;
 }
 
 .table-header-row {
-  background: #1890FF;
+  background: #175bb0;
 }
 
 .table-cell {
+  flex: 0 0 auto;
   min-width: 160rpx;
   max-width: 280rpx;
-  padding: 16rpx 12rpx;
-  border: 1rpx solid #E8E8E8;
+  padding: 18rpx 16rpx;
+  border: 1rpx solid #e5edf8;
   font-size: 28rpx;
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 .table-header-cell {
   color: #fff;
   font-weight: bold;
   font-size: 28rpx;
-  border-color: rgba(255,255,255,0.3);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .cell-text {
   width: 100%;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+/* ===== 空状态 ===== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60rpx 0;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 16rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #666;
+}
+
+/* ===== 导出历史 ===== */
+.history-list {
+  margin-top: 8rpx;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+  gap: 14rpx;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-title {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cell-input {
-  width: 100%;
+.history-meta {
+  font-size: 24rpx;
+  color: #666;
+  margin-top: 4rpx;
+  word-break: break-all;
+}
+
+.history-action {
+  flex-shrink: 0;
+  margin-left: 0;
+}
+
+.history-dl-btn {
+  display: inline-block;
+  padding: 10rpx 28rpx;
   font-size: 28rpx;
-  border: none;
-  background: #FFFBE6;
-  padding: 4rpx;
-  min-height: 40rpx;
+  color: #1890ff;
+  border: 2rpx solid #1890ff;
+  border-radius: 8rpx;
+  background: #fff;
 }

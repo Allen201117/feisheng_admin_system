@@ -38,9 +38,10 @@ Page({
   },
 
   onLoad: function() {
-    var now = new Date()
-    var y = now.getFullYear()
-    var m = now.getMonth() + 1
+    var bjTime = require('../../../utils/beijing-time')
+    var f = bjTime.getBeijingFields()
+    var y = f.year
+    var m = f.month
     this.setData({
       month: y + '-' + String(m).padStart(2, '0'),
       monthDisplay: y + '年' + m + '月',
@@ -101,7 +102,8 @@ Page({
   },
 
   getYearList: function() {
-    var now = new Date().getFullYear()
+    var bjTime = require('../../../utils/beijing-time')
+    var now = bjTime.getBeijingFields().year
     var list = []
     for (var i = now; i >= now - 5; i--) list.push(i)
     return list

@@ -35,7 +35,7 @@ Page({
     hasCurrentConsent: false,
     needConsentDialog: false,
     existingUser: null,
-    // 临时存储登录返回的用户信�?
+    // 临时存储登录返回的用户信息
     _pendingUser: null
   },
 
@@ -52,7 +52,7 @@ Page({
         wx.setStorageSync('scan_scene', scene)
         qrId = this.parseQrIdFromScene(scene)
       } catch (e) {
-        console.error('解析场景值失�?, e)
+        console.error('解析场景值失败', e)
       }
     }
 
@@ -92,8 +92,8 @@ Page({
       wx.removeStorageSync('scan_qr_token')
       wx.removeStorageSync('clock_source')
       wx.showModal({
-        title: '扫码状态异�?,
-        content: err.message || '二维码已失效，请联系管理员重新生�?,
+        title: '扫码状态异常',
+        content: err.message || '二维码已失效，请联系管理员重新生成',
         showCancel: false
       })
       console.error('[scan verify failed]', err)
@@ -142,7 +142,7 @@ Page({
       return
     }
 
-    showLoading('提交�?..')
+    showLoading('提交中...')
     callCloud('login', {
       action: 'recordConsent',
       agreed: true,
@@ -155,7 +155,7 @@ Page({
         hasCurrentConsent: true,
         needConsentDialog: false
       })
-      showSuccess('已完成协议确�?)
+      showSuccess('已完成协议确认')
     }).catch(function(err) {
       hideLoading()
       showError(err.message || '提交失败')
@@ -190,17 +190,16 @@ Page({
 
     if (!this.data.hasCurrentConsent) {
       this.setData({ needConsentDialog: true })
-      showError('请先同意隐私政策与用户协�?)
+      showError('请先同意隐私政策与用户协议')
       return
     }
 
-    if (!name) { showError('请输入姓�?); return }
-    if (!phone) { showError('请输入手机号'); return }
-    if (!isValidPhone(phone)) { showError('手机号格式不正确'); return }
-    if (!password) { showError('请输入密�?); return }
+    if (!name) { showError('请输入姓名'); return }
+    if (phone && !isValidPhone(phone)) { showError('手机号格式不正确'); return }
+    if (!password) { showError('请输入密码'); return }
 
     this.setData({ loading: true })
-    showLoading('登录�?..')
+    showLoading('登录中...')
 
     callCloud('login', {
       action: 'login',
@@ -210,7 +209,7 @@ Page({
     }).then(function(res) {
       hideLoading()
       if (res.data) {
-        // 检查是否需要强制改�?
+        // 检查是否需要强制改密
         if (res.data.need_change_password) {
           that.setData({
             showChangePwd: true,
@@ -238,20 +237,29 @@ Page({
   },
 
   onQuickEnterStored: function() {
+    var that = this
     if (!this.data.existingUser || !this.data.existingUser.role) {
-      showError('暂无可用登录�?)
+      showError('暂无可用登录态')
       return
     }
     if (!this.data.hasCurrentConsent) {
       this.setData({ needConsentDialog: true })
-      showError('请先同意隐私政策与用户协�?)
+      showError('请先同意隐私政策与用户协议')
       return
     }
-    app.routeByRole(this.data.existingUser.role)
-  },
-
-  onEnterDemo: function() {
-    wx.navigateTo({ url: '/pages/review/home/home' })
+    showLoading('校验登录态...')
+    app.resumeSession(this.data.existingUser, false).then(function(valid) {
+      hideLoading()
+      if (!valid) {
+        that.setData({ existingUser: null })
+        return
+      }
+      var currentUser = app.globalData.userInfo || that.data.existingUser
+      app.routeByRole(currentUser.role)
+    }).catch(function() {
+      hideLoading()
+      showError('登录校验失败，请重新登录')
+    })
   },
 
   // ========== 强制改密弹窗 ==========
@@ -276,10 +284,10 @@ Page({
     var d = this.data.changePwdData
     if (!d.oldPassword) { showError('请输入旧密码'); return }
     if (!d.newPassword) { showError('请输入新密码'); return }
-    if (d.newPassword.length < 8) { showError('新密码至�?�?); return }
+    if (d.newPassword.length < 8) { showError('新密码至少8位'); return }
     if (!/[a-zA-Z]/.test(d.newPassword)) { showError('新密码需包含字母'); return }
     if (!/[0-9]/.test(d.newPassword)) { showError('新密码需包含数字'); return }
-    if (d.newPassword !== d.confirmPassword) { showError('两次输入不一�?); return }
+    if (d.newPassword !== d.confirmPassword) { showError('两次输入不一致'); return }
     if (d.newPassword === d.oldPassword) { showError('新旧密码不能相同'); return }
 
     this.setData({ changePwdLoading: true })
@@ -295,7 +303,7 @@ Page({
       hideLoading()
       showSuccess('密码修改成功')
       that.setData({ showChangePwd: false })
-      // 修改成功后自动完成登�?
+      // 修改成功后自动完成登录
       if (res.data) {
         // 用新 token 更新用户信息
         pendingUser.session_token = res.data.session_token || pendingUser.session_token
@@ -311,7 +319,7 @@ Page({
   },
 
   onCancelChangePwd: function() {
-    // 强制改密不可取消，提示用�?
+    // 强制改密不可取消，提示用户
     showError('首次登录必须修改密码')
   }
 })

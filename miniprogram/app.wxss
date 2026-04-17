@@ -12,10 +12,13 @@
  */
 
 page {
-  background-color: #F5F5F5;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(145, 205, 255, 0.16) 0%, transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(255, 212, 145, 0.16) 0%, transparent 24%),
+    linear-gradient(180deg, #f3f8fd 0%, #f8fbfe 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   font-size: 36rpx;
-  color: #333;
+  color: #23384f;
   box-sizing: border-box;
   line-height: 1.6;
 }
@@ -24,95 +27,130 @@ page {
 .container {
   padding: 24rpx 30rpx;
   min-height: 100vh;
+  box-sizing: border-box;
 }
 
 /* 卡片样式 */
 .card {
-  background: #fff;
-  border-radius: 16rpx;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border-radius: 22rpx;
   padding: 32rpx;
   margin-bottom: 28rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.06);
+  border: 2rpx solid #e6edf5;
+  box-shadow: 0 10rpx 24rpx rgba(17, 38, 84, 0.08);
 }
 
 /* 标题 */
 .section-title {
   font-size: 40rpx;
   font-weight: bold;
-  color: #333;
+  color: #1e3550;
   margin-bottom: 24rpx;
 }
 
 .sub-title {
   font-size: 32rpx;
-  color: #999;
+  color: #8da0b4;
   margin-bottom: 18rpx;
 }
 
 /* 按钮样式 - 增大点击热区与字号 */
 .btn-primary {
-  background: #1890FF;
+  background: linear-gradient(135deg, #1766b7 0%, #3f94ef 100%);
   color: #fff;
   border: none;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   padding: 24rpx 40rpx;
   font-size: 36rpx;
   font-weight: bold;
   text-align: center;
   min-height: 88rpx;
   line-height: 1.4;
+  box-shadow: 0 12rpx 24rpx rgba(23, 102, 183, 0.18);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  word-break: break-all;
 }
-.btn-primary:active { background: #096DD9; }
+.btn-primary:active { background: linear-gradient(135deg, #15599f 0%, #3387e3 100%); }
 
 .btn-success {
-  background: #52C41A;
+  background: linear-gradient(135deg, #2f9558 0%, #57be80 100%);
   color: #fff;
   border: none;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   padding: 24rpx 40rpx;
   font-size: 36rpx;
   font-weight: bold;
   text-align: center;
   min-height: 88rpx;
   line-height: 1.4;
+  box-shadow: 0 12rpx 24rpx rgba(47, 149, 88, 0.16);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  word-break: break-all;
 }
-.btn-success:active { background: #389E0D; }
+.btn-success:active { background: linear-gradient(135deg, #28824d 0%, #49aa70 100%); }
 
 .btn-danger {
-  background: #FF4D4F;
+  background: linear-gradient(135deg, #d95243 0%, #ef7a6d 100%);
   color: #fff;
   border: none;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   padding: 24rpx 40rpx;
   font-size: 36rpx;
   font-weight: bold;
   text-align: center;
   min-height: 88rpx;
   line-height: 1.4;
+  box-shadow: 0 12rpx 24rpx rgba(217, 82, 67, 0.14);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  word-break: break-all;
 }
-.btn-danger:active { background: #CF1322; }
+.btn-danger:active { background: linear-gradient(135deg, #c5493b 0%, #e16d61 100%); }
 
 .btn-warning {
-  background: #FAAD14;
+  background: linear-gradient(135deg, #d99717 0%, #efbf5b 100%);
   color: #fff;
   border: none;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   padding: 24rpx 40rpx;
   font-size: 36rpx;
   font-weight: bold;
   min-height: 88rpx;
   line-height: 1.4;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .btn-default {
-  background: #fff;
-  color: #333;
-  border: 2rpx solid #D9D9D9;
-  border-radius: 12rpx;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+  color: #2a425d;
+  border: 2rpx solid #d8e4f1;
+  border-radius: 16rpx;
   padding: 24rpx 40rpx;
   font-size: 36rpx;
   min-height: 88rpx;
   line-height: 1.4;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .btn-block {
@@ -138,7 +176,7 @@ page {
 
 .input-label {
   font-size: 34rpx;
-  color: #666;
+  color: #62788f;
   margin-bottom: 12rpx;
   display: block;
 }
@@ -146,14 +184,15 @@ page {
 .input-field {
   width: 100%;
   height: 96rpx;
-  border: 2rpx solid #D9D9D9;
-  border-radius: 12rpx;
+  border: 2rpx solid #d8e4f1;
+  border-radius: 16rpx;
   padding: 0 24rpx;
   font-size: 36rpx;
   box-sizing: border-box;
-  background: #fff;
+  background: #fcfdff;
+  color: #1f3554;
 }
-.input-field:focus { border-color: #1890FF; }
+.input-field:focus { border-color: #1890FF; background: #fff; }
 
 /* 列表 - 增大行高 */
 .list-item {
@@ -161,7 +200,7 @@ page {
   justify-content: space-between;
   align-items: center;
   padding: 28rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  border-bottom: 1rpx solid #edf2f8;
   min-height: 88rpx;
 }
 .list-item:last-child { border-bottom: none; }
@@ -169,15 +208,15 @@ page {
 /* 状态标签 */
 .tag {
   display: inline-block;
-  padding: 6rpx 18rpx;
-  border-radius: 8rpx;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
   font-size: 28rpx;
   font-weight: bold;
 }
-.tag-pending { background: #FFF7E6; color: #FA8C16; }
-.tag-success { background: #F6FFED; color: #52C41A; }
-.tag-danger  { background: #FFF1F0; color: #FF4D4F; }
-.tag-info    { background: #E6F7FF; color: #1890FF; }
+.tag-pending { background: #fff4e4; color: #d58c10; }
+.tag-success { background: #edf9f1; color: #2f9558; }
+.tag-danger  { background: #fff1f0; color: #d95243; }
+.tag-info    { background: #e8f4ff; color: #1766b7; }
 
 /* 网格菜单 */
 .grid-menu {
@@ -211,11 +250,11 @@ page {
 /* 空状态 */
 .empty-state {
   text-align: center;
-  padding: 100rpx 0;
+  padding: 88rpx 0;
 }
 .empty-text {
   font-size: 34rpx;
-  color: #999;
+  color: #8ea0b2;
 }
 
 /* Flex 工具类 */
@@ -244,11 +283,11 @@ page {
 .text-xl { font-size: 48rpx; }
 .text-xxl { font-size: 64rpx; }
 .text-primary { color: #1890FF; }
-.text-success { color: #52C41A; }
-.text-danger  { color: #FF4D4F; }
-.text-warning { color: #FAAD14; }
-.text-gray { color: #999; }
-.text-dark { color: #333; }
+.text-success { color: #2f9558; }
+.text-danger  { color: #d95243; }
+.text-warning { color: #d99717; }
+.text-gray { color: #8ea0b2; }
+.text-dark { color: #23384f; }
 
 /* 加载状态 */
 .loading-mask {
@@ -260,11 +299,13 @@ page {
 
 /* 数据统计卡片 */
 .stat-card {
-  background: linear-gradient(135deg, #1890FF 0%, #096DD9 100%);
-  border-radius: 16rpx;
+  background: linear-gradient(135deg, #15569d 0%, #2e81da 100%);
+  border-radius: 22rpx;
   padding: 36rpx;
   color: #fff;
   margin-bottom: 28rpx;
+  border: 2rpx solid rgba(195, 224, 255, 0.45);
+  box-shadow: 0 16rpx 30rpx rgba(20, 86, 157, 0.18);
 }
 .stat-value {
   font-size: 64rpx;
@@ -286,7 +327,10 @@ page {
 }
 .modal-content {
   width: 85%; max-height: 80vh;
-  background: #fff; border-radius: 20rpx;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border-radius: 24rpx;
+  border: 2rpx solid #e5edf5;
+  box-shadow: 0 18rpx 36rpx rgba(17, 38, 84, 0.16);
   padding: 40rpx; overflow-y: auto;
 }
 .modal-header {
@@ -294,7 +338,7 @@ page {
   margin-bottom: 30rpx;
 }
 .modal-close {
-  font-size: 40rpx; color: #999; padding: 10rpx;
+  font-size: 40rpx; color: #8ea0b2; padding: 10rpx;
 }
 
 /* 底部安全区 */
@@ -308,15 +352,15 @@ page {
   justify-content: space-between;
   align-items: center;
   height: 96rpx;
-  border: 2rpx solid #D9D9D9;
-  border-radius: 12rpx;
+  border: 2rpx solid #d8e4f1;
+  border-radius: 16rpx;
   padding: 0 24rpx;
-  background: #fff;
+  background: #fcfdff;
   font-size: 34rpx;
 }
 .picker-arrow {
   font-size: 28rpx;
-  color: #999;
+  color: #8ea0b2;
 }
 
 /* Tab 切换通用 */

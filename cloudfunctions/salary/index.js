@@ -3,6 +3,29 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const bjTime = require('./beijing-time')
+const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
+
+async function fetchAllByWhere(collectionName, where, options = {}) {
+  const orderBy = options.orderBy || null
+  const field = options.field || null
+  const pageSize = options.pageSize || 100
+
+  let all = []
+  let batchLen = 0
+
+  do {
+    let query = db.collection(collectionName).where(where)
+    if (field) query = query.field(field)
+    if (orderBy && orderBy.field) query = query.orderBy(orderBy.field, orderBy.order || 'asc')
+
+    const res = await query.skip(all.length).limit(pageSize).get()
+    batchLen = (res.data || []).length
+    all = all.concat(res.data || [])
+  } while (batchLen === pageSize)
+
+  return all
+}
 
 async function getCallerUser(wxContext) {
   const res = await db.collection('Users').where({
@@ -12,28 +35,65 @@ async function getCallerUser(wxContext) {
 }
 
 function getMonthRange(monthStr) {
-  const now = new Date()
-  let startDate, endDate
-  if (monthStr) {
-    startDate = monthStr + '-01'
-    const parts = monthStr.split('-')
-    const m = parseInt(parts[1])
-    endDate = m >= 12
-      ? (parseInt(parts[0]) + 1) + '-01-01'
-      : parts[0] + '-' + String(m + 1).padStart(2, '0') + '-01'
-  } else {
-    const y = now.getFullYear(), m = now.getMonth() + 1
-    startDate = y + '-' + String(m).padStart(2, '0') + '-01'
-    const nm = m + 1
-    endDate = nm > 12 ? (y + 1) + '-01-01' : y + '-' + String(nm).padStart(2, '0') + '-01'
-  }
-  return { startDate, endDate }
+  const range = monthStr
+    ? bjTime.getBeijingMonthRange(monthStr)
+    : bjTime.getBeijingMonthRange(bjTime.getBeijingMonth())
+  return { startDate: range.start, endDate: range.end }
 }
 
 function getCurrentMonth(month) {
   if (month) return month
-  const now = new Date()
-  return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
+  return bjTime.getBeijingMonth()
+}
+
+function buildMonthFilter(monthKeys) {
+  if (!monthKeys || monthKeys.length === 0) return ''
+  return monthKeys.length === 1 ? monthKeys[0] : _.in(monthKeys)
+}
+
+async function getPeriodSalarySummary(params = {}) {
+  const period = resolvePeriodRange(params)
+  const monthFilter = buildMonthFilter(period.monthKeys)
+
+  const users = await fetchAllByWhere('Users', {
+    role: _.in(['employee', 'qc']),
+    status: 'active'
+  }, {
+    field: { _id: true, name: true, role: true }
+  })
+
+  const [logs, adjustments, attendances, payments] = await Promise.all([
+    fetchAllByWhere('WorkLogs', {
+      date: _.gte(period.startDate).and(_.lt(period.endDate))
+    }, {
+      field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
+    }),
+    fetchAllByWhere('SalaryAdjustments', {
+      month: monthFilter
+    }, {
+      field: { user_id: true, month: true, type: true, amount: true }
+    }),
+    fetchAllByWhere('Attendances', {
+      date: _.gte(period.startDate).and(_.lt(period.endDate))
+    }, {
+      field: { user_id: true, date: true, hours: true, clock_in_time: true }
+    }),
+    fetchAllByWhere('SalaryPayments', {
+      month: monthFilter,
+      paid: true
+    }, {
+      field: { user_id: true, month: true, paid: true, paid_at: true, operator_name: true }
+    })
+  ])
+
+  return buildSalaryPeriodSummary({
+    users,
+    logs,
+    adjustments,
+    attendances,
+    payments,
+    monthKeys: period.monthKeys
+  })
 }
 
 // 计算某用户某月的完整薪资数据
@@ -41,33 +101,42 @@ async function calcUserSalary(userId, month) {
   const { startDate, endDate } = getMonthRange(month)
   const currentMonth = getCurrentMonth(month)
 
-  const logRes = await db.collection('WorkLogs').where({
-    user_id: userId, date: _.gte(startDate).and(_.lt(endDate))
-  }).get()
+  const [logs, adjustments, attendances] = await Promise.all([
+    fetchAllByWhere('WorkLogs', {
+      user_id: userId,
+      date: _.gte(startDate).and(_.lt(endDate))
+    }, {
+      field: { quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
+    }),
+    fetchAllByWhere('SalaryAdjustments', {
+      user_id: userId,
+      month: currentMonth
+    }, {
+      orderBy: { field: 'created_at', order: 'desc' }
+    }),
+    fetchAllByWhere('Attendances', {
+      user_id: userId,
+      date: _.gte(startDate).and(_.lt(endDate))
+    }, {
+      field: { clock_in_time: true, hours: true }
+    })
+  ])
 
   let totalPieceRate = 0, totalQuantity = 0, totalPassed = 0
-  logRes.data.forEach(function(log) {
+  logs.forEach(function(log) {
     totalQuantity += log.quantity || 0
     totalPassed += log.passed_qty || 0
     totalPieceRate += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
   })
 
-  const adjRes = await db.collection('SalaryAdjustments').where({
-    user_id: userId, month: currentMonth
-  }).orderBy('created_at', 'desc').get()
-
   var totalReward = 0, totalPenalty = 0
-  adjRes.data.forEach(function(adj) {
+  adjustments.forEach(function(adj) {
     if (adj.type === 'reward') totalReward += adj.amount
     else totalPenalty += adj.amount
   })
 
-  const attRes = await db.collection('Attendances').where({
-    user_id: userId, date: _.gte(startDate).and(_.lt(endDate))
-  }).get()
-
   var totalHours = 0, attendDays = 0
-  attRes.data.forEach(function(r) {
+  attendances.forEach(function(r) {
     if (r.clock_in_time) attendDays++
     totalHours += r.hours || 0
   })
@@ -86,8 +155,8 @@ async function calcUserSalary(userId, month) {
       attend_days: attendDays,
       total_hours: Math.round(totalHours * 10) / 10
     },
-    adjustments: adjRes.data,
-    logs: logRes.data
+    adjustments,
+    logs
   }
 }
 
@@ -99,6 +168,7 @@ exports.main = async (event, context) => {
     case 'getUserMonthlySalary': return await getUserMonthlySalary(event, wxContext)
     case 'getUserMonthlySalaryByBoss': return await getUserMonthlySalaryByBoss(event, wxContext)
     case 'getAllMonthlySalary': return await getAllMonthlySalary(event, wxContext)
+    case 'getAllPeriodSalary': return await getAllPeriodSalary(event, wxContext)
     case 'addAdjustment': return await addAdjustment(event, wxContext)
     case 'updateAdjustment': return await updateAdjustment(event, wxContext)
     case 'deleteAdjustment': return await deleteAdjustment(event, wxContext)
@@ -106,6 +176,7 @@ exports.main = async (event, context) => {
     case 'getDashboard': return await getDashboard(event, wxContext)
     case 'markPaid': return await markPaid(event, wxContext)
     case 'getPaidStatus': return await getPaidStatus(event, wxContext)
+    case 'getAvailableMonths': return await getAvailableMonths(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -148,8 +219,43 @@ async function getUserMonthlySalary(event, wxContext) {
       }
     }
 
-    // 未发薪 - 返回完整数据
+    // 未发薪 - 返回数据（对 price_hidden 的订单做脱敏）
+    // 查询相关订单的 price_hidden 状态
+    const orderIds = [...new Set((data.logs || []).map(l => l.order_id).filter(Boolean))]
+    const orderHiddenMap = {}
+    if (orderIds.length > 0) {
+      for (let i = 0; i < orderIds.length; i += 100) {
+        const batch = orderIds.slice(i, i + 100)
+        const orderRes = await db.collection('Orders').where({
+          _id: _.in(batch)
+        }).field({ _id: true, price_hidden: true }).get()
+        orderRes.data.forEach(o => {
+          orderHiddenMap[o._id] = o.price_hidden === true
+        })
+      }
+    }
+
+    // 对隐藏了工价的订单脱敏 snapshot_price / amount
+    let visiblePieceRate = 0
+    const maskedLogs = (data.logs || []).map(function(log) {
+      if (orderHiddenMap[log.order_id]) {
+        return {
+          ...log,
+          snapshot_price: null,
+          amount: null,
+          price_hidden: true
+        }
+      }
+      visiblePieceRate += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
+      return { ...log, price_hidden: false }
+    })
+
+    const hasHidden = Object.values(orderHiddenMap).some(v => v)
+    data.logs = maskedLogs
     data.is_paid = false
+    if (hasHidden) {
+      data.has_hidden_orders = true
+    }
     return { code: 0, data: data }
   } catch (err) {
     return { code: -1, msg: '获取工资失败' }
@@ -187,52 +293,72 @@ async function getAllMonthlySalary(event, wxContext) {
 
   const { month } = event
   const { startDate, endDate } = getMonthRange(month)
-  const currentMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
-    // 获取所有员工
-    const usersRes = await db.collection('Users').where({
+    // 获取所有员工（仅必要字段）
+    const users = await fetchAllByWhere('Users', {
       role: _.in(['employee', 'qc']),
       status: 'active'
-    }).get()
+    }, {
+      field: { _id: true, name: true, role: true }
+    })
+
+    // 批量拉取当月报工、奖惩、出勤，避免按员工循环查询导致超时
+    const [monthLogs, monthAdjustments, monthAttendances] = await Promise.all([
+      fetchAllByWhere('WorkLogs', {
+        date: _.gte(startDate).and(_.lt(endDate))
+      }, {
+        field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true }
+      }),
+      fetchAllByWhere('SalaryAdjustments', {
+        month: currentMonth
+      }, {
+        field: { user_id: true, type: true, amount: true }
+      }),
+      fetchAllByWhere('Attendances', {
+        date: _.gte(startDate).and(_.lt(endDate))
+      }, {
+        field: { user_id: true, hours: true, clock_in_time: true }
+      })
+    ])
+
+    const pieceRateMap = {}
+    monthLogs.forEach(log => {
+      const userId = log.user_id
+      if (!userId) return
+      if (!pieceRateMap[userId]) pieceRateMap[userId] = 0
+      pieceRateMap[userId] += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
+    })
+
+    const adjustMap = {}
+    monthAdjustments.forEach(adj => {
+      const userId = adj.user_id
+      if (!userId) return
+      if (!adjustMap[userId]) adjustMap[userId] = { reward: 0, penalty: 0 }
+      if (adj.type === 'reward') adjustMap[userId].reward += adj.amount || 0
+      else adjustMap[userId].penalty += adj.amount || 0
+    })
+
+    const attendanceMap = {}
+    monthAttendances.forEach(att => {
+      const userId = att.user_id
+      if (!userId) return
+      if (!attendanceMap[userId]) attendanceMap[userId] = { totalHours: 0, attendDays: 0 }
+      attendanceMap[userId].totalHours += att.hours || 0
+      if (att.clock_in_time) attendanceMap[userId].attendDays += 1
+    })
 
     const salaryList = []
     let totalExpenditure = 0
 
-    for (const user of usersRes.data) {
-      // 计件收入（按报工数量计算，不受质检影响）
-      const logRes = await db.collection('WorkLogs').where({
-        user_id: user._id,
-        date: _.gte(startDate).and(_.lt(endDate))
-      }).get()
-
-      let pieceRate = 0
-      logRes.data.forEach(log => { pieceRate += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100 })
-
-      // 奖惩
-      const adjRes = await db.collection('SalaryAdjustments').where({
-        user_id: user._id,
-        month: currentMonth
-      }).get()
-
-      let reward = 0, penalty = 0
-      adjRes.data.forEach(adj => {
-        if (adj.type === 'reward') reward += adj.amount
-        else penalty += adj.amount
-      })
-
-      // 出勤
-      const attRes = await db.collection('Attendances').where({
-        user_id: user._id,
-        date: _.gte(startDate).and(_.lt(endDate))
-      }).get()
-
-      let totalHours = 0
-      let attendDays = 0
-      attRes.data.forEach(r => {
-        if (r.clock_in_time) attendDays++
-        totalHours += r.hours || 0
-      })
+    for (const user of users) {
+      const userId = user._id
+      const pieceRate = pieceRateMap[userId] || 0
+      const reward = (adjustMap[userId] && adjustMap[userId].reward) || 0
+      const penalty = (adjustMap[userId] && adjustMap[userId].penalty) || 0
+      const totalHours = (attendanceMap[userId] && attendanceMap[userId].totalHours) || 0
+      const attendDays = (attendanceMap[userId] && attendanceMap[userId].attendDays) || 0
 
       const total = Math.round((pieceRate + reward - penalty) * 100) / 100
 
@@ -267,6 +393,33 @@ async function getAllMonthlySalary(event, wxContext) {
 }
 
 // 添加奖惩
+async function getAllPeriodSalary(event, wxContext) {
+  const caller = await getCallerUser(wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
+
+  const params = event.dimension === 'year'
+    ? { year: event.year }
+    : { month: event.month }
+
+  try {
+    const summary = await getPeriodSalarySummary(params)
+    return { code: 0, data: summary }
+  } catch (err) {
+    return { code: -1, msg: '\u83b7\u53d6\u5de5\u8d44\u6c47\u603b\u5931\u8d25' }
+  }
+}
+/*
+    return { code: -1, msg: '获取工资汇总失败' }
+  }
+}
+/*
+    return { code: -1, msg: '鑾峰彇宸ヨ祫姹囨€诲け璐? }
+  }
+}
+
+*/
 async function addAdjustment(event, wxContext) {
   const caller = await getCallerUser(wxContext)
   if (!caller || caller.role !== 'boss') {
@@ -282,7 +435,7 @@ async function addAdjustment(event, wxContext) {
     return { code: -1, msg: '类型无效' }
   }
 
-  const currentMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
     await db.collection('SalaryAdjustments').add({
@@ -490,7 +643,7 @@ async function deleteAdjustment(event, wxContext) {
 // 获取奖惩记录
 async function getAdjustments(event) {
   const { user_id, month } = event
-  const currentMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
     const res = await db.collection('SalaryAdjustments').where({
@@ -511,44 +664,37 @@ async function getDashboard(event, wxContext) {
     return { code: -1, msg: '权限不足' }
   }
 
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const nm = now.getMonth() + 2
-  const monthEnd = nm > 12
-    ? `${now.getFullYear() + 1}-01-01`
-    : `${now.getFullYear()}-${String(nm).padStart(2, '0')}-01`
+  const todayStr = bjTime.getBeijingToday()
+  const monthRange = bjTime.getBeijingMonthRange(bjTime.getBeijingMonth())
+  const monthStart = monthRange.start
+  const monthEnd = monthRange.end
 
   try {
-    // 员工总数
-    const employeeCount = await db.collection('Users').where({
-      role: _.in(['employee', 'qc']),
-      status: 'active'
-    }).count()
-
-    // 今日出勤
-    const todayAttendance = await db.collection('Attendances').where({
-      date: todayStr
-    }).count()
-
-    // 活跃订单
-    const activeOrders = await db.collection('Orders').where({
-      status: 'active'
-    }).count()
-
-    // 待质检
-    const pendingQC = await db.collection('WorkLogs').where({
-      status: 'pending'
-    }).count()
-
-    // 本月工资总额
-    const monthLogs = await db.collection('WorkLogs').where({
-      date: _.gte(monthStart).and(_.lt(monthEnd)),
-      status: 'inspected'
-    }).get()
+    const [employeeCount, todayAttendance, activeOrders, pendingQC, monthLogs] = await Promise.all([
+      db.collection('Users').where({
+        role: _.in(['employee', 'qc']),
+        status: 'active'
+      }).count(),
+      db.collection('Attendances').where({
+        date: todayStr
+      }).count(),
+      db.collection('Orders').where({
+        status: 'active'
+      }).count(),
+      db.collection('WorkLogs').where({
+        status: 'pending'
+      }).count(),
+      fetchAllByWhere('WorkLogs', {
+        date: _.gte(monthStart).and(_.lt(monthEnd))
+      }, {
+        field: { quantity: true, passed_qty: true, snapshot_price: true }
+      })
+    ])
 
     let monthlySalary = 0
-    monthLogs.data.forEach(log => { monthlySalary += log.amount || 0 })
+    monthLogs.forEach(log => {
+      monthlySalary += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
+    })
 
     return {
       code: 0,
@@ -565,6 +711,54 @@ async function getDashboard(event, wxContext) {
   }
 }
 
+// 获取所有有数据的月份
+async function getAvailableMonths(event, wxContext) {
+  const caller = await getCallerUser(wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
+
+  try {
+    const monthSet = {}
+
+    // 从 WorkLogs 取月份
+    const logs = await fetchAllByWhere('WorkLogs', {}, {
+      field: { date: true },
+      pageSize: 100
+    })
+    logs.forEach(l => {
+      if (l.date && l.date.length >= 7) monthSet[l.date.substring(0, 7)] = true
+    })
+
+    // 从 SalaryAdjustments 取月份
+    const adjs = await fetchAllByWhere('SalaryAdjustments', {}, {
+      field: { month: true },
+      pageSize: 100
+    })
+    adjs.forEach(a => {
+      if (a.month) monthSet[a.month] = true
+    })
+
+    // 从 SalaryPayments 取月份
+    const pays = await fetchAllByWhere('SalaryPayments', {}, {
+      field: { month: true },
+      pageSize: 100
+    })
+    pays.forEach(p => {
+      if (p.month) monthSet[p.month] = true
+    })
+
+    // 确保当前月份一定在列表中
+    const curMonth = bjTime.getBeijingMonth()
+    monthSet[curMonth] = true
+
+    const months = Object.keys(monthSet).sort().reverse()
+    return { code: 0, data: months }
+  } catch (err) {
+    return { code: -1, msg: '获取月份列表失败' }
+  }
+}
+
 // 标记/取消标记员工已发工资
 async function markPaid(event, wxContext) {
   const caller = await getCallerUser(wxContext)
@@ -577,8 +771,7 @@ async function markPaid(event, wxContext) {
     return { code: -1, msg: '参数不完整' }
   }
 
-  const now = new Date()
-  const currentMonth = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
     // 用 user_id + month 作为唯一标识
@@ -640,8 +833,7 @@ async function getPaidStatus(event, wxContext) {
   }
 
   const { month } = event
-  const now = new Date()
-  const currentMonth = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
     const res = await db.collection('SalaryPayments').where({
