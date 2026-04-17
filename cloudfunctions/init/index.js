@@ -3,6 +3,8 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const crypto = require('crypto')
+const { migrateLocationData } = require('./migrate-location')
+const { migrateTimezoneData } = require('./migrate-timezone')
 
 // 需要创建的集合列表
 const COLLECTIONS = [
@@ -17,13 +19,33 @@ const COLLECTIONS = [
   'audit_logs',
   'qr_codes',
   'export_history',
-  'privacy_consents'
+  'privacy_consents',
+  'sign_location_logs'
 ]
 
 exports.main = async (event, context) => {
+  const wxContext = cloud.getWXContext()
+
+  // 鉴权：只有 boss 角色或首次初始化（无用户时）才能执行
+  const usersCount = await db.collection('Users').count()
+  if (usersCount.total > 0) {
+    const callerRes = await db.collection('Users').where({
+      openid: wxContext.OPENID, status: 'active', role: 'boss'
+    }).limit(1).get()
+    if (!callerRes.data || callerRes.data.length === 0) {
+      return { code: -1, msg: '权限不足，仅管理员可执行初始化' }
+    }
+  }
+
   // 支持 migration 动作
   if (event.action === 'migrate_v2') {
     return await migrateV2()
+  }
+  if (event.action === 'migrate_location') {
+    return await migrateLocationData()
+  }
+  if (event.action === 'migrate_timezone') {
+    return await migrateTimezoneData(db, event)
   }
 
   const results = []
@@ -42,64 +64,75 @@ exports.main = async (event, context) => {
     }
   }
 
-  // 2. 初始化工厂设置
+  // 2. 初始化工厂设置（仅在不存在时创建，不覆盖已有设置）
   try {
-    await db.collection('factory_settings').doc('main').set({
-      data: {
-        factory_latitude: 39.9042,
-        factory_longitude: 116.4074,
-        geofence_radius: 100,
-        quality_threshold: 95,
-        export_email: 'hanyifan424@gmail.com',
-        qrcode_expire_hours: 24,
-        review_mode_enabled: true,
-        review_mode_note: '审核模式可快速登录只读账号并体验核心流程',
-        smtp_host: '',
-        smtp_port: '465',
-        smtp_user: '',
-        smtp_pass: '',
-        updated_at: db.serverDate()
-      }
-    })
-    results.push({ item: '工厂设置', status: '初始化成功' })
+    let existingSettings = null
+    try {
+      const existRes = await db.collection('factory_settings').doc('main').get()
+      existingSettings = existRes.data
+    } catch (e) {}
+
+    if (!existingSettings) {
+      await db.collection('factory_settings').doc('main').set({
+        data: {
+          factory_latitude: 39.9042,
+          factory_longitude: 116.4074,
+          geofence_radius: 100,
+          coordinate_system: 'gcj02',
+          location_source: 'default_placeholder',
+          location_confirmed: false,
+          quality_threshold: 95,
+          export_email: '',
+          qrcode_expire_days: 1,
+          review_mode_enabled: false,
+          review_mode_note: '',
+          smtp_host: '',
+          smtp_port: '465',
+          smtp_user: '',
+          smtp_pass: '',
+          updated_at: db.serverDate()
+        }
+      })
+      results.push({ item: '工厂设置', status: '初始化成功' })
+    } else {
+      results.push({ item: '工厂设置', status: '已存在，跳过' })
+    }
   } catch (err) {
     results.push({ item: '工厂设置', status: '失败: ' + err.message })
   }
 
   // 3. 创建默认管理员账号（如果不存在）
   try {
-    const phone = '19930550185'
-    const name = '韩一帆'
-    const existing = await db.collection('Users').where({ phone }).get()
-    if (!existing.data || existing.data.length === 0) {
-      const salt = crypto.randomBytes(16).toString('hex')
-      const password_hash = crypto.createHash('sha256').update(phone + salt).digest('hex')
-
-      await db.collection('Users').add({
-        data: {
-          name,
-          phone: phone,
-          role: 'boss',
-          password_hash: password_hash,
-          salt: salt,
-          status: 'active',
-          openid: '',
-          monthly_hours: 0,
-          created_at: db.serverDate(),
-          updated_at: db.serverDate()
-        }
-      })
-      results.push({ item: '默认管理员', status: `创建成功（姓名: ${name}，手机: ${phone}，密码: ${phone}）` })
+    const adminPhone = event.admin_phone || ''
+    const adminName = event.admin_name || '管理员'
+    if (!adminPhone) {
+      results.push({ item: '默认管理员', status: '跳过（未提供 admin_phone 参数）' })
     } else {
-      await db.collection('Users').doc(existing.data[0]._id).update({
-        data: {
-          name,
-          role: 'boss',
-          status: 'active',
-          updated_at: db.serverDate()
-        }
-      })
-      results.push({ item: '默认管理员', status: `已存在并更新（姓名: ${name}，手机: ${phone}）` })
+      const existing = await db.collection('Users').where({ phone: adminPhone }).get()
+      if (!existing.data || existing.data.length === 0) {
+        const salt = crypto.randomBytes(16).toString('hex')
+        const password_hash = crypto.createHash('sha256').update(adminPhone + salt).digest('hex')
+
+        await db.collection('Users').add({
+          data: {
+            name: adminName,
+            phone: adminPhone,
+            role: 'boss',
+            password_hash: password_hash,
+            salt: salt,
+            status: 'active',
+            password_changed: false,
+            must_change_password: true,
+            openid: '',
+            monthly_hours: 0,
+            created_at: db.serverDate(),
+            updated_at: db.serverDate()
+          }
+        })
+        results.push({ item: '默认管理员', status: `创建成功（姓名: ${adminName}，手机: ${adminPhone}）` })
+      } else {
+        results.push({ item: '默认管理员', status: `已存在（姓名: ${existing.data[0].name}，手机: ${adminPhone}）` })
+      }
     }
   } catch (err) {
     results.push({ item: '默认管理员', status: '失败: ' + err.message })

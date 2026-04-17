@@ -1,63 +1,47 @@
-// util.js - 通用工具函数
+// util.js - 通用工具函数（所有时间已统一为北京时间 Asia/Shanghai）
+const { getStoredUser } = require('./auth')
+const bjTime = require('./beijing-time')
 
 /**
- * 格式化日期为 YYYY-MM-DD
+ * 格式化日期为 YYYY-MM-DD（北京时间）
  */
 function formatDate(date) {
-  if (!date) return ''
-  const d = new Date(date)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return bjTime.formatBeijingDate(date)
 }
 
 /**
- * 格式化时间为 HH:mm:ss
+ * 格式化时间为 HH:mm:ss（北京时间）
  */
 function formatTime(date) {
-  if (!date) return ''
-  const d = new Date(date)
-  const hours = String(d.getHours()).padStart(2, '0')
-  const minutes = String(d.getMinutes()).padStart(2, '0')
-  const seconds = String(d.getSeconds()).padStart(2, '0')
-  return `${hours}:${minutes}:${seconds}`
+  return bjTime.formatBeijingTime(date)
 }
 
 /**
- * 格式化日期时间为 YYYY-MM-DD HH:mm
+ * 格式化日期时间为 YYYY-MM-DD HH:mm（北京时间）
  */
 function formatDateTime(date) {
-  if (!date) return ''
-  return formatDate(date) + ' ' + formatTime(date).substring(0, 5)
+  return bjTime.formatBeijingDateTime(date)
 }
 
 /**
- * 获取当月第一天 YYYY-MM-01
+ * 获取当月第一天 YYYY-MM-01（北京时间）
  */
 function getMonthStart(date) {
-  const d = date ? new Date(date) : new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+  return bjTime.getBeijingMonthStart(date)
 }
 
 /**
- * 获取当月最后一天
+ * 获取当月最后一天（北京时间）
  */
 function getMonthEnd(date) {
-  const d = date ? new Date(date) : new Date()
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0)
-  return formatDate(lastDay)
+  return bjTime.getBeijingMonthEnd(date)
 }
 
 /**
  * 计算两个时间之间的小时数
  */
 function calcHours(startTime, endTime) {
-  if (!startTime || !endTime) return 0
-  const start = new Date(startTime).getTime()
-  const end = new Date(endTime).getTime()
-  if (end <= start) return 0
-  return Math.round((end - start) / (1000 * 60 * 60) * 100) / 100
+  return bjTime.calcHoursBetween(startTime, endTime)
 }
 
 /**
@@ -111,16 +95,30 @@ function callCloud(name, data, _retryCount) {
   var retries = _retryCount || 0
   var maxRetries = 2
   return new Promise(function(resolve, reject) {
+    var user = null
+    try {
+      user = getStoredUser()
+    } catch (e) {
+      user = null
+    }
+
+    var payload = Object.assign({}, data || {})
+    if (user && user._id) {
+      payload.auth_user_id = user._id
+    }
+    if (user && user.session_token) {
+      payload.auth_session_token = user.session_token
+    }
+
     wx.cloud.callFunction({
       name: name,
-      data: data
+      data: payload
     }).then(function(res) {
       console.log('[callCloud] ' + name + ' result:', JSON.stringify(res.result))
-      if (res.result && res.result.code === 0) {
-        resolve(res.result)
-      } else {
-        var errMsg = (res.result && res.result.msg) || '操作失败，请重试'
-        reject(new Error(errMsg))
+      try {
+        resolve(resolveCloudCallResult(res.result))
+      } catch (err) {
+        reject(err)
       }
     }).catch(function(err) {
       console.error('云函数 ' + name + ' 调用失败 (attempt ' + (retries + 1) + '):', err)
@@ -135,6 +133,14 @@ function callCloud(name, data, _retryCount) {
       }
     })
   })
+}
+
+function resolveCloudCallResult(result) {
+  if (result && (result.code === 0 || result.code === -2)) {
+    return result
+  }
+  var errMsg = (result && result.msg) || '操作失败，请重试'
+  throw new Error(errMsg)
 }
 
 /**
@@ -154,17 +160,17 @@ function formatQty(num) {
 }
 
 /**
- * 获取今天的日期字符串 YYYY-MM-DD
+ * 获取今天的日期字符串 YYYY-MM-DD（北京时间）
  */
 function getToday() {
-  return formatDate(new Date())
+  return bjTime.getBeijingToday()
 }
 
 /**
- * 判断是否是同一天
+ * 判断是否是同一天（北京时间）
  */
 function isSameDay(date1, date2) {
-  return formatDate(date1) === formatDate(date2)
+  return bjTime.isSameBeijingDay(date1, date2)
 }
 
 /**
@@ -181,6 +187,20 @@ function trim(str) {
   return str ? str.replace(/^\s+|\s+$/g, '') : ''
 }
 
+/**
+ * 判断员工是否可查看某订单的工价
+ * @param {Object} order - 订单对象，需含 price_hidden / salaryPaid 等字段
+ * @param {string} userRole - 当前用户角色 'boss' | 'employee' | 'qc'
+ * @returns {boolean} true = 可查看工价
+ */
+function canEmployeeViewOrderPrice(order, userRole) {
+  if (userRole === 'boss') return true
+  if (!order) return true
+  if (order.price_hidden === true) return false
+  if (order.salary_paid === true) return false
+  return true
+}
+
 module.exports = {
   formatDate,
   formatTime,
@@ -194,10 +214,12 @@ module.exports = {
   hideLoading,
   showConfirm,
   callCloud,
+  resolveCloudCallResult,
   formatMoney,
   formatQty,
   getToday,
   isSameDay,
   isValidPhone,
-  trim
+  trim,
+  canEmployeeViewOrderPrice
 }

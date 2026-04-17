@@ -1,39 +1,115 @@
 /* pages/login/login.wxss */
 .login-page {
+  position: relative;
   min-height: 100vh;
-  background: linear-gradient(180deg, #1890FF 0%, #096DD9 40%, #F5F5F5 40%);
-  padding: 0 40rpx;
+  padding: 90rpx 32rpx 60rpx;
+  background:
+    linear-gradient(180deg, #f1f5f9 0%, #e7edf4 22%, #f7fafc 22%, #f7fafc 100%);
 }
 
-.login-header {
-  padding-top: 80rpx;
-  padding-bottom: 50rpx;
+.login-hero {
+  position: relative;
+  z-index: 1;
+  padding: 0 10rpx 32rpx;
   text-align: center;
 }
 
 .login-logo {
-  width: 160rpx;
-  height: 160rpx;
-  border-radius: 32rpx;
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 28rpx;
   margin-bottom: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.15);
+  box-shadow: 0 16rpx 30rpx rgba(29, 45, 61, 0.12);
 }
 
 .app-title {
-  font-size: 52rpx;
+  font-size: 54rpx;
   font-weight: bold;
-  color: #fff;
-  margin-bottom: 16rpx;
+  color: #1f3550;
+  margin-bottom: 14rpx;
 }
 
 .app-desc {
-  font-size: 32rpx;
-  color: rgba(255, 255, 255, 0.85);
+  width: 88%;
+  margin: 0 auto;
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: #6c7f92;
+}
+
+.login-form-shell {
+  position: relative;
+  z-index: 1;
 }
 
 .login-form {
-  padding: 50rpx 40rpx;
-  border-radius: 20rpx;
+  padding: 40rpx 30rpx 34rpx;
+  border-radius: 24rpx;
+  background: #ffffff;
+  border: 2rpx solid #dde5ee;
+  box-shadow: 0 14rpx 30rpx rgba(25, 47, 78, 0.08);
+}
+
+.form-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 26rpx;
+  gap: 16rpx;
+}
+
+.form-title {
+  display: block;
+  font-size: 42rpx;
+  font-weight: bold;
+  color: #18324c;
+}
+
+.form-subtitle {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #6a7e92;
+}
+
+.stored-badge {
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: #edf7ed;
+  color: #2b8a3e;
+  font-size: 24rpx;
+  font-weight: bold;
+}
+
+.field-card {
+  margin-bottom: 18rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 18rpx;
+  border: 2rpx solid #e7edf3;
+  background: #fbfcfd;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 26rpx;
+  color: #6b7d90;
+}
+
+.field-tip {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: #8b9aac;
+}
+
+.field-input {
+  width: 100%;
+  min-height: 64rpx;
+  font-size: 38rpx;
+  color: #18324c;
 }
 
 .password-wrap {
@@ -49,22 +125,84 @@
 
 .toggle-pwd {
   position: absolute;
-  right: 24rpx;
-  font-size: 30rpx;
-  color: #1890FF;
-  padding: 10rpx;
+  right: 6rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 28rpx;
+  color: #1765b4;
+  padding: 10rpx 14rpx;
+  white-space: nowrap;
 }
 
 .login-btn {
-  margin-top: 50rpx;
-  height: 96rpx;
-  line-height: 96rpx;
+  margin-top: 18rpx;
+  height: 98rpx;
+  line-height: 1.4;
+  border-radius: 999rpx;
   font-size: 36rpx;
-  border-radius: 48rpx;
+  background: linear-gradient(135deg, #1f4368, #345b84);
+  box-shadow: 0 14rpx 24rpx rgba(52, 91, 132, 0.16);
+}
+
+.login-btn::after {
+  border: none;
+}
+
+.login-btn-text {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.quick-enter-btn {
+  margin-top: 18rpx;
+  width: 100%;
+  min-height: 92rpx;
+  line-height: 1.4;
+  border-radius: 999rpx;
+  border: 2rpx solid #cfe0ef;
+  background: #f8fafc;
+  color: #2f4d69;
+  font-size: 34rpx;
+}
+
+.quick-enter-btn::after {
+  border: none;
+}
+
+.login-notice-panel {
+  margin-top: 24rpx;
+  padding: 24rpx 22rpx 20rpx;
+  border-radius: 20rpx;
+  background: #f7fafc;
+  border: 2rpx solid #e8eff6;
+}
+
+.login-notice-title {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #29425d;
 }
 
 .login-tip {
-  margin-top: 30rpx;
+  display: block;
+  margin-top: 6rpx;
+}
+
+.agreement-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14rpx;
+  flex-wrap: wrap;
+}
+
+.agreement-divider {
+  margin: 0 14rpx;
+  font-size: 24rpx;
+  color: #9caabd;
 }
 
 /* 改密弹窗 */
@@ -84,8 +222,11 @@
 .modal-dialog {
   width: 620rpx;
   background: #fff;
-  border-radius: 20rpx;
+  border-radius: 24rpx;
+  border: 2rpx solid #e4ecf5;
+  box-shadow: 0 18rpx 36rpx rgba(15, 39, 71, 0.2);
   overflow: hidden;
+  max-width: calc(100vw - 64rpx);
 }
 
 .modal-header {

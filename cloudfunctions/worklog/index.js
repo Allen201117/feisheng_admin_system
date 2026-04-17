@@ -1,15 +1,51 @@
-// 云函数 - worklog (报工管理)
+// 云函数 - worklog (报工管理) — 已统一为北京时间
 const cloud = require('wx-server-sdk')
+const bjTime = require('./beijing-time')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const MAX_TX_RETRIES = 3
 
 async function getCallerUser(wxContext) {
   const res = await db.collection('Users').where({
     openid: wxContext.OPENID,
     status: 'active'
-  }).get()
+  }).orderBy('last_login', 'desc').limit(20).get()
   return res.data.length > 0 ? res.data[0] : null
+}
+
+async function getCallerUserByEvent(event, wxContext) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+
+  if (authUserId && authSessionToken) {
+    try {
+      const exactRes = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (exactRes.data.length > 0) {
+        return exactRes.data[0]
+      }
+    } catch (err) {}
+  }
+
+  const fallbackUser = await getCallerUser(wxContext)
+  if (!fallbackUser) return null
+  if (!authUserId) return fallbackUser
+  if (String(fallbackUser._id) === String(authUserId)) return fallbackUser
+
+  try {
+    const matchedRes = await db.collection('Users').where({
+      openid: wxContext.OPENID,
+      status: 'active'
+    }).orderBy('last_login', 'desc').limit(20).get()
+    const matched = matchedRes.data.find(item => String(item._id) === String(authUserId))
+    return matched || fallbackUser
+  } catch (err) {
+    return fallbackUser
+  }
 }
 
 // 检查某用户某月是否已发薪锁定
@@ -23,21 +59,478 @@ async function isPeriodLocked(userId, dateStr) {
   return paidRes.data.length > 0
 }
 
+async function getPeriodPaidRecord(userId, dateStr) {
+  const month = dateStr.substring(0, 7)
+  const paidRes = await db.collection('SalaryPayments').where({
+    user_id: userId,
+    month,
+    paid: true
+  }).orderBy('paid_at', 'desc').limit(1).get()
+  return (paidRes.data && paidRes.data[0]) || null
+}
+
+function toTimestamp(input) {
+  if (!input) return 0
+  if (input instanceof Date) return input.getTime()
+  if (typeof input === 'number') return input
+  if (typeof input === 'string') {
+    const t = new Date(input).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.$date) {
+    const t = new Date(input.$date).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.seconds) {
+    return toInt(input.seconds) * 1000 + Math.floor((toInt(input.nanoseconds) || 0) / 1000000)
+  }
+  return 0
+}
+
+function formatTwoDigits(num) {
+  return String(num).padStart(2, '0')
+}
+
+function formatWorkLogTime(log) {
+  if (!log) return ''
+
+  var ts = toTimestamp(log.created_at)
+  if (ts > 0) {
+    return bjTime.formatBeijingDateTime(ts)
+  }
+
+  if (log.date) {
+    return log.date + ' --:--'
+  }
+
+  return ''
+}
+
+function toInt(val) {
+  const num = parseInt(val, 10)
+  return Number.isNaN(num) ? 0 : num
+}
+
+function getOrderTotalQuantity(orderDoc) {
+  if (!orderDoc) return 0
+  return toInt(orderDoc.total_quantity || orderDoc.order_total_quantity || 0)
+}
+
+function getWorkLogQuantity(logDoc) {
+  if (!logDoc) return 0
+  return toInt(logDoc.quantity || logDoc.report_quantity || 0)
+}
+
+function normalizeSnapshotPrice(value) {
+  if (value === null || value === undefined || value === '') return 0
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+async function sumProcessReportedQuantity(orderId, processId, excludeLogId = null, dbInstance = db) {
+  if (!orderId || !processId) return 0
+
+  let total = 0
+  let logs = []
+  let batchLen = 0
+
+  do {
+    const res = await dbInstance.collection('WorkLogs').where({
+      order_id: orderId,
+      process_id: processId
+    }).skip(logs.length).limit(100).get()
+
+    batchLen = res.data.length
+    logs = logs.concat(res.data)
+  } while (batchLen === 100)
+
+  logs.forEach((item) => {
+    if (excludeLogId && item._id === excludeLogId) return
+    total += getWorkLogQuantity(item)
+  })
+
+  return total
+}
+
+async function getProcessQuotaSnapshot(orderId, processId, excludeLogId = null) {
+  if (!orderId || !processId) {
+    return { ok: false, msg: '缺少订单或工序信息' }
+  }
+
+  try {
+    const orderRes = await db.collection('Orders').doc(orderId).get()
+    if (!orderRes.data) {
+      return { ok: false, msg: '订单不存在' }
+    }
+
+    const orderTotal = getOrderTotalQuantity(orderRes.data)
+    if (orderTotal <= 0) {
+      return { ok: false, msg: '订单总量配置无效' }
+    }
+
+    const currentTotal = await sumProcessReportedQuantity(orderId, processId, excludeLogId)
+    const remaining = Math.max(orderTotal - currentTotal, 0)
+
+    return {
+      ok: true,
+      data: {
+        order_total_quantity: orderTotal,
+        current_total: currentTotal,
+        remaining_quantity: remaining
+      }
+    }
+  } catch (err) {
+    return { ok: false, msg: '获取工序报工额度失败' }
+  }
+}
+
+async function submitWorkLogWithQuotaGuard(payload) {
+  const {
+    user_id,
+    user_name,
+    process_id,
+    process_name,
+    order_id,
+    order_name,
+    quantity,
+    snapshot_price,
+    date
+  } = payload
+
+  let retry = 0
+  while (retry < MAX_TX_RETRIES) {
+    const transaction = await db.startTransaction()
+    try {
+      const orderRes = await transaction.collection('Orders').doc(order_id).get()
+      if (!orderRes.data) {
+        await transaction.rollback()
+        return { code: -1, msg: '订单不存在' }
+      }
+
+      const orderTotal = getOrderTotalQuantity(orderRes.data)
+      if (orderTotal <= 0) {
+        await transaction.rollback()
+        return { code: -1, msg: '订单总量配置无效' }
+      }
+
+      if (orderRes.data.status === 'completed') {
+        await transaction.rollback()
+        return { code: -1, msg: '该订单已完成，员工不可再报工' }
+      }
+
+      const currentTotal = await sumProcessReportedQuantity(order_id, process_id, null, transaction)
+      const newTotal = currentTotal + quantity
+      if (newTotal > orderTotal) {
+        await transaction.rollback()
+        const remaining = Math.max(orderTotal - currentTotal, 0)
+        return {
+          code: -1,
+          msg: '报工失败：该工序累计报工数量不能超过订单总数量',
+          data: {
+            order_total_quantity: orderTotal,
+            current_total: currentTotal,
+            remaining_quantity: remaining
+          }
+        }
+      }
+
+      await transaction.collection('Orders').doc(order_id).update({
+        data: {
+          report_lock_version: _.inc(1),
+          updated_at: db.serverDate()
+        }
+      })
+
+      await transaction.collection('WorkLogs').add({
+        data: {
+          user_id,
+          user_name: user_name || '',
+          process_id,
+          process_name,
+          order_id,
+          order_name,
+          quantity,
+          snapshot_price,
+          amount: Math.round(quantity * snapshot_price * 100) / 100,
+          status: 'pending',
+          qc_status: 'pending',
+          passed_qty: 0,
+          inspected_by: null,
+          inspected_at: null,
+          date,
+          created_at: db.serverDate()
+        }
+      })
+
+      await transaction.commit()
+      return {
+        code: 0,
+        msg: '报工提交成功',
+        data: {
+          amount: Math.round(quantity * snapshot_price * 100) / 100,
+          snapshot_price
+        }
+      }
+    } catch (err) {
+      try { await transaction.rollback() } catch (e) {}
+
+      // 并发写冲突时自动重试，避免并发下超额
+      if (String(err.message || '').indexOf('conflict') >= 0 || String(err.errMsg || '').indexOf('conflict') >= 0) {
+        retry += 1
+        continue
+      }
+
+      return { code: -1, msg: '提交失败: ' + err.message }
+    }
+  }
+
+  return { code: -1, msg: '提交失败：并发冲突，请重试' }
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const { action } = event
 
   switch (action) {
     case 'submit': return await submitWorkLog(event)
+    case 'getProcessQuota': return await getProcessQuota(event)
     case 'getTodayEarnings': return await getTodayEarnings(event)
     case 'getUserLogs': return await getUserLogs(event)
     case 'getMonthLogs': return await getMonthLogs(event, wxContext)
+    case 'getPeriodLogs': return await getPeriodLogs(event, wxContext)
+    case 'getManageLogs': return await getManageLogs(event, wxContext)
+    case 'getOrderProgress': return await getOrderProgress(event, wxContext)
     case 'getPendingLogs': return await getPendingLogs(event, wxContext)
     case 'getInspectedLogs': return await getInspectedLogs(event, wxContext)
     case 'getLogDetail': return await getLogDetail(event)
     case 'inspect': return await inspect(event, wxContext)
     case 'updateWorkLog': return await updateWorkLog(event, wxContext)
+    case 'deleteWorkLog': return await deleteWorkLog(event, wxContext)
+    case 'cancelOwnWorkLog': return await cancelOwnWorkLog(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
+  }
+}
+
+// 员工撤销自己的报工（防误报）
+async function cancelOwnWorkLog(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
+
+  const { log_id, reason } = event
+  if (!log_id) return { code: -1, msg: '缺少报工记录ID' }
+
+  try {
+    const logRes = await db.collection('WorkLogs').doc(log_id).get()
+    const log = logRes.data
+    if (!log) return { code: -1, msg: '报工记录不存在' }
+
+    // 只允许撤销本人提交的记录，角色不做额外限制，避免账号角色标记差异导致误拦截
+    if (String(log.user_id) !== String(caller._id)) {
+      return { code: -1, msg: '只能撤销自己的报工记录' }
+    }
+
+    const todayStr = bjTime.getBeijingToday()
+    if (log.date !== todayStr) {
+      return { code: -1, msg: '仅支持撤销当日报工记录' }
+    }
+
+    // 已完成订单不可撤销
+    try {
+      const orderRes = await db.collection('Orders').doc(log.order_id).get()
+      if (orderRes.data && orderRes.data.status === 'completed') {
+        return { code: -1, msg: '该订单已完成，员工不可撤销相关报工' }
+      }
+    } catch (e) {
+      return { code: -1, msg: '订单状态校验失败' }
+    }
+
+    // 发薪锁定遵循时间顺序：报工时间晚于发薪时间时允许撤销
+    const paidRecord = await getPeriodPaidRecord(log.user_id, log.date)
+    if (paidRecord) {
+      const paidAtTs = toTimestamp(paidRecord.paid_at)
+      const logCreatedTs = toTimestamp(log.created_at)
+      if (paidAtTs > 0 && logCreatedTs > 0 && logCreatedTs <= paidAtTs) {
+        return { code: -1, msg: '该报工发生在发薪之前，已锁定，无法撤销' }
+      }
+    }
+
+    await db.collection('WorkLogs').doc(log_id).remove()
+
+    await db.collection('audit_logs').add({
+      data: {
+        action: 'worklog_self_cancel',
+        worklog_id: log_id,
+        target_user_id: log.user_id,
+        target_user_name: log.user_name,
+        operator_id: caller._id,
+        operator_name: caller.name,
+        operator_role: caller.role,
+        details: `${log.user_name || '员工'} 撤销当日报工 ${log.quantity || 0} 件`,
+        reason: reason || '员工误报撤销',
+        created_at: db.serverDate()
+      }
+    })
+
+    return { code: 0, msg: '报工记录已撤销' }
+  } catch (err) {
+    return { code: -1, msg: '撤销失败: ' + err.message }
+  }
+}
+
+async function getProcessQuota(event) {
+  const { order_id, process_id, exclude_log_id } = event
+  const quota = await getProcessQuotaSnapshot(order_id, process_id, exclude_log_id || null)
+  if (!quota.ok) {
+    return { code: -1, msg: quota.msg }
+  }
+  return { code: 0, data: quota.data }
+}
+
+function getMonthRange(month) {
+  var r = bjTime.getBeijingMonthRange(month)
+  return { start: r.startDate, end: r.endDate }
+}
+
+function getYearRange(yearValue) {
+  var r = bjTime.getBeijingYearRange(yearValue)
+  return { start: r.startDate, end: r.endDate }
+}
+
+async function fetchLogsByDateRange(startDate, endDate) {
+  let allLogs = []
+  let lastLen = 0
+
+  do {
+    const res = await db.collection('WorkLogs').where({
+      date: _.gte(startDate).and(_.lt(endDate))
+    }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
+    lastLen = res.data.length
+    allLogs = allLogs.concat(res.data)
+  } while (lastLen === 100)
+
+  return allLogs
+}
+
+// 老板报工管理：按日/按月/按订单查询所有员工报工
+async function getManageLogs(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
+
+  const { view_type, date, month, order_id } = event
+  const where = {}
+
+  if (view_type === 'day') {
+    if (!date) return { code: -1, msg: '请选择日期' }
+    where.date = date
+  } else if (view_type === 'month') {
+    if (!month) return { code: -1, msg: '请选择月份' }
+    const range = getMonthRange(month)
+    where.date = _.gte(range.start).and(_.lt(range.end))
+  } else if (view_type === 'order') {
+    if (!order_id) return { code: -1, msg: '请选择订单' }
+    where.order_id = order_id
+    if (month) {
+      const range = getMonthRange(month)
+      where.date = _.gte(range.start).and(_.lt(range.end))
+    }
+  } else {
+    const defaultMonth = bjTime.getBeijingMonth()
+    const range = getMonthRange(defaultMonth)
+    where.date = _.gte(range.start).and(_.lt(range.end))
+  }
+
+  try {
+    let allLogs = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('WorkLogs').where(where)
+        .orderBy('created_at', 'desc')
+        .skip(allLogs.length)
+        .limit(100)
+        .get()
+
+      batchLen = res.data.length
+      allLogs = allLogs.concat(res.data)
+    } while (batchLen === 100)
+
+    return { code: 0, data: allLogs }
+  } catch (err) {
+    return { code: -1, msg: '获取报工记录失败: ' + err.message }
+  }
+}
+
+async function getOrderProgress(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
+
+  const { order_id } = event
+  if (!order_id) return { code: -1, msg: '请选择订单' }
+
+  try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    const order = orderRes.data
+    if (!order) return { code: -1, msg: '订单不存在' }
+
+    // 获取所有工序
+    let allProcesses = []
+    let batchLen = 0
+    do {
+      const res = await db.collection('Processes').where({ order_id })
+        .skip(allProcesses.length).limit(100).get()
+      batchLen = res.data.length
+      allProcesses = allProcesses.concat(res.data)
+    } while (batchLen === 100)
+
+    // 获取该订单所有报工
+    let allLogs = []
+    batchLen = 0
+    do {
+      const res = await db.collection('WorkLogs').where({ order_id })
+        .skip(allLogs.length).limit(100).get()
+      batchLen = res.data.length
+      allLogs = allLogs.concat(res.data)
+    } while (batchLen === 100)
+
+    // 按工序聚合
+    const totalQty = order.total_quantity || 0
+    const processes = allProcesses.map(proc => {
+      const logs = allLogs.filter(l => l.process_id === proc._id)
+      const totalReported = logs.reduce((s, l) => s + (Number(l.quantity) || 0), 0)
+      const employeeIds = [...new Set(logs.map(l => l.user_id))]
+      const progressPercent = totalQty > 0 ? Math.min(100, Math.round(totalReported / totalQty * 100)) : 0
+      return {
+        _id: proc._id,
+        process_name: proc.process_name,
+        current_price: proc.current_price,
+        assigned_count: (proc.assigned_user_ids || []).length,
+        total_reported: totalReported,
+        employee_count: employeeIds.length,
+        progress_percent: progressPercent
+      }
+    })
+
+    // 整体进度
+    const overallReported = allLogs.reduce((s, l) => s + (Number(l.quantity) || 0), 0)
+    const overallPercent = totalQty > 0 ? Math.min(100, Math.round(overallReported / totalQty * 100)) : 0
+
+    return {
+      code: 0,
+      data: {
+        order_name: order.order_name,
+        total_quantity: totalQty,
+        overall_reported: overallReported,
+        overall_percent: overallPercent,
+        processes
+      }
+    }
+  } catch (err) {
+    return { code: -1, msg: '获取进度失败: ' + err.message }
   }
 }
 
@@ -56,7 +549,15 @@ async function submitWorkLog(event) {
     }
 
     const process = processRes.data
-    const snapshotPrice = process.current_price
+    if (process.order_id !== order_id) {
+      return { code: -1, msg: '工序与订单不匹配' }
+    }
+    const snapshotPrice = normalizeSnapshotPrice(process.current_price)
+
+    // 工价未设置时禁止报工
+    if (false && (snapshotPrice === null || snapshotPrice === undefined)) {
+      return { code: -1, msg: '该工序尚未设置工价，请联系管理员设置后再报工' }
+    }
 
     // 获取订单名
     let orderName = ''
@@ -65,37 +566,19 @@ async function submitWorkLog(event) {
       orderName = orderRes.data ? orderRes.data.order_name : ''
     } catch (e) {}
 
-    const today = new Date()
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const dateStr = bjTime.getBeijingToday()
 
-    await db.collection('WorkLogs').add({
-      data: {
-        user_id,
-        user_name: user_name || '',
-        process_id,
-        process_name: process.process_name,
-        order_id,
-        order_name: orderName,
-        quantity: parseInt(quantity),
-        snapshot_price: snapshotPrice,
-        amount: Math.round(parseInt(quantity) * snapshotPrice * 100) / 100,
-        status: 'pending',
-        passed_qty: 0,
-        inspected_by: null,
-        inspected_at: null,
-        date: dateStr,
-        created_at: db.serverDate()
-      }
+    return await submitWorkLogWithQuotaGuard({
+      user_id,
+      user_name,
+      process_id,
+      process_name: process.process_name,
+      order_id,
+      order_name: orderName,
+      quantity: toInt(quantity),
+      snapshot_price: snapshotPrice,
+      date: dateStr
     })
-
-    return {
-      code: 0,
-      msg: '报工提交成功',
-      data: {
-        amount: Math.round(parseInt(quantity) * snapshotPrice * 100) / 100,
-        snapshot_price: snapshotPrice
-      }
-    }
   } catch (err) {
     return { code: -1, msg: '提交失败: ' + err.message }
   }
@@ -104,8 +587,7 @@ async function submitWorkLog(event) {
 // 获取今日收入
 async function getTodayEarnings(event) {
   const { user_id } = event
-  const today = new Date()
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const dateStr = bjTime.getBeijingToday()
 
   try {
     const res = await db.collection('WorkLogs').where({
@@ -113,11 +595,28 @@ async function getTodayEarnings(event) {
       date: dateStr
     }).get()
 
+    // 批量查询相关订单的 price_hidden 状态
+    const orderIds = [...new Set(res.data.map(r => r.order_id).filter(Boolean))]
+    const orderHiddenMap = {}
+    if (orderIds.length > 0) {
+      for (let i = 0; i < orderIds.length; i += 100) {
+        const batch = orderIds.slice(i, i + 100)
+        const orderRes = await db.collection('Orders').where({
+          _id: _.in(batch)
+        }).field({ _id: true, price_hidden: true }).get()
+        orderRes.data.forEach(o => {
+          orderHiddenMap[o._id] = o.price_hidden === true
+        })
+      }
+    }
+
     let totalAmount = 0
     let totalQuantity = 0
     res.data.forEach(r => {
-      totalAmount += r.amount || 0
       totalQuantity += r.quantity || 0
+      if (!orderHiddenMap[r.order_id]) {
+        totalAmount += r.amount || 0
+      }
     })
 
     return {
@@ -136,24 +635,18 @@ async function getTodayEarnings(event) {
 // 获取用户报工记录
 async function getUserLogs(event) {
   const { user_id, month } = event
-  const now = new Date()
   let startDate, endDate, currentMonth
 
   if (month) {
-    startDate = month + '-01'
+    var range = getMonthRange(month)
+    startDate = range.start
+    endDate = range.end
     currentMonth = month
-    const parts = month.split('-')
-    const m = parseInt(parts[1])
-    endDate = m >= 12
-      ? `${parseInt(parts[0]) + 1}-01-01`
-      : `${parts[0]}-${String(m + 1).padStart(2, '0')}-01`
   } else {
-    currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-    const m = now.getMonth() + 2
-    endDate = m > 12
-      ? `${now.getFullYear() + 1}-01-01`
-      : `${now.getFullYear()}-${String(m).padStart(2, '0')}-01`
+    currentMonth = bjTime.getBeijingMonth()
+    var defRange = getMonthRange(currentMonth)
+    startDate = defRange.start
+    endDate = defRange.end
   }
 
   try {
@@ -170,15 +663,32 @@ async function getUserLogs(event) {
     }).get()
     const isPaidLocked = paidRes.data.length > 0
 
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    // 批量查询相关订单的 price_hidden 状态
+    const orderIds = [...new Set(res.data.map(log => log.order_id).filter(Boolean))]
+    const orderHiddenMap = {}
+    for (let i = 0; i < orderIds.length; i += 100) {
+      const batch = orderIds.slice(i, i + 100)
+      const orderRes = await db.collection('Orders').where({
+        _id: _.in(batch)
+      }).field({ _id: true, price_hidden: true }).get()
+      orderRes.data.forEach(o => {
+        orderHiddenMap[o._id] = o.price_hidden === true
+      })
+    }
 
-    const data = res.data.map(log => ({
-      ...log,
-      is_locked: isPaidLocked,
-      is_today: log.date === todayStr,
-      lock_reason: isPaidLocked ? '该月工资已发放' : ''
-    }))
+    const todayStr = bjTime.getBeijingToday()
+
+    const data = res.data.map(log => {
+      const priceHidden = orderHiddenMap[log.order_id] === true || isPaidLocked
+      return {
+        ...log,
+        report_time_text: formatWorkLogTime(log),
+        is_locked: isPaidLocked,
+        is_today: log.date === todayStr,
+        lock_reason: isPaidLocked ? '该月工资已发放' : '',
+        price_hidden: priceHidden
+      }
+    })
 
     return { code: 0, data: data }
   } catch (err) {
@@ -187,44 +697,48 @@ async function getUserLogs(event) {
 }
 
 // 获取某月所有报工记录（老板专用）
+async function getPeriodLogs(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足' }
+  }
+
+  const dimension = event.dimension === 'year' ? 'year' : 'month'
+  const range = dimension === 'year'
+    ? getYearRange(event.year)
+    : getMonthRange(event.month || bjTime.getBeijingMonth())
+
+  try {
+    const logs = await fetchLogsByDateRange(range.start, range.end)
+    return { code: 0, data: logs }
+  } catch (err) {
+    return { code: -1, msg: '获取报工记录失败: ' + err.message }
+  }
+}
+
 async function getMonthLogs(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
 
   const { month } = event
-  const now = new Date()
   let startDate, endDate
 
   if (month) {
-    startDate = month + '-01'
-    const parts = month.split('-')
-    const m = parseInt(parts[1])
-    endDate = m >= 12
-      ? `${parseInt(parts[0]) + 1}-01-01`
-      : `${parts[0]}-${String(m + 1).padStart(2, '0')}-01`
+    var range = getMonthRange(month)
+    startDate = range.start
+    endDate = range.end
   } else {
-    startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-    const m = now.getMonth() + 2
-    endDate = m > 12
-      ? `${now.getFullYear() + 1}-01-01`
-      : `${now.getFullYear()}-${String(m).padStart(2, '0')}-01`
+    var defRange = getMonthRange(bjTime.getBeijingMonth())
+    startDate = defRange.start
+    endDate = defRange.end
   }
 
   try {
     // 云数据库单次最多100条，需要分页获取
-    let allLogs = []
-    let lastLen = 0
-    do {
-      const res = await db.collection('WorkLogs').where({
-        date: _.gte(startDate).and(_.lt(endDate))
-      }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
-      lastLen = res.data.length
-      allLogs = allLogs.concat(res.data)
-    } while (lastLen === 100)
-
-    return { code: 0, data: allLogs }
+    const logs = await fetchLogsByDateRange(startDate, endDate)
+    return { code: 0, data: logs }
   } catch (err) {
     return { code: -1, msg: '获取月报工记录失败: ' + err.message }
   }
@@ -232,7 +746,7 @@ async function getMonthLogs(event, wxContext) {
 
 // QC获取待检列表
 async function getPendingLogs(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || (caller.role !== 'qc' && caller.role !== 'boss')) {
     return { code: -1, msg: '权限不足' }
   }
@@ -250,7 +764,7 @@ async function getPendingLogs(event, wxContext) {
 
 // QC获取已检列表
 async function getInspectedLogs(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || (caller.role !== 'qc' && caller.role !== 'boss')) {
     return { code: -1, msg: '权限不足' }
   }
@@ -277,9 +791,49 @@ async function getLogDetail(event) {
   }
 }
 
+// 老板删除报工记录
+async function deleteWorkLog(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') {
+    return { code: -1, msg: '权限不足，仅管理员可删除' }
+  }
+
+  const { log_id, reason } = event
+  if (!log_id) {
+    return { code: -1, msg: '缺少报工记录ID' }
+  }
+
+  try {
+    const logRes = await db.collection('WorkLogs').doc(log_id).get()
+    const log = logRes.data
+    if (!log) return { code: -1, msg: '报工记录不存在' }
+
+    await db.collection('WorkLogs').doc(log_id).remove()
+
+    await db.collection('audit_logs').add({
+      data: {
+        action: 'worklog_delete',
+        worklog_id: log_id,
+        target_user_id: log.user_id,
+        target_user_name: log.user_name,
+        operator_id: caller._id,
+        operator_name: caller.name,
+        operator_role: caller.role,
+        details: `${log.user_name || '未知员工'} ${log.date || ''} 删除报工 ${log.quantity || 0} 件`,
+        reason: reason || '老板在报工管理页面删除',
+        created_at: db.serverDate()
+      }
+    })
+
+    return { code: 0, msg: '报工记录已删除' }
+  } catch (err) {
+    return { code: -1, msg: '删除失败: ' + err.message }
+  }
+}
+
 // QC质检
 async function inspect(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || (caller.role !== 'qc' && caller.role !== 'boss')) {
     return { code: -1, msg: '权限不足，仅质检员可操作' }
   }
@@ -305,14 +859,11 @@ async function inspect(event, wxContext) {
       return { code: -1, msg: '合格数量无效' }
     }
 
-    // 重算金额（合格数量 × 快照单价）
-    const finalAmount = Math.round(passedQty * log.snapshot_price * 100) / 100
-
     await db.collection('WorkLogs').doc(log_id).update({
       data: {
         passed_qty: passedQty,
-        amount: finalAmount,
         status: 'inspected',
+        qc_status: 'inspected',
         inspected_by: caller._id,
         inspected_by_name: caller.name,
         inspected_at: db.serverDate()
@@ -322,7 +873,10 @@ async function inspect(event, wxContext) {
     return {
       code: 0,
       msg: '质检完成',
-      data: { passed_qty: passedQty, final_amount: finalAmount }
+      data: {
+        passed_qty: passedQty,
+        salary_affected: false
+      }
     }
   } catch (err) {
     return { code: -1, msg: '质检失败: ' + err.message }
@@ -331,7 +885,7 @@ async function inspect(event, wxContext) {
 
 // 修改报工记录（含权限校验 + 发薪锁定 + 审计留痕）
 async function updateWorkLog(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) return { code: -1, msg: '未登录或用户不存在' }
 
   const { log_id, quantity, note, reason, process_id, order_id } = event
@@ -346,12 +900,11 @@ async function updateWorkLog(event, wxContext) {
     // 权限校验
     if (caller.role === 'employee') {
       // 员工只能改自己的
-      if (log.user_id !== caller._id) {
+      if (String(log.user_id) !== String(caller._id)) {
         return { code: -1, msg: '无权修改他人报工记录' }
       }
-      // 员工只能改当天的
-      const today = new Date()
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      // 员工只能改当天的（北京时间）
+      const todayStr = bjTime.getBeijingToday()
       if (log.date !== todayStr) {
         return { code: -1, msg: '只能修改当日的报工记录' }
       }
@@ -422,12 +975,82 @@ async function updateWorkLog(event, wxContext) {
       updateData.order_name = orderName
     }
 
+    const targetOrderId = updateData.order_id || log.order_id
+    const targetProcessId = updateData.process_id || log.process_id
+    const targetQty = updateData.quantity || log.quantity
+
+    const shouldCheckQuota = (
+      updateData.quantity !== undefined ||
+      updateData.order_id !== undefined ||
+      updateData.process_id !== undefined
+    )
+
+    if (shouldCheckQuota) {
+      const quotaSnapshot = await getProcessQuotaSnapshot(targetOrderId, targetProcessId, log._id)
+      if (!quotaSnapshot.ok) {
+        return { code: -1, msg: quotaSnapshot.msg }
+      }
+
+      const afterUpdateTotal = quotaSnapshot.data.current_total + toInt(targetQty)
+      if (afterUpdateTotal > quotaSnapshot.data.order_total_quantity) {
+        return { code: -1, msg: '报工失败：该工序累计报工数量不能超过订单总数量' }
+      }
+    }
+
     if (auditChanges.length === 0) {
       return { code: 0, msg: '未检测到修改' }
     }
 
-    // 更新报工记录
-    await db.collection('WorkLogs').doc(log_id).update({ data: updateData })
+    if (shouldCheckQuota) {
+      let retry = 0
+      let txSuccess = false
+      while (retry < MAX_TX_RETRIES && !txSuccess) {
+        const transaction = await db.startTransaction()
+        try {
+          const orderRes = await transaction.collection('Orders').doc(targetOrderId).get()
+          if (!orderRes.data) {
+            await transaction.rollback()
+            return { code: -1, msg: '订单不存在' }
+          }
+
+          const orderTotal = getOrderTotalQuantity(orderRes.data)
+          if (orderTotal <= 0) {
+            await transaction.rollback()
+            return { code: -1, msg: '订单总量配置无效' }
+          }
+
+          const currentTotal = await sumProcessReportedQuantity(targetOrderId, targetProcessId, log._id, transaction)
+          const newTotal = currentTotal + toInt(targetQty)
+          if (newTotal > orderTotal) {
+            await transaction.rollback()
+            return { code: -1, msg: '报工失败：该工序累计报工数量不能超过订单总数量' }
+          }
+
+          await transaction.collection('Orders').doc(targetOrderId).update({
+            data: {
+              report_lock_version: _.inc(1),
+              updated_at: db.serverDate()
+            }
+          })
+          await transaction.collection('WorkLogs').doc(log_id).update({ data: updateData })
+          await transaction.commit()
+          txSuccess = true
+        } catch (err) {
+          try { await transaction.rollback() } catch (e) {}
+          if (String(err.message || '').indexOf('conflict') >= 0 || String(err.errMsg || '').indexOf('conflict') >= 0) {
+            retry += 1
+            continue
+          }
+          return { code: -1, msg: '修改失败: ' + err.message }
+        }
+      }
+
+      if (!txSuccess) {
+        return { code: -1, msg: '修改失败：并发冲突，请重试' }
+      }
+    } else {
+      await db.collection('WorkLogs').doc(log_id).update({ data: updateData })
+    }
 
     // 写入审计日志 WorkLogAudit
     await db.collection('audit_logs').add({

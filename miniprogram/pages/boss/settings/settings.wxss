@@ -1,4 +1,14 @@
 /* pages/boss/settings/settings.wxss */
+.container {
+  background:
+    radial-gradient(circle at 20% 0%, #f0f9ff 0%, transparent 34%),
+    radial-gradient(circle at 90% 10%, #fff3e8 0%, transparent 30%),
+    #f7f8fb;
+}
+
+.card {
+  border: 2rpx solid #e8eef8;
+}
 
 .switch-row {
   display: flex;
@@ -14,7 +24,7 @@
 
 .switch-label {
   font-size: 34rpx;
-  color: #333;
+  color: #1f3554;
   display: block;
   margin-bottom: 6rpx;
 }
@@ -24,3 +34,148 @@
   line-height: 1.4;
 }
 
+/* 定位采样相关 */
+.location-tip {
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 20rpx;
+  line-height: 1.5;
+}
+
+.location-result {
+  background: #f0f9f0;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin: 20rpx 0;
+}
+
+.result-summary {
+  font-size: 28rpx;
+  color: #2d8c2d;
+  margin-bottom: 12rpx;
+  font-weight: 500;
+}
+
+.sample-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.sample-btn {
+  flex: 1;
+}
+
+.sample-row {
+  font-size: 24rpx;
+  color: #555;
+  padding: 6rpx 0;
+  border-top: 1rpx solid #e0e8e0;
+}
+
+.text-warn {
+  color: #e6a23c;
+}
+
+.text-red {
+  color: #f56c6c;
+}
+
+.coord-meta {
+  font-size: 24rpx;
+  color: #666;
+  padding: 10rpx 0;
+}
+
+.advanced-toggle {
+  padding: 16rpx 0;
+  text-align: center;
+}
+
+.advanced-warn {
+  background: #fff8e6;
+  border: 1rpx solid #ffe0b3;
+  border-radius: 8rpx;
+  padding: 16rpx;
+  font-size: 24rpx;
+  color: #e6a23c;
+  line-height: 1.5;
+  margin-bottom: 12rpx;
+}
+
+.subsection-title {
+  margin: 24rpx 0 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f3554;
+}
+
+/* 打卡点列表 */
+.checkpoint-list {
+  margin: 20rpx 0;
+}
+
+.checkpoint-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx;
+  border: 2rpx solid #e8eef8;
+  border-radius: 12rpx;
+  background: #fbfdff;
+  margin-bottom: 12rpx;
+}
+
+.main-checkpoint {
+  border-color: #b8d4f8;
+  background: #f0f7ff;
+}
+
+.checkpoint-item-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow: hidden;
+}
+
+.checkpoint-icon {
+  font-size: 36rpx;
+  margin-right: 16rpx;
+  flex-shrink: 0;
+}
+
+.checkpoint-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.checkpoint-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1f3554;
+}
+
+.checkpoint-coord {
+  font-size: 22rpx;
+  color: #7a8798;
+  margin-top: 4rpx;
+}
+
+.checkpoint-remove {
+  color: #d9534f;
+  font-size: 26rpx;
+  flex-shrink: 0;
+  padding: 8rpx 16rpx;
+}
+
+.input-hint {
+  font-size: 22rpx;
+  color: #666;
+  margin-top: 6rpx;
+  line-height: 1.4;
+}
+
+.advanced-section {
+  margin-top: 12rpx;
+}

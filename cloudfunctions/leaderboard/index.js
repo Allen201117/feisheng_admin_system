@@ -3,32 +3,22 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const bjTime = require('./beijing-time')
 
 function getMonthRange(monthStr) {
-  var now = new Date()
-  var startDate, endDate, month
   if (monthStr) {
-    startDate = monthStr + '-01'
-    var parts = monthStr.split('-')
-    var m = parseInt(parts[1])
-    endDate = m >= 12
-      ? (parseInt(parts[0]) + 1) + '-01-01'
-      : parts[0] + '-' + String(m + 1).padStart(2, '0') + '-01'
-    month = monthStr
-  } else {
-    var y = now.getFullYear(), m2 = now.getMonth() + 1
-    startDate = y + '-' + String(m2).padStart(2, '0') + '-01'
-    var nm = m2 + 1
-    endDate = nm > 12 ? (y + 1) + '-01-01' : y + '-' + String(nm).padStart(2, '0') + '-01'
-    month = y + '-' + String(m2).padStart(2, '0')
+    var range = bjTime.getBeijingMonthRange(monthStr)
+    return { startDate: range.startDate || range.start, endDate: range.endDate || range.end, month: monthStr }
   }
-  return { startDate: startDate, endDate: endDate, month: month }
+  var curMonth = bjTime.getBeijingMonth()
+  var range = bjTime.getBeijingMonthRange(curMonth)
+  return { startDate: range.startDate || range.start, endDate: range.endDate || range.end, month: curMonth }
 }
 
 function getYearRange(yearStr) {
-  var now = new Date()
-  var y = yearStr ? parseInt(yearStr) : now.getFullYear()
-  return { startDate: y + '-01-01', endDate: (y + 1) + '-01-01', year: String(y) }
+  var y = yearStr ? parseInt(yearStr) : parseInt(bjTime.getBeijingMonth().split('-')[0])
+  var range = bjTime.getBeijingYearRange(y)
+  return { startDate: range.startDate || range.start, endDate: range.endDate || range.end, year: String(y) }
 }
 
 // 获取订单的日期范围
@@ -77,11 +67,16 @@ async function getRank(event, period) {
   }
 
   try {
-    // 获取所有活跃员工
-    var usersRes = await db.collection('Users').where({
-      role: _.in(['employee', 'qc']), status: 'active'
-    }).get()
-    var users = usersRes.data
+    // 获取所有活跃员工（分页获取，避免默认20条截断）
+    var users = []
+    var batchLen = 0
+    do {
+      var usersRes = await db.collection('Users').where({
+        role: _.in(['employee', 'qc']), status: 'active'
+      }).skip(users.length).limit(100).get()
+      batchLen = usersRes.data.length
+      users = users.concat(usersRes.data)
+    } while (batchLen === 100)
 
     var rankList = []
 

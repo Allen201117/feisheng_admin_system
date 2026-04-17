@@ -1,25 +1,53 @@
 /* pages/employee/home/home.wxss */
-.user-header {
-  display: flex;
-  align-items: center;
-  padding: 30rpx;
-  background: linear-gradient(135deg, #1890FF, #096DD9);
-  border-radius: 16rpx;
+.container {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(130, 202, 255, 0.18) 0%, transparent 24%),
+    radial-gradient(circle at 86% 12%, rgba(255, 225, 158, 0.18) 0%, transparent 22%),
+    linear-gradient(180deg, #eef6ff 0%, #f7fbff 42%, #fbfcfe 100%);
+}
+
+.card {
+  border: 2rpx solid #e8eef8;
+  border-radius: 24rpx;
+  box-shadow: 0 10rpx 26rpx rgba(17, 38, 84, 0.07);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.section-title {
+  color: #1e3550;
+}
+
+.hero-panel {
+  border: 2rpx solid #d5e7fb;
+  box-shadow: 0 14rpx 30rpx rgba(21, 84, 155, 0.16);
+}
+
+.employee-hero {
+  padding: 28rpx;
+  border-radius: 28rpx;
   margin-bottom: 24rpx;
   color: #fff;
+  background: linear-gradient(135deg, #134a8a 0%, #1f76cc 52%, #42a0f5 100%);
+}
+
+.employee-top-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
 }
 
 .user-avatar {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.3);
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  background: rgba(255,255,255,0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 42rpx;
   font-weight: bold;
-  margin-right: 20rpx;
+  margin-right: 18rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 
 .user-info {
@@ -27,72 +55,170 @@
 }
 
 .user-name {
-  font-size: 36rpx;
-  font-weight: bold;
   display: block;
+  font-size: 42rpx;
+  font-weight: bold;
 }
 
 .user-role {
-  font-size: 28rpx;
-  opacity: 0.85;
+  display: block;
+  margin-top: 4rpx;
+  font-size: 26rpx;
+  color: rgba(255,255,255,0.84);
 }
 
 .user-join-date {
   display: block;
-  font-size: 26rpx;
-  opacity: 0.8;
-  margin-top: 4rpx;
-  color: #fff !important;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.78);
 }
 
-.header-date {
+.time-panel {
+  min-width: 132rpx;
+  flex-shrink: 0;
   text-align: right;
 }
 
 .date-text {
-  font-size: 28rpx;
-  opacity: 0.85;
   display: block;
+  font-size: 26rpx;
+  color: rgba(255,255,255,0.82);
 }
 
 .time-text {
-  font-size: 32rpx;
+  display: block;
+  margin-top: 8rpx;
+  font-size: 38rpx;
   font-weight: bold;
 }
 
-/* 打卡按钮 */
-.clock-section {
-  position: relative;
+.hero-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 26rpx;
 }
 
-.scan-badge {
-  position: absolute;
-  top: 20rpx;
-  right: 20rpx;
+.hero-status-card {
+  flex: 1 1 160rpx;
+  padding: 18rpx 16rpx;
+  border-radius: 20rpx;
+  background: rgba(255,255,255,0.12);
+  min-width: 0;
+}
+
+.hero-status-label {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.76);
+}
+
+.hero-status-value {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 34rpx;
+  font-weight: bold;
+}
+
+.stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.stat-item {
+  flex: 1 1 280rpx;
+  padding: 28rpx 22rpx;
+  min-width: 0;
+}
+
+.stat-wage {
+  background: linear-gradient(135deg, #fff4e4 0%, #fffaf2 100%);
+  border-color: #f3dfc2;
+}
+
+.stat-hours {
+  background: linear-gradient(135deg, #eef8f2 0%, #fbfffc 100%);
+  border-color: #d7eede;
+}
+
+.stat-label-top {
+  display: block;
+  font-size: 26rpx;
+  color: #6f7f90;
+}
+
+.stat-value {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #1f3855;
+}
+
+.stat-foot {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #95a3b1;
+}
+
+.clock-section {
+  margin-top: 18rpx;
+  border-color: #dce9f6;
+}
+
+.clock-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.clock-subtitle {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #8294a7;
+}
+
+.scan-chip {
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: #edf7ff;
+  color: #1c71c5;
+  font-size: 24rpx;
+  font-weight: bold;
+  flex-shrink: 0;
 }
 
 .clock-buttons {
   display: flex;
-  gap: 24rpx;
-  margin-top: 20rpx;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 24rpx;
 }
 
 .clock-btn-wrap {
-  flex: 1;
+  width: 100%;
 }
 
 .clock-btn {
   width: 100%;
-  height: 200rpx;
-  border-radius: 20rpx;
+  min-height: 164rpx;
+  border-radius: 24rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   border: none;
   color: #fff;
-  padding: 0;
+  padding: 24rpx 22rpx;
   line-height: 1.4;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .clock-btn::after {
@@ -100,102 +226,144 @@
 }
 
 .clock-btn-in {
-  background: linear-gradient(135deg, #52C41A, #389E0D);
-  box-shadow: 0 8rpx 24rpx rgba(82,196,26,0.3);
+  background: linear-gradient(135deg, #2b9b5d, #59c07d);
+  box-shadow: 0 12rpx 24rpx rgba(43, 155, 93, 0.24);
 }
 
 .clock-btn-out {
-  background: linear-gradient(135deg, #FF7A45, #FA541C);
-  box-shadow: 0 8rpx 24rpx rgba(255,122,69,0.3);
+  background: linear-gradient(135deg, #db6b39, #f79a54);
+  box-shadow: 0 12rpx 24rpx rgba(219, 107, 57, 0.24);
 }
 
 .clock-btn-done {
-  background: #D9D9D9;
+  background: linear-gradient(135deg, #7a8fa3, #9fb0c0);
 }
 
 .clock-btn-disabled {
-  background: #F0F0F0;
-  color: #999;
+  background: linear-gradient(135deg, #dce4ec, #edf2f7);
+  color: #7d8ea0;
+}
+
+.clock-btn-caption {
+  font-size: 24rpx;
+  opacity: 0.82;
+  text-align: center;
 }
 
 .clock-btn-text {
-  font-size: 40rpx;
+  margin-top: 10rpx;
+  font-size: 36rpx;
   font-weight: bold;
+  text-align: center;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .clock-btn-time {
-  font-size: 30rpx;
-  margin-top: 8rpx;
-  opacity: 0.9;
-}
-
-/* 统计行 */
-.stats-row {
-  display: flex;
-  gap: 20rpx;
-  margin-bottom: 0;
-}
-
-.stat-item {
-  flex: 1;
-  text-align: center;
-  padding: 30rpx 20rpx;
-}
-
-.stat-item .stat-value {
-  font-size: 44rpx;
-  font-weight: bold;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.stat-item .stat-label {
-  font-size: 28rpx;
-  color: #999;
-}
-
-/* 菜单列表 */
-.menu-list {
   margin-top: 10rpx;
+  font-size: 30rpx;
+  opacity: 0.92;
+  text-align: center;
 }
 
-.menu-item {
+.session-info {
   display: flex;
+  justify-content: center;
   align-items: center;
-  padding: 28rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  color: #58708a;
 }
 
-.menu-item:last-child {
-  border-bottom: none;
+.session-divider {
+  margin: 0 12rpx;
+  color: #9bb0c4;
+}
+
+.quick-panel {
+  margin-top: 18rpx;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 18rpx;
+}
+
+.panel-title-note {
+  font-size: 24rpx;
+  color: #91a2b3;
+}
+
+.quick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.quick-card {
+  width: calc(50% - 8rpx);
+  padding: 24rpx 20rpx;
+  border-radius: 22rpx;
+  border: 2rpx solid #edf2f8;
+  background: #fff;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .menu-icon {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 16rpx;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 22rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
-  margin-right: 20rpx;
+  font-size: 38rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 8rpx 16rpx rgba(33, 66, 122, 0.12);
 }
 
-.bg-blue { background: #E6F7FF; }
-.bg-green { background: #F6FFED; }
-.bg-red { background: #FFF1F0; }
-.bg-orange { background: #FFF7E6; }
-.bg-purple { background: #F9F0FF; }
+.bg-blue { background: #e8f4ff; }
+.bg-green { background: #edfdf3; }
+.bg-red { background: #fff1f0; }
+.bg-orange { background: #fff6e9; }
+.bg-purple { background: #eef0ff; }
 
 .menu-text {
-  flex: 1;
+  display: block;
   font-size: 32rpx;
-  color: #333;
+  font-weight: bold;
+  color: #28455f;
+  word-break: break-all;
 }
 
-.menu-arrow {
-  font-size: 36rpx;
-  color: #CCC;
+.menu-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #8da0b4;
+  line-height: 1.55;
+  word-break: break-all;
+}
+
+.logout-bar {
+  display: flex;
+  align-items: center;
+  margin-top: 18rpx;
+  padding: 22rpx 10rpx 4rpx;
+  border-top: 1rpx solid #edf2f8;
+}
+
+.logout-text-main {
+  flex: 1;
+  font-size: 32rpx;
+  color: #26425d;
+}
+
+.logout-arrow {
+  font-size: 40rpx;
+  color: #9cb0c3;
 }
 
 /* 修改密码弹窗 */
@@ -211,8 +379,10 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 85%;
-  background: #fff;
-  border-radius: 16rpx;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdff 100%);
+  border: 2rpx solid #e6eef8;
+  border-radius: 24rpx;
+  box-shadow: 0 14rpx 30rpx rgba(17, 38, 84, 0.16);
   z-index: 1001;
 }
 .modal-title {
@@ -249,7 +419,7 @@
   flex: 1;
 }
 .pwd-toggle {
-  font-size: 26rpx;
+  font-size: 30rpx;
   color: #1890FF;
   padding: 0 10rpx;
   white-space: nowrap;

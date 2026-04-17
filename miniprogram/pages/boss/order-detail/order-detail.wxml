@@ -2,29 +2,62 @@
 <view class="container" wx:if="{{order}}" style="padding-bottom: 20rpx;">
 
   <!-- ========== 区块1：订单概览卡 ========== -->
-  <view class="card order-overview-card">
+  <view class="card order-overview-card hero-panel">
     <view class="overview-top">
-      <text class="overview-name">{{order.order_name}}</text>
-      <text class="tag {{order.status === 'active' ? 'tag-success' : 'tag-info'}}">{{order.status === 'active' ? '进行中' : '已完成'}}</text>
+      <view class="hero-title-wrap">
+        <text class="hero-title">{{order.order_name}}</text>
+        <text class="tag {{order.status_class}}">{{order.status_text}}</text>
+      </view>
+      <view class="btn-more" bindtap="onMoreAction">⋯</view>
     </view>
+
+    <view class="timeline-box" wx:if="{{order.end_date}}">
+      <view class="timeline-header">
+        <text class="timeline-label">时间进度</text>
+        <text class="timeline-text {{order.overdue ? 'text-danger' : 'text-gray'}}">{{order.days_left_text}}</text>
+      </view>
+      <view class="timeline-track">
+        <view class="timeline-fill {{order.overdue ? 'timeline-fill-overdue' : ''}}" style="width: {{order.timeline_progress}}%;"></view>
+      </view>
+    </view>
+
     <view class="overview-meta">
-      <view class="meta-item">
+      <view class="meta-item metric-item">
         <text class="meta-label">总数量</text>
         <text class="meta-value">{{order.total_quantity}} 件</text>
       </view>
-      <view class="meta-item">
+      <view class="meta-item metric-item">
         <text class="meta-label">开始日期</text>
         <text class="meta-value">{{order.start_date}}</text>
       </view>
-      <view class="meta-item">
+      <view class="meta-item metric-item">
         <text class="meta-label">截止日期</text>
         <text class="meta-value">{{order.end_date || '未设定'}}</text>
       </view>
+    </view>
+
+    <!-- 工价隐藏开关 -->
+    <view class="price-hidden-row">
+      <view class="price-hidden-info">
+        <text class="price-hidden-label">工价隐藏</text>
+        <text class="price-hidden-desc">开启后，员工将无法查看该订单相关工价信息</text>
+      </view>
+      <switch checked="{{order.price_hidden}}" bindchange="onTogglePriceHidden" color="#1890ff" />
+    </view>
+
+    <!-- 工价管理操作 -->
+    <view class="price-manage-row" wx:if="{{order.status === 'active'}}">
+      <button class="btn-clear-prices" bindtap="onClearAllPrices">🗑️ 一键清空所有工价</button>
+      <button class="btn-price-history" bindtap="onShowPriceHistory">📋 工价变更记录</button>
     </view>
   </view>
 
   <!-- ========== 区块2：工序分配总览卡 ========== -->
   <view class="card assign-summary-card">
+    <view class="summary-title-row">
+      <text class="summary-title">工序分配概览</text>
+      <text class="summary-subtitle">共 {{processes.length}} 道工序</text>
+    </view>
     <view class="summary-stats">
       <view class="summary-stat-item">
         <text class="summary-num">{{processes.length}}</text>
@@ -41,18 +74,18 @@
     </view>
     <!-- Tab 筛选 -->
     <view class="process-tabs">
-      <view class="ptab {{processFilter === 'all' ? 'ptab-active' : ''}}" bindtap="onProcessFilter" data-filter="all">全部</view>
-      <view class="ptab {{processFilter === 'unassigned' ? 'ptab-active' : ''}}" bindtap="onProcessFilter" data-filter="unassigned">
+      <view class="ptab filter-chip {{processFilter === 'all' ? 'ptab-active filter-chip-active' : ''}}" bindtap="onProcessFilter" data-filter="all">全部</view>
+      <view class="ptab filter-chip {{processFilter === 'unassigned' ? 'ptab-active filter-chip-active' : ''}}" bindtap="onProcessFilter" data-filter="unassigned">
         未分配
         <text class="ptab-badge" wx:if="{{unassignedCount > 0}}">{{unassignedCount}}</text>
       </view>
-      <view class="ptab {{processFilter === 'assigned' ? 'ptab-active' : ''}}" bindtap="onProcessFilter" data-filter="assigned">已分配</view>
+      <view class="ptab filter-chip {{processFilter === 'assigned' ? 'ptab-active filter-chip-active' : ''}}" bindtap="onProcessFilter" data-filter="assigned">已分配</view>
     </view>
   </view>
 
   <!-- ========== 区块3：工序列表 ========== -->
   <view class="card">
-    <view class="flex-between mb-20">
+    <view class="list-header-row mb-20">
       <text class="section-title" style="margin-bottom:0;">工序列表</text>
       <button class="btn-primary add-btn" bindtap="toggleAddProcess" wx:if="{{order.status === 'active'}}">
         {{showAddProcess ? '取消' : '+ 添加工序'}}
@@ -83,7 +116,8 @@
           <text class="process-name">{{item.process_name}}</text>
           <text class="process-note-inline" wx:if="{{item.note}}">{{item.note}}</text>
         </view>
-        <text class="process-price">¥{{item.current_price}}/件</text>
+        <text class="process-price" wx:if="{{item.current_price != null}}">¥{{item.current_price}}/件</text>
+        <text class="process-price process-price-empty" wx:else>未设置工价</text>
       </view>
 
       <!-- 分配员工展示区 -->
@@ -91,17 +125,20 @@
         <view wx:if="{{item.assigned_user_ids.length > 0}}" class="assign-tags-row">
           <text class="assign-count-badge badge-ok">已分配 {{item.assigned_user_ids.length}} 人</text>
           <view class="assign-tags">
-            <text wx:for="{{item._assignedNames}}" wx:for-item="aname" wx:key="*this" class="assign-tag">{{aname}}</text>
+            <view wx:for="{{item._assignedNames}}" wx:for-item="aname" wx:key="*this" class="assign-tag assign-tag-checked">
+              <text class="assign-tag-check">✓</text>
+              <text>{{aname}}</text>
+            </view>
           </view>
         </view>
         <view wx:else class="unassigned-row">
           <text class="assign-count-badge badge-warn">未分配</text>
-          <button class="btn-go-assign" bindtap="showAssignPanel" data-id="{{item._id}}" wx:if="{{order.status === 'active'}}">去分配 →</button>
+          <button class="btn-go-assign" bindtap="showAssignPanel" wx:if="{{order.status === 'active'}}">去分配 →</button>
         </view>
       </view>
 
       <view class="process-actions" wx:if="{{order.status === 'active'}}">
-        <button class="btn-sm btn-assign" bindtap="showAssignPanel" data-id="{{item._id}}">{{item.assigned_user_ids.length > 0 ? '编辑分配' : '分配员工'}}</button>
+        <button class="btn-sm btn-assign" bindtap="showAssignPanel">批量分配</button>
         <button class="btn-sm btn-edit" bindtap="onEditProcess" data-process="{{item}}">编辑工序</button>
         <button class="btn-sm btn-del" bindtap="onDeleteProcess" data-process="{{item}}">删除</button>
       </view>
@@ -109,51 +146,55 @@
   </view>
 </view>
 
-<!-- ========== 分配员工全屏面板 ========== -->
+<!-- ========== 双栏分配面板 ========== -->
 <view wx:if="{{showAssign}}" class="assign-panel">
   <!-- 顶部栏 -->
   <view class="assign-topbar">
     <text class="assign-topbar-close" bindtap="hideAssign">取消</text>
-    <text class="assign-topbar-title">分配员工 - {{assignProcessName}}</text>
+    <text class="assign-topbar-title">工序分配</text>
     <view style="width:80rpx;"></view>
   </view>
 
-  <!-- 已选预览区 -->
-  <view class="assign-selected-area" wx:if="{{assignedUserIds.length > 0}}">
-    <view class="assign-selected-header">
-      <text class="assign-selected-label">已选 {{assignedUserIds.length}} 人</text>
-      <text class="assign-clear-btn" bindtap="clearAssignment">清空</text>
-    </view>
-    <scroll-view scroll-x class="assign-selected-scroll">
-      <view class="assign-selected-tags">
-        <view wx:for="{{assignedUserIds}}" wx:key="*this" class="assign-sel-tag" bindtap="toggleAssignUser" data-id="{{item}}">
-          <text class="sel-tag-name">{{employeeMap[item] || '未知'}}</text>
-          <text class="sel-tag-x">✕</text>
+  <!-- 上方：工序卡片横向滚动 -->
+  <view class="assign-process-area">
+    <text class="assign-section-label">选择工序（点击切换）</text>
+    <scroll-view scroll-x class="assign-process-scroll">
+      <view class="assign-process-chips">
+        <view wx:for="{{processes}}" wx:key="_id"
+              class="assign-process-chip {{activeAssignProcessId === item._id ? 'assign-process-chip-active' : ''}}"
+              bindtap="onSelectAssignProcess" data-id="{{item._id}}">
+          <text class="apc-name">{{item.process_name}}</text>
+          <text class="apc-count">{{item._assignedCount}} 人</text>
+          <view class="apc-tags" wx:if="{{item._assignedCount > 0}}">
+            <text wx:for="{{item._assignedNames}}" wx:key="*this" class="apc-tag">{{item}}</text>
+            <text wx:if="{{item._assignedCount > 5}}" class="apc-tag apc-tag-more">+{{item._assignedCount - 5}}</text>
+          </view>
         </view>
       </view>
     </scroll-view>
   </view>
-  <view class="assign-selected-area assign-empty-hint" wx:else>
-    <text class="text-gray">请从下方列表选择员工</text>
+
+  <!-- 当前工序已选预览 -->
+  <view class="assign-current-header" wx:if="{{activeAssignProcessId}}">
+    <text class="assign-current-label">已选 {{assignMap[activeAssignProcessId].length}} 人</text>
+    <text class="assign-clear-btn" bindtap="clearAssignment">清空</text>
   </view>
 
-  <!-- 员工列表 -->
+  <!-- 下方：员工双栏卡片 -->
   <scroll-view scroll-y class="assign-list-scroll">
-    <view wx:for="{{allEmployees}}" wx:key="_id" 
-          class="assign-emp-row {{assignedUserIds.indexOf(item._id) >= 0 ? 'assign-emp-selected' : ''}}"
-          bindtap="toggleAssignUser" data-id="{{item._id}}">
-      <!-- 复选框 -->
-      <view class="assign-checkbox {{assignedUserIds.indexOf(item._id) >= 0 ? 'assign-checkbox-on' : ''}}">
-        <text wx:if="{{assignedUserIds.indexOf(item._id) >= 0}}">✓</text>
-      </view>
-      <!-- 员工信息 -->
-      <view class="assign-emp-info">
-        <text class="assign-emp-name">{{item.name}}</text>
-        <text class="assign-emp-sub">{{item.role === 'qc' ? '质检员' : '员工'}}{{item.join_date ? ' · 入厂 ' + item.join_date : ''}}</text>
-      </view>
-      <!-- 右侧选中标记 -->
-      <view class="assign-emp-right" wx:if="{{assignedUserIds.indexOf(item._id) >= 0}}">
-        <text class="assign-emp-check-icon">✔</text>
+    <view class="assign-card-grid">
+      <view wx:for="{{allEmployees}}" wx:key="_id"
+            class="assign-emp-card {{_currentProcessUserIds.indexOf(item._id) >= 0 ? 'assign-emp-card-selected' : ''}}"
+            bindtap="toggleAssignUser" data-id="{{item._id}}"
+            bindlongpress="onLongPressEmployee" data-id="{{item._id}}">
+        <view class="assign-card-check" wx:if="{{_currentProcessUserIds.indexOf(item._id) >= 0}}">
+          <text class="assign-card-check-icon">✓</text>
+        </view>
+        <view class="assign-card-avatar">
+          <text class="assign-card-avatar-text">{{item.name[0] || ''}}</text>
+        </view>
+        <text class="assign-card-name">{{item.name}}</text>
+        <text class="assign-card-role">{{item.role === 'qc' ? '质检员' : '员工'}}</text>
       </view>
     </view>
 
@@ -164,17 +205,61 @@
 
   <!-- 底部固定操作栏 -->
   <view class="assign-bottom-bar safe-bottom">
-    <text class="assign-bottom-count">已选 {{assignedUserIds.length}} 人</text>
+    <text class="assign-bottom-count">{{_currentProcessUserIds.length}} 人已选</text>
     <view class="assign-bottom-btns">
       <button class="assign-bottom-cancel" bindtap="hideAssign">取消</button>
-      <button class="assign-bottom-save {{!assignHasChange ? 'assign-btn-disabled' : ''}}" bindtap="onConfirmAssign" disabled="{{!assignHasChange}}">
-        {{assignHasChange ? '保存分配' : '无变更'}}
-      </button>
+      <button class="assign-bottom-save" bindtap="onConfirmAssign">保存分配</button>
+    </view>
+  </view>
+</view>
+
+<!-- 员工已分配工序弹窗 -->
+<view wx:if="{{showEmpProcesses}}" class="modal-mask" bindtap="closeEmpProcesses">
+  <view class="modal-content" catchtap="stopBubble" style="border-radius:24rpx;width:85%;position:relative;max-height:60vh;">
+    <view class="modal-header">
+      <text class="section-title" style="margin-bottom:0;">{{empProcessesName}} 的已分配工序</text>
+      <text class="modal-close" bindtap="closeEmpProcesses">✕</text>
+    </view>
+    <view style="padding:20rpx;">
+      <view wx:for="{{empProcessesList}}" wx:key="*this" style="padding:12rpx 0;font-size:32rpx;color:#333;border-bottom:1rpx solid #f0f0f0;">
+        {{item}}
+      </view>
     </view>
   </view>
 </view>
 
 
+
+<!-- ========== 工价变更记录面板 ========== -->
+<view wx:if="{{showPriceHistory}}" class="assign-panel">
+  <view class="assign-topbar">
+    <text class="assign-topbar-close" bindtap="hidePriceHistory">关闭</text>
+    <text class="assign-topbar-title">工价变更记录</text>
+    <view style="width:80rpx;"></view>
+  </view>
+
+  <scroll-view scroll-y class="price-history-scroll">
+    <view wx:if="{{priceChangeLogs.length === 0}}" class="empty-state" style="padding:80rpx 0;">
+      <text class="empty-text">暂无工价变更记录</text>
+    </view>
+
+    <view wx:for="{{priceChangeLogs}}" wx:key="_id" class="price-log-card">
+      <view class="price-log-header">
+        <text class="price-log-action {{item.action === 'clear_price' ? 'action-clear' : 'action-update'}}">
+          {{item.action === 'clear_price' ? '清空工价' : (item.action === 'update_process_price' ? '修改单价' : '编辑工序')}}
+        </text>
+        <text class="price-log-time">{{item.created_at_display}}</text>
+      </view>
+      <view class="price-log-body">
+        <text class="price-log-process" wx:if="{{item.process_name}}">工序: {{item.process_name}}</text>
+        <text class="price-log-detail">{{item.details}}</text>
+      </view>
+      <view class="price-log-footer">
+        <text class="price-log-operator">操作人: {{item.operator_name || '系统'}}</text>
+      </view>
+    </view>
+  </scroll-view>
+</view>
 
 <!-- ========== 编辑工序弹窗 ========== -->
 <view wx:if="{{showEditProcess}}" class="modal-mask" bindtap="closeEditProcess">
@@ -198,6 +283,64 @@
       </view>
       <view class="edit-tip">💡 修改单价不影响历史报工记录</view>
       <button class="btn-primary btn-block mt-20" bindtap="onSaveEditProcess">保存修改</button>
+    </view>
+  </view>
+</view>
+
+<!-- ========== 编辑订单弹窗 ========== -->
+<view wx:if="{{showEditOrder}}" class="modal-mask" bindtap="closeEditOrder">
+  <view class="modal-content" catchtap="stopBubble" style="border-radius:24rpx 24rpx 0 0;position:fixed;bottom:0;left:0;right:0;max-height:70vh;">
+    <view class="modal-header">
+      <text class="section-title" style="margin-bottom:0;">编辑订单</text>
+      <text class="modal-close" bindtap="closeEditOrder">✕</text>
+    </view>
+    <view class="modal-body-edit">
+      <view class="input-group">
+        <text class="input-label">订单名称</text>
+        <input class="input-field" value="{{editOrderName}}" bindinput="onEditOrderNameInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">总数量（件）</text>
+        <input class="input-field" type="number" value="{{editTotalQuantity}}" bindinput="onEditTotalQuantityInput" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">订单状态</text>
+        <picker mode="selector" range="{{statusOptions}}" range-key="text" value="{{editStatusIndex}}" bindchange="onEditStatusChange">
+          <view class="input-field picker-field">{{statusOptions[editStatusIndex].text}}</view>
+        </picker>
+      </view>
+      <view class="input-group">
+        <text class="input-label">开始日期</text>
+        <picker mode="date" value="{{editStartDate}}" bindchange="onEditStartDateChange">
+          <view class="input-field picker-field">{{editStartDate || '请选择'}}</view>
+        </picker>
+      </view>
+      <view class="input-group">
+        <text class="input-label">截止日期</text>
+        <picker mode="date" value="{{editEndDate}}" bindchange="onEditEndDateChange">
+          <view class="input-field picker-field">{{editEndDate || '请选择'}}</view>
+        </picker>
+      </view>
+      <view class="edit-tip">注意：如果已报工数量超出新总量，保存将被阻止</view>
+      <button class="btn-primary btn-block mt-20" bindtap="onSaveEditOrder">保存修改</button>
+    </view>
+  </view>
+</view>
+
+<!-- ========== 复制订单弹窗 ========== -->
+<view wx:if="{{showCopyOrder}}" class="modal-mask" bindtap="closeCopyOrder">
+  <view class="modal-content" catchtap="stopBubble" style="border-radius:24rpx 24rpx 0 0;position:fixed;bottom:0;left:0;right:0;max-height:50vh;">
+    <view class="modal-header">
+      <text class="section-title" style="margin-bottom:0;">复制订单</text>
+      <text class="modal-close" bindtap="closeCopyOrder">✕</text>
+    </view>
+    <view class="modal-body-edit">
+      <view class="edit-tip" style="margin-bottom:20rpx;">将复制"{{order.order_name}}"的所有工序和员工分配</view>
+      <view class="input-group">
+        <text class="input-label">新订单总数量（件）</text>
+        <input class="input-field" type="number" value="{{copyTotalQuantity}}" bindinput="onCopyTotalQuantityInput" />
+      </view>
+      <button class="btn-primary btn-block mt-20" bindtap="onConfirmCopyOrder">确认复制</button>
     </view>
   </view>
 </view>

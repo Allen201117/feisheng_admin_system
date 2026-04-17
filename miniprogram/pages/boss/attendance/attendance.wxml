@@ -13,7 +13,7 @@
   <!-- 每日考勤 -->
   <view wx:if="{{activeTab === 'today'}}">
     <view class="card">
-      <view class="flex-between mb-20">
+      <view class="att-header-row mb-20">
         <text class="section-title" style="margin-bottom:0;">考勤记录</text>
         <picker mode="date" value="{{selectedDate}}" bindchange="onDateChange">
           <view class="date-picker">{{selectedDate}} ▼</view>

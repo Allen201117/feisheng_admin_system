@@ -1,5 +1,16 @@
 <!--pages/boss/salary/salary.wxml-->
 <view class="container">
+  <!-- 月份切换标签 -->
+  <scroll-view scroll-x class="month-tabs-scroll" wx:if="{{availableMonths.length > 0}}">
+    <view class="month-tabs">
+      <view wx:for="{{availableMonths}}" wx:key="*this"
+            class="month-tab {{selectedMonthIndex === index ? 'month-tab-active' : ''}}"
+            bindtap="onMonthTap" data-idx="{{index}}">
+        {{monthLabels[index]}}
+      </view>
+    </view>
+  </scroll-view>
+
   <!-- 总薪资统计 -->
   <view class="stat-card" style="background:linear-gradient(135deg, #FA541C, #D4380D);">
     <text class="stat-label">{{currentMonth}} 薪资总支出</text>

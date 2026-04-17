@@ -1,10 +1,34 @@
 /* pages/employee/profile/profile.wxss */
+.container {
+  background:
+    radial-gradient(circle at 10% 8%, rgba(130, 196, 255, 0.16) 0%, transparent 24%),
+    radial-gradient(circle at 88% 12%, rgba(255, 212, 150, 0.16) 0%, transparent 24%),
+    linear-gradient(180deg, #eef6ff 0%, #f9fcff 100%);
+}
+
+.card {
+  border: 2rpx solid #e8eef8;
+  border-radius: 20rpx;
+  box-shadow: 0 8rpx 22rpx rgba(17, 38, 84, 0.06);
+  background: linear-gradient(145deg, #ffffff 0%, #fafdff 100%);
+}
+
+.section-title {
+  color: #1f3554;
+}
+
+.stat-card {
+  border: 2rpx solid #cfe1f6;
+  border-radius: 24rpx;
+  box-shadow: 0 14rpx 28rpx rgba(14, 56, 104, 0.16);
+}
+
 .detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #edf2fa;
 }
 
 .detail-row:last-child {
@@ -12,7 +36,7 @@
 }
 
 .detail-total {
-  border-top: 2rpx solid #E8E8E8;
+  border-top: 2rpx solid #e2e9f3;
   margin-top: 10rpx;
   padding-top: 24rpx;
 }
@@ -28,18 +52,23 @@
 
 .stats-grid {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
+  gap: 14rpx;
   text-align: center;
 }
 
 .stat-box {
-  padding: 20rpx;
+  flex: 1;
+  padding: 22rpx 14rpx;
+  border: 2rpx solid #edf2fa;
+  border-radius: 18rpx;
+  background: #fbfcff;
 }
 
 .stat-box-value {
   font-size: 44rpx;
   font-weight: bold;
-  color: #1890FF;
+  color: #1766b7;
   display: block;
   margin-bottom: 8rpx;
 }
@@ -53,8 +82,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #edf2fa;
 }
 
 .adj-item:last-child {
@@ -79,8 +108,8 @@
 .att-item {
   display: flex;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #edf2fa;
   gap: 16rpx;
 }
 
@@ -110,21 +139,22 @@
 /* 已发薪标记 */
 .paid-badge {
   display: inline-block;
-  font-size: 28rpx;
-  color: #52C41A;
-  background: #F6FFED;
-  border: 1rpx solid #B7EB8F;
-  padding: 4rpx 16rpx;
-  border-radius: 8rpx;
+  font-size: 30rpx;
+  color: #2f9558;
+  background: #edf9f1;
+  border: 1rpx solid #c6e6d2;
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
   margin-top: 12rpx;
 }
 
 .privacy-notice {
-  font-size: 28rpx;
-  color: #999;
-  background: #FAFAFA;
-  padding: 16rpx;
-  border-radius: 8rpx;
+  font-size: 30rpx;
+  color: #5f728b;
+  background: #f6f9fe;
+  border: 2rpx solid #e1eaf6;
+  padding: 18rpx;
+  border-radius: 12rpx;
   margin-top: 16rpx;
   text-align: center;
 }
@@ -141,8 +171,10 @@
 }
 .modal-dialog {
   width: 85%;
-  background: #fff;
-  border-radius: 16rpx;
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdff 100%);
+  border: 2rpx solid #e6eef8;
+  border-radius: 20rpx;
+  box-shadow: 0 14rpx 30rpx rgba(17, 38, 84, 0.16);
   overflow: hidden;
 }
 .modal-title {
@@ -179,7 +211,7 @@
   flex: 1;
 }
 .pwd-toggle {
-  font-size: 26rpx;
+  font-size: 30rpx;
   color: #1890FF;
   padding: 0 10rpx;
   white-space: nowrap;

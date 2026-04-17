@@ -1,9 +1,51 @@
 /* pages/boss/salary/salary.wxss */
+
+/* 月份切换标签 */
+.month-tabs-scroll {
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+}
+.month-tabs {
+  display: inline-flex;
+  gap: 14rpx;
+  padding: 4rpx 0;
+}
+.month-tab {
+  display: inline-block;
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  color: #4e6483;
+  background: #fff;
+  border: 2rpx solid #d8e4f3;
+  flex-shrink: 0;
+}
+.month-tab-active {
+  background: #e8f4ff;
+  color: #0b62b4;
+  border-color: #1890ff;
+  font-weight: 700;
+}
+
+.container {
+  background:
+    radial-gradient(circle at 10% 8%, rgba(142, 183, 223, 0.16) 0%, transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(205, 216, 228, 0.18) 0%, transparent 24%),
+    linear-gradient(180deg, #eef3f7 0%, #f8fbfd 100%);
+}
+
+.stat-card {
+  border: 2rpx solid #d8e2ec;
+  border-radius: 24rpx;
+  box-shadow: 0 16rpx 30rpx rgba(31, 53, 80, 0.12);
+}
+
 .salary-item {
   display: flex;
-  align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #F0F0F0;
+  align-items: flex-start;
+  padding: 30rpx 0;
+  border-bottom: 1rpx solid #edf2f8;
+  gap: 16rpx;
 }
 
 .salary-item:last-child {
@@ -15,10 +57,10 @@
 }
 
 .checkbox {
-  width: 44rpx;
-  height: 44rpx;
-  border-radius: 8rpx;
-  border: 3rpx solid #D9D9D9;
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 12rpx;
+  border: 3rpx solid #d5e0eb;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -40,57 +82,64 @@
   flex: 1;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12rpx;
+  min-width: 0;
 }
 
 .salary-left {
   flex: 1;
+  min-width: 0;
 }
 
 .salary-name-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
   margin-bottom: 6rpx;
 }
 
 .salary-name {
   font-size: 36rpx;
-  font-weight: bold;
-  margin-right: 12rpx;
+  font-weight: 700;
+  color: #24415d;
+  min-width: 0;
 }
 
 .paid-tag {
-  font-size: 26rpx;
+  font-size: 28rpx;
   color: #52C41A;
   background: #F6FFED;
   border: 1rpx solid #B7EB8F;
-  padding: 2rpx 12rpx;
-  border-radius: 6rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
 }
 
 .unpaid-tag {
-  font-size: 26rpx;
+  font-size: 28rpx;
   color: #FA8C16;
   background: #FFF7E6;
   border: 1rpx solid #FFD591;
-  padding: 2rpx 12rpx;
-  border-radius: 6rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
 }
 
 .salary-right {
   text-align: right;
+  flex-shrink: 0;
 }
 
 .salary-amount {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #FA541C;
+  font-size: 42rpx;
+  font-weight: 700;
+  color: #c45a25;
   display: block;
   margin-bottom: 6rpx;
 }
 
 .stat-sub {
   font-size: 30rpx;
-  color: rgba(255,255,255,0.8);
+  color: rgba(255,255,255,0.9);
   margin-top: 8rpx;
 }

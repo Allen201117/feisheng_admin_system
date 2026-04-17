@@ -1,6 +1,7 @@
 // pages/employee/home/home.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatTime, formatDate, formatMoney, getToday } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
+const { requestBestLocation, sampleLocationAndPickBest, calculateDistanceMeters, isValidCoordinate, checkLocationPermission } = require('../../../utils/location')
 const app = getApp()
 
 Page({
@@ -136,7 +137,7 @@ Page({
         user_id: this.data.userInfo._id
       })
       this.setData({
-        monthHours: res.data ? res.data.hours.toFixed(1) : '0.0'
+        monthHours: (res.data && res.data.hours != null) ? Number(res.data.hours).toFixed(1) : '0.0'
       })
     } catch (e) {
       console.error('加载月工时失败', e)
@@ -183,24 +184,110 @@ Page({
     }
     this._clocking = true
     this.setData({ loading: true })
-    showLoading('正在定位...')
 
     try {
-      const location = await this.getLocation()
-      hideLoading()
-      showLoading('打卡中...')
+      // 1. 检查定位权限
+      const perm = await checkLocationPermission()
+      if (perm.preciseDenied) {
+        wx.showModal({
+          title: '定位权限未开启',
+          content: '签到需要定位权限，请在手机设置中允许微信获取位置权限',
+          confirmText: '去设置',
+          success(res) {
+            if (res.confirm) wx.openSetting()
+          }
+        })
+        return
+      }
 
+      // 2. 多次采样定位
+      showLoading('正在定位（等待GPS稳定，约3-5秒）...')
+      const location = await sampleLocationAndPickBest(wx, 3, 800)
+      hideLoading()
+
+      // 3. 坐标合法性检查
+      if (!isValidCoordinate(location.latitude, location.longitude)) {
+        showError('定位失败，获取到的位置无效，请到室外重试')
+        return
+      }
+
+      // 4. 精度过低提醒
+      if (location.accuracy > 500) {
+        const goOn = await new Promise((resolve) => {
+          wx.showModal({
+            title: '定位精度较低',
+            content: `当前定位精度约${Math.round(location.accuracy)}米，可能导致签到失败。建议开启GPS、连接WiFi后重试。是否继续？`,
+            success(res) { resolve(res.confirm) }
+          })
+        })
+        if (!goOn) return
+      }
+
+      // 5. 获取设备信息用于诊断
+      let deviceInfo = ''
+      try {
+        const deviceInfoRes = wx.getDeviceInfo ? wx.getDeviceInfo() : {}
+        const appBaseInfoRes = wx.getAppBaseInfo ? wx.getAppBaseInfo() : {}
+        const host = [deviceInfoRes.brand, deviceInfoRes.model].filter(Boolean).join(' ')
+        const system = deviceInfoRes.system || ''
+        const version = appBaseInfoRes.version || ''
+        deviceInfo = `${host} | ${system} | 微信${version}`.replace(/^\s*\|\s*|\s*\|\s*$/g, '')
+      } catch (e) {}
+
+      // 5b. 尝试获取Wi-Fi BSSID（用于辅助定位判定）
+      let wifiBssid = ''
+      try {
+        const wifiInfo = await new Promise((resolve, reject) => {
+          wx.getConnectedWifi({
+            success: (res) => resolve(res.wifi || {}),
+            fail: () => resolve({})
+          })
+        })
+        wifiBssid = wifiInfo.BSSID || ''
+      } catch (e) {}
+
+      // 6. 提交签到
+      showLoading('打卡中...')
       const res = await callCloud('attendance', {
         action: type,
         user_id: this.data.userInfo._id,
         latitude: location.latitude,
         longitude: location.longitude,
+        accuracy: location.accuracy,
+        location_timestamp: location.timestamp,
+        device_info: deviceInfo,
+        wifi_bssid: wifiBssid,
+        raw_samples: location.allSamples ? location.allSamples.map(s => ({
+          lat: s.latitude, lng: s.longitude, acc: s.accuracy, err: s.error, t: s.timestamp
+        })) : [],
         source: this.data.clockSource,
         qr_id: this.data.qrToken
       })
 
       hideLoading()
-      showSuccess(type === 'clockIn' ? '上班打卡成功' : '下班打卡成功')
+
+      // 7. 处理不同结果状态
+      if (res.code === -2) {
+        // retry: 定位不稳定，建议重试
+        wx.showModal({
+          title: '定位不稳定',
+          content: (res.msg || '定位质量较低，建议移到空旷处重试') +
+            (res.data && res.data.distance != null ? `（距离约${res.data.distance}米）` : ''),
+          confirmText: '重试',
+          success: (modalRes) => {
+            if (modalRes.confirm) this.doClock(type)
+          }
+        })
+        return
+      }
+
+      if (res.code !== 0) {
+        throw new Error(res.msg || '打卡失败')
+      }
+
+      // 8. 打卡成功
+      const distMsg = res.data && res.data.distance != null ? `（距离${res.data.distance}米）` : ''
+      showSuccess((type === 'clockIn' ? '上班打卡成功' : '下班打卡成功') + distMsg)
 
       // 重新加载状态（支持多次签到签退）
       await this.loadTodayAttendance()
@@ -216,61 +303,20 @@ Page({
       if (message.includes('今日已签到') || message.includes('今日已签退') || message.includes('请先签到')) {
         await this.loadTodayAttendance()
       }
-      showError(message)
+      // 对距离超出的错误提供更详细的提示
+      if (message.includes('不在工厂范围内')) {
+        wx.showModal({
+          title: '签到失败',
+          content: message,
+          showCancel: false
+        })
+      } else {
+        showError(message)
+      }
     } finally {
       this._clocking = false
       this.setData({ loading: false })
     }
-  },
-
-  wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  },
-
-  getLocation() {
-    const getOnce = () => new Promise((resolve, reject) => {
-      wx.getFuzzyLocation({
-        type: 'wgs84',
-        success: (res) => {
-          const location = {
-            latitude: res.latitude,
-            longitude: res.longitude
-          }
-          this._lastLocation = {
-            ...location,
-            ts: Date.now()
-          }
-          resolve(location)
-        },
-        fail: (err) => reject(err)
-      })
-    })
-
-    return getOnce().catch(async (err) => {
-      const message = (err && err.errMsg) || ''
-      const isFrequentCall = message.includes('频繁调用')
-
-      if (isFrequentCall) {
-        // 开发工具中短时间重复调用 getLocation 可能被限制，延迟后重试一次
-        await this.wait(1200)
-        try {
-          return await getOnce()
-        } catch (retryErr) {
-          const hasRecentCache = this._lastLocation && (Date.now() - this._lastLocation.ts < 3 * 60 * 1000)
-          if (hasRecentCache) {
-            return {
-              latitude: this._lastLocation.latitude,
-              longitude: this._lastLocation.longitude
-            }
-          }
-          console.error('定位失败(重试后):', retryErr)
-          throw new Error('定位调用过于频繁，请等待2秒后重试')
-        }
-      }
-
-      console.error('定位失败:', err)
-      throw new Error('定位失败，请检查是否开启位置权限')
-    })
   },
 
   goToWorklog() {

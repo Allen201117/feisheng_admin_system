@@ -1,6 +1,7 @@
 // app.js - 工厂记账小程序入口
-const { getStoredUser, clearUser } = require('./utils/auth')
+const { getStoredUser, storeUser, clearUser } = require('./utils/auth')
 const { hasCurrentConsent } = require('./utils/privacy')
+const { getStartupSessionAction } = require('./app.logic')
 
 App({
   onLaunch: function () {
@@ -9,7 +10,7 @@ App({
       return
     }
     wx.cloud.init({
-      env: wx.cloud.DYNAMIC_CURRENT_ENV,
+      env: 'cloud1-5gr08st9c198f437',
       traceUser: true
     })
     this.checkLogin()
@@ -20,15 +21,67 @@ App({
     isLoggedIn: false
   },
 
-  checkLogin: function () {
+  checkLogin: async function () {
     const user = getStoredUser()
-    if (user && user._id && hasCurrentConsent()) {
-      this.globalData.userInfo = user
-      this.globalData.isLoggedIn = true
-      this.routeByRole(user.role)
+    const action = getStartupSessionAction({
+      user,
+      hasConsent: hasCurrentConsent()
+    })
+
+    if (action === 'clear') {
+      clearUser()
+      this.globalData.userInfo = null
+      this.globalData.isLoggedIn = false
+      return
+    }
+
+    if (action === 'resume') {
+      const resumed = await this.resumeSession(user, true)
+      if (resumed) {
+        const currentUser = this.globalData.userInfo || user
+        this.routeByRole(currentUser.role)
+      }
       return
     }
     // 如果没有存储的用户信息，留在登录页
+  },
+
+  resumeSession: async function (user, silent) {
+    if (!user || !user._id || !user.session_token) {
+      clearUser()
+      this.globalData.userInfo = null
+      this.globalData.isLoggedIn = false
+      return false
+    }
+
+    try {
+      const res = await wx.cloud.callFunction({
+        name: 'login',
+        data: {
+          action: 'verifyToken',
+          user_id: user._id,
+          session_token: user.session_token
+        }
+      })
+
+      if (res.result && res.result.code === 0) {
+        const latestUser = Object.assign({}, user, res.result.data || {})
+        storeUser(latestUser)
+        this.globalData.userInfo = latestUser
+        this.globalData.isLoggedIn = true
+        return true
+      }
+    } catch (err) {}
+
+    clearUser()
+    this.globalData.userInfo = null
+    this.globalData.isLoggedIn = false
+    wx.removeStorageSync('clock_source')
+    wx.removeStorageSync('scan_qr_token')
+    if (!silent) {
+      wx.showToast({ title: '登录已失效，请重新登录', icon: 'none', duration: 2500 })
+    }
+    return false
   },
 
   routeByRole: function (role) {
@@ -53,6 +106,8 @@ App({
     clearUser()
     this.globalData.userInfo = null
     this.globalData.isLoggedIn = false
+    wx.removeStorageSync('clock_source')
+    wx.removeStorageSync('scan_qr_token')
     wx.reLaunch({ url: '/pages/login/login' })
   }
 })

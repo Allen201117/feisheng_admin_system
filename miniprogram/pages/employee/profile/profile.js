@@ -39,10 +39,11 @@ Page({
       wx.reLaunch({ url: '/pages/login/login' })
       return
     }
-    var now = new Date()
+    var bjTime = require('../../../utils/beijing-time')
+    var f = bjTime.getBeijingFields()
     this.setData({
       userInfo: user,
-      currentMonth: now.getFullYear() + '年' + (now.getMonth() + 1) + '月'
+      currentMonth: f.year + '年' + f.month + '月'
     })
   },
 

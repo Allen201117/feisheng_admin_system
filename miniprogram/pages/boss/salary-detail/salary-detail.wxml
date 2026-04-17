@@ -48,7 +48,7 @@
 
   <!-- 奖惩管理 -->
   <view class="card">
-    <view class="flex-between mb-20">
+    <view class="salary-detail-header mb-20">
       <text class="section-title" style="margin-bottom:0;">奖惩记录</text>
       <button class="btn-sm btn-add-adj" bindtap="toggleAddAdj">
         {{showAddAdj ? '取消' : '+ 添加'}}

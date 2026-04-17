@@ -1,0 +1,174 @@
+<view class="container">
+  <!-- 主Tab：进度总览 / 报工明细 -->
+  <view class="card main-tab-bar">
+    <view class="main-tab {{mainTab === 'progress' ? 'main-tab-active' : ''}}" bindtap="switchMainTab" data-tab="progress">进度总览</view>
+    <view class="main-tab {{mainTab === 'detail' ? 'main-tab-active' : ''}}" bindtap="switchMainTab" data-tab="detail">报工明细</view>
+  </view>
+
+  <!-- ========== 进度总览 ========== -->
+  <block wx:if="{{mainTab === 'progress'}}">
+    <view class="card">
+      <view class="input-group" style="margin-bottom:0;">
+        <text class="input-label">选择订单</text>
+        <picker mode="selector" range="{{orders}}" range-key="display" value="{{progressOrderIndex}}" bindchange="onProgressOrderChange">
+          <view class="picker-field">
+            <text wx:if="{{progressOrder}}">{{progressOrder.display}}</text>
+            <text wx:else class="text-gray">请选择订单</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <block wx:if="{{progressData}}">
+      <!-- 整体进度卡片 -->
+      <view class="card overall-card">
+        <view class="overall-title">{{progressData.order_name}}</view>
+        <view class="overall-stats">
+          <view class="overall-stat">
+            <text class="overall-num">{{progressData.overall_reported}}</text>
+            <text class="overall-label">已报工件数</text>
+          </view>
+          <view class="overall-stat">
+            <text class="overall-num">{{progressData.total_quantity}}</text>
+            <text class="overall-label">订单总量</text>
+          </view>
+          <view class="overall-stat">
+            <text class="overall-num overall-percent">{{progressData.overall_percent}}%</text>
+            <text class="overall-label">整体完成</text>
+          </view>
+        </view>
+        <view class="progress-track progress-track-lg">
+          <view class="progress-fill {{progressData.overall_percent >= 100 ? 'progress-fill-done' : ''}}" style="width: {{progressData.overall_percent}}%;"></view>
+        </view>
+      </view>
+
+      <!-- 各工序进度 -->
+      <view class="card" wx:if="{{progressData.processes.length > 0}}">
+        <text class="section-title">工序进度明细</text>
+        <view wx:for="{{progressData.processes}}" wx:key="_id" class="progress-card">
+          <view class="progress-header">
+            <text class="progress-name">{{item.process_name}}</text>
+            <text class="progress-price" wx:if="{{item.current_price != null}}">¥{{item.current_price}}/件</text>
+          </view>
+          <view class="progress-track">
+            <view class="progress-fill {{item.progress_percent >= 100 ? 'progress-fill-done' : ''}}" style="width: {{item.progress_percent}}%;"></view>
+          </view>
+          <view class="progress-meta">
+            <text class="progress-qty">{{item.total_reported}} / {{progressData.total_quantity}} 件 ({{item.progress_percent}}%)</text>
+            <text class="progress-people">{{item.employee_count}} 人参与 · 分配 {{item.assigned_count}} 人</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{progressData.processes.length === 0}}" class="card empty-state">
+        <text class="empty-text">该订单暂无工序</text>
+      </view>
+    </block>
+
+    <view wx:if="{{!progressData && !loading && progressOrder}}" class="card empty-state">
+      <text class="empty-text">暂无进度数据</text>
+    </view>
+    <view wx:if="{{!progressOrder && !loading}}" class="card empty-state">
+      <text class="empty-text">请先选择一个订单</text>
+    </view>
+  </block>
+
+  <!-- ========== 报工明细（原有功能） ========== -->
+  <block wx:if="{{mainTab === 'detail'}}">
+    <view class="card hero-panel">
+      <view class="hero-title">报工明细</view>
+      <view class="hero-subtitle">按日、按月、按订单查看全员报工记录</view>
+
+      <view class="filter-tabs">
+        <view class="filter-tab filter-chip {{viewType === 'day' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="day">按日</view>
+        <view class="filter-tab filter-chip {{viewType === 'month' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="month">按月</view>
+        <view class="filter-tab filter-chip {{viewType === 'order' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="order">按订单</view>
+      </view>
+
+      <view wx:if="{{viewType === 'day'}}" class="input-group" style="margin-bottom:0;">
+        <text class="input-label">选择日期</text>
+        <picker mode="date" value="{{dayDate}}" bindchange="onDayChange">
+          <view class="picker-field">
+            <text>{{dayDate}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <view wx:if="{{viewType === 'month'}}" class="input-group" style="margin-bottom:0;">
+        <text class="input-label">选择月份</text>
+        <picker mode="date" fields="month" value="{{monthDate}}" bindchange="onMonthChange">
+          <view class="picker-field">
+            <text>{{monthDate}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <block wx:if="{{viewType === 'order'}}">
+        <view class="input-group">
+          <text class="input-label">选择订单</text>
+          <picker mode="selector" range="{{orders}}" range-key="display" value="{{orderIndex}}" bindchange="onOrderChange">
+            <view class="picker-field">
+              <text wx:if="{{selectedOrder}}">{{selectedOrder.display}}</text>
+              <text wx:else class="text-gray">请选择订单</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        <view class="input-group" style="margin-bottom:0;">
+          <text class="input-label">限定月份（可快速筛选）</text>
+          <picker mode="date" fields="month" value="{{orderMonth}}" bindchange="onOrderMonthChange">
+            <view class="picker-field">
+              <text>{{orderMonth}}</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+      </block>
+    </view>
+
+    <view class="card summary-card">
+      <view class="summary-item">
+        <text class="summary-value text-primary">{{summary.count}}</text>
+        <text class="summary-label">报工条数</text>
+      </view>
+      <view class="summary-item">
+        <text class="summary-value text-success">{{summary.quantity}}</text>
+        <text class="summary-label">报工总件数</text>
+      </view>
+      <view class="summary-item">
+        <text class="summary-value text-danger">¥{{summary.amount}}</text>
+        <text class="summary-label">报工总金额</text>
+      </view>
+    </view>
+
+    <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="card empty-state">
+      <text class="empty-text">当前条件下暂无报工记录</text>
+    </view>
+
+    <view wx:for="{{groupedLogs}}" wx:key="date" class="card day-card">
+      <view class="day-header">
+        <text class="day-title">{{item.date}}</text>
+        <text class="day-sub">{{item.dayQty}}件 · ¥{{item.dayAmount}}</text>
+      </view>
+
+      <view wx:for="{{item.items}}" wx:key="_id" class="log-row">
+        <view class="log-main">
+          <view class="log-title-row">
+            <text class="log-name">{{item.user_name || '未知员工'}}</text>
+            <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
+          </view>
+          <text class="log-sub">{{item.order_name || '未知订单'}} · {{item.process_name || '未知工序'}}</text>
+          <text class="log-sub">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+        </view>
+        <button class="btn-danger btn-sm" bindtap="onDeleteLog" data-log="{{item}}">删除</button>
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{loading}}" class="loading-mask">
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>
