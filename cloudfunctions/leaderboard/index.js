@@ -107,9 +107,15 @@ async function getRank(event, period) {
           // 订单维度工时：取该时间段的出勤
           // 注意：出勤不区分订单，故只能用日期范围
         }
-        var attRes = await db.collection('Attendances').where(attQuery).limit(1000).get()
+        var attData = []
+        var attBatch = 0
+        do {
+          var attRes = await db.collection('Attendances').where(attQuery).skip(attData.length).limit(100).get()
+          attBatch = attRes.data.length
+          attData = attData.concat(attRes.data)
+        } while (attBatch === 100)
         var totalHours = 0, attendDays = 0
-        attRes.data.forEach(function(r) {
+        attData.forEach(function(r) {
           totalHours += r.hours || 0
           if (r.clock_in_time) attendDays++
         })
@@ -123,9 +129,15 @@ async function getRank(event, period) {
         if (period === 'order' && event.order_id) {
           logQuery.order_id = event.order_id
         }
-        var logRes = await db.collection('WorkLogs').where(logQuery).limit(1000).get()
+        var logData = []
+        var logBatch = 0
+        do {
+          var logRes = await db.collection('WorkLogs').where(logQuery).skip(logData.length).limit(100).get()
+          logBatch = logRes.data.length
+          logData = logData.concat(logRes.data)
+        } while (logBatch === 100)
         var totalSalary = 0
-        logRes.data.forEach(function(log) {
+        logData.forEach(function(log) {
           totalSalary += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
         })
         item.rank_value = Math.round(totalSalary * 100) / 100
@@ -137,9 +149,15 @@ async function getRank(event, period) {
         if (period === 'order' && event.order_id) {
           qLogQuery.order_id = event.order_id
         }
-        var qLogRes = await db.collection('WorkLogs').where(qLogQuery).limit(1000).get()
+        var qLogData = []
+        var qLogBatch = 0
+        do {
+          var qLogRes = await db.collection('WorkLogs').where(qLogQuery).skip(qLogData.length).limit(100).get()
+          qLogBatch = qLogRes.data.length
+          qLogData = qLogData.concat(qLogRes.data)
+        } while (qLogBatch === 100)
         var totalQty = 0, totalPassed = 0
-        qLogRes.data.forEach(function(log) {
+        qLogData.forEach(function(log) {
           totalQty += log.quantity || 0
           totalPassed += log.passed_qty || 0
         })

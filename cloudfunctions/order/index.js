@@ -395,34 +395,19 @@ async function deleteOrder(event, wxContext) {
       return { code: -1, msg: '订单不存在' }
     }
 
-    const [processes, worklogs, adjustments, orderAuditLogs] = await Promise.all([
+    const [processes, worklogs, adjustments] = await Promise.all([
       fetchAllDocs('Processes', { order_id }, { field: { _id: true, process_name: true } }),
       fetchAllDocs('WorkLogs', { order_id }, { field: { _id: true } }),
-      fetchAllDocs('SalaryAdjustments', { order_id }, { field: { _id: true } }),
-      fetchAllDocs('audit_logs', { order_id }, { field: { _id: true } })
+      fetchAllDocs('SalaryAdjustments', { order_id }, { field: { _id: true } })
     ])
 
     const processIds = processes.map(item => item._id)
     const worklogIds = worklogs.map(item => item._id)
     const adjustmentIds = adjustments.map(item => item._id)
 
-    const [processAuditLogs, worklogAuditLogs, adjustmentAuditLogs] = await Promise.all([
-      fetchDocsByIds('audit_logs', 'target_id', processIds),
-      fetchDocsByIds('audit_logs', 'worklog_id', worklogIds),
-      fetchDocsByIds('audit_logs', 'target_id', adjustmentIds)
-    ])
-
-    const auditLogIds = Array.from(new Set(
-      orderAuditLogs
-        .concat(processAuditLogs, worklogAuditLogs, adjustmentAuditLogs)
-        .map(log => log._id)
-        .filter(Boolean)
-    ))
-
     const removedProcessCount = await removeDocsByIds('Processes', processIds)
     const removedWorklogCount = await removeDocsByIds('WorkLogs', worklogIds)
     const removedAdjustmentCount = await removeDocsByIds('SalaryAdjustments', adjustmentIds)
-    const removedAuditLogCount = await removeDocsByIds('audit_logs', auditLogIds)
 
     await db.collection('Orders').doc(order_id).remove()
 
@@ -433,7 +418,7 @@ async function deleteOrder(event, wxContext) {
         operator_name: caller ? caller.name : '',
         action: 'delete_order',
         target_id: order_id,
-        details: `删除订单 ${order.order_name || order_id}，同步删除工序 ${removedProcessCount} 条、报工 ${removedWorklogCount} 条、奖惩 ${removedAdjustmentCount} 条、日志 ${removedAuditLogCount} 条`,
+        details: `删除订单 ${order.order_name || order_id}，同步删除工序 ${removedProcessCount} 条、报工 ${removedWorklogCount} 条、奖惩 ${removedAdjustmentCount} 条（审计日志已保留）`,
         created_at: db.serverDate()
       }
     })
@@ -444,8 +429,7 @@ async function deleteOrder(event, wxContext) {
       data: {
         processCount: removedProcessCount,
         worklogCount: removedWorklogCount,
-        adjustmentCount: removedAdjustmentCount,
-        auditLogCount: removedAuditLogCount
+        adjustmentCount: removedAdjustmentCount
       }
     }
   } catch (err) {

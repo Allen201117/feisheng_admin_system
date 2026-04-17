@@ -567,7 +567,7 @@ async function submitWorkLog(event, wxContext) {
     const snapshotPrice = normalizeSnapshotPrice(process.current_price)
 
     // 工价未设置时禁止报工
-    if (snapshotPrice === null || snapshotPrice === undefined) {
+    if (!snapshotPrice) {
       return { code: -1, msg: '该工序尚未设置工价，请联系管理员设置后再报工' }
     }
 
@@ -685,7 +685,20 @@ async function getUserLogs(event, wxContext) {
     const res = await db.collection('WorkLogs').where({
       user_id,
       date: _.gte(startDate).and(_.lt(endDate))
-    }).orderBy('created_at', 'desc').limit(200).get()
+    }).orderBy('created_at', 'desc').get()
+    let allLogs = res.data || []
+    // 如果刚好100条，可能还有更多，继续分页
+    if (allLogs.length === 20) {
+      let batchLen = 0
+      do {
+        const batch = await db.collection('WorkLogs').where({
+          user_id,
+          date: _.gte(startDate).and(_.lt(endDate))
+        }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
+        batchLen = (batch.data || []).length
+        allLogs = allLogs.concat(batch.data || [])
+      } while (batchLen === 100)
+    }
 
     // 检查该月发薪锁定状态
     const paidRes = await db.collection('SalaryPayments').where({
@@ -696,7 +709,7 @@ async function getUserLogs(event, wxContext) {
     const isPaidLocked = paidRes.data.length > 0
 
     // 批量查询相关订单的 price_hidden 状态
-    const orderIds = [...new Set(res.data.map(log => log.order_id).filter(Boolean))]
+    const orderIds = [...new Set(allLogs.map(log => log.order_id).filter(Boolean))]
     const orderHiddenMap = {}
     for (let i = 0; i < orderIds.length; i += 100) {
       const batch = orderIds.slice(i, i + 100)
@@ -710,7 +723,7 @@ async function getUserLogs(event, wxContext) {
 
     const todayStr = bjTime.getBeijingToday()
 
-    const data = res.data.map(log => {
+    const data = allLogs.map(log => {
       const priceHidden = orderHiddenMap[log.order_id] === true || isPaidLocked
       return {
         ...log,
@@ -824,7 +837,7 @@ async function getLogDetail(event, wxContext) {
     const res = await db.collection('WorkLogs').doc(log_id).get()
 
     // 只允许本人或老板查看
-    if (res.data && String(caller._id) !== String(res.data.user_id) && caller.role !== 'boss') {
+    if (res.data && String(caller._id) !== String(res.data.user_id) && caller.role !== 'boss' && caller.role !== 'qc') {
       return { code: -1, msg: '无权查看该报工详情' }
     }
 
