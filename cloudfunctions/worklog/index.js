@@ -515,8 +515,10 @@ async function getOrderProgress(event, wxContext) {
       }
     })
 
-    // 整体进度
-    const overallReported = allLogs.reduce((s, l) => s + (Number(l.quantity) || 0), 0)
+    // 整体进度：取各工序中报工最多的那个工序的数量，而非所有工序累加
+    const overallReported = processes.length > 0
+      ? Math.max(...processes.map(p => p.total_reported))
+      : 0
     const overallPercent = totalQty > 0 ? Math.min(100, Math.round(overallReported / totalQty * 100)) : 0
 
     return {
