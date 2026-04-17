@@ -807,7 +807,6 @@ async function checkAbnormalAttendances() {
     String(yesterdayDate.getUTCDate()).padStart(2, '0')
 
   try {
-  try {
     let allRecords = []
     let batchLen = 0
     do {

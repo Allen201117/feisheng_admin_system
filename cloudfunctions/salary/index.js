@@ -788,7 +788,8 @@ async function markPaid(event, wxContext) {
   const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
-    // 用 user_id + month 作为唯一标识
+    // 使用确定性ID防止并发重复创建
+    const docId = `${user_id}_${currentMonth}`
     const existing = await db.collection('SalaryPayments').where({
       user_id,
       month: currentMonth
@@ -806,8 +807,9 @@ async function markPaid(event, wxContext) {
           }
         })
       } else {
-        await db.collection('SalaryPayments').add({
+        await db.collection('SalaryPayments').doc(docId).set({
           data: {
+            _id: docId,
             user_id,
             user_name: user_name || '',
             month: currentMonth,

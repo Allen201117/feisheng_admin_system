@@ -55,19 +55,14 @@ Page({
   async loadTodayLogs() {
     try {
       const res = await callCloud('worklog', {
-        action: 'getUserLogs',
+        action: 'getTodayEarnings',
         user_id: this.data.userInfo._id
       })
-      const logs = res.data || []
-      let total = 0
-      logs.forEach(log => {
-        if (!log.price_hidden) {
-          total += (log.quantity || 0) * (log.snapshot_price || 0)
-        }
-      })
+      const data = res.data || {}
+      const logs = data.logs || []
       this.setData({
         todayLogs: logs,
-        todayTotal: formatMoney(total)
+        todayTotal: formatMoney(data.earnings || 0)
       })
     } catch (e) {
       console.error('加载今日报工失败', e)
