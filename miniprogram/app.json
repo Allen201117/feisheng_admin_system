@@ -4,6 +4,7 @@
     "pages/employee/home/home",
     "pages/employee/worklog/worklog",
     "pages/employee/profile/profile",
+    "pages/employee/leaderboard/leaderboard",
     "pages/qc/home/home",
     "pages/qc/inspect/inspect",
     "pages/boss/home/home",

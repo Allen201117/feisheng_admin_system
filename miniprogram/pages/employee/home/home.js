@@ -27,7 +27,9 @@ Page({
     changePwdData: { oldPassword: '', newPassword: '', confirmPassword: '' },
     showOldPwd: false,
     showNewPwd: false,
-    changePwdLoading: false
+    changePwdLoading: false,
+    // 排行榜可见
+    leaderboardVisible: false
   },
 
   onLoad() {
@@ -57,6 +59,7 @@ Page({
     this.loadMonthlyHours()
     this.loadJoinDate()
     this.tryAutoClockInFromScan()
+    this.checkLeaderboardVisible()
     // 定时更新时间
     this._timer = setInterval(() => this.updateTime(), 1000)
   },
@@ -359,6 +362,17 @@ Page({
 
   goToProfile() {
     wx.navigateTo({ url: '/pages/employee/profile/profile' })
+  },
+
+  goToLeaderboard() {
+    wx.navigateTo({ url: '/pages/employee/leaderboard/leaderboard' })
+  },
+
+  checkLeaderboardVisible() {
+    var that = this
+    callCloud('settings', { action: 'getPublic' }).then(function(res) {
+      that.setData({ leaderboardVisible: !!(res.data && res.data.leaderboard_visible) })
+    }).catch(function() {})
   },
 
   // ========== 修改密码 ==========

@@ -27,6 +27,7 @@ exports.main = async function(event, context) {
   var action = event.action
   switch (action) {
     case 'getAll': return await getAll(event)
+    case 'getPublic': return await getPublic()
     case 'save': return await save(event)
     default: return { code: -1, msg: '未知操作' }
   }
@@ -43,6 +44,22 @@ async function getAll(event) {
     return { code: 0, data: sanitizeSettingsRecord(res.data) }
   } catch (err) {
     return { code: -1, msg: '加载设置失败' }
+  }
+}
+
+/** 公开设置接口 — 不需要boss权限，只返回非敏感字段 */
+async function getPublic() {
+  try {
+    var res = await db.collection('factory_settings').doc('main').get()
+    var data = res.data || {}
+    return {
+      code: 0,
+      data: {
+        leaderboard_visible: !!data.leaderboard_visible
+      }
+    }
+  } catch (err) {
+    return { code: 0, data: { leaderboard_visible: false } }
   }
 }
 
@@ -116,6 +133,7 @@ async function save(event) {
     qrcode_expire_days: parseInt(event.qrcode_expire_days) || 1,
     face_recognition_enabled: !!event.face_recognition_enabled,
     allow_home_checkin: !!event.allow_home_checkin,
+    leaderboard_visible: !!event.leaderboard_visible,
     smtp_host: event.smtp_host || '',
     smtp_port: event.smtp_port || '465',
     smtp_user: event.smtp_user || '',

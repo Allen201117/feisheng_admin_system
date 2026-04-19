@@ -50,6 +50,11 @@ function formatTs(input) {
 
 function round2(n) { return Math.round((n || 0) * 100) / 100 }
 
+/** 清理 Excel Sheet 名称中的非法字符 */
+function sanitizeSheetName(name) {
+  return String(name || '报表').replace(/[:\\\/?*\[\]]/g, '-').substring(0, 31)
+}
+
 // ---- 数据获取：按时间范围通用 ----
 
 async function getWorkLogs(dateWhere) {
@@ -176,7 +181,7 @@ async function buildSummaryByOrder(orderId) {
     round2(u.totalSalary)
   ]))
 
-  return { headers, rows, title: `订单[${order.order_name}] 员工汇总` }
+  return { headers, rows, title: `订单-${order.order_name} 员工汇总` }
 }
 
 // ---- 按订单 细节 ----
@@ -198,7 +203,7 @@ async function buildDetailByOrder(orderId) {
     l.note || l.remark || ''
   ]))
 
-  return { headers, rows, title: `订单[${order.order_name}] 报工明细` }
+  return { headers, rows, title: `订单-${order.order_name} 报工明细` }
 }
 
 // ---- 月份列表工具 ----
@@ -275,7 +280,7 @@ function buildWorkbook(tableData, sheetName) {
   })
   ws['!cols'] = colWidths
 
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31))
+  XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(sheetName))
   return wb
 }
 
@@ -292,6 +297,7 @@ exports.main = async (event, context) => {
     case 'exportToFileV2': return await exportToFileV2(event, wxContext)
     case 'getHistory':    return await getHistory(event, wxContext)
     case 'getOrderList':  return await getOrderList(event, wxContext)
+    case 'exportProcessSummary': return await exportProcessSummary(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -473,5 +479,53 @@ async function getHistory(event, wxContext) {
     return { code: 0, data: res.data }
   } catch (err) {
     return { code: -1, msg: '获取历史失败' }
+  }
+}
+
+/** 导出工序汇总表（订单详情页使用） */
+async function exportProcessSummary(event, wxContext) {
+  const caller = await getCallerUser(wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+
+  const { order_id } = event
+  if (!order_id) return { code: -1, msg: '缺少订单ID' }
+
+  try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    const order = orderRes.data
+    if (!order) return { code: -1, msg: '订单不存在' }
+
+    const processes = await fetchAll('Processes', { order_id }, { orderBy: { field: 'created_at', order: 'asc' } })
+
+    const headers = ['序号', '工序名称', '工价(元/件)', '备注']
+    const rows = processes.map((p, i) => ([
+      i + 1,
+      p.process_name || '',
+      p.current_price != null ? p.current_price : '未设置',
+      p.note || ''
+    ]))
+
+    const title = `${order.order_name || '订单'} 工序汇总`
+    const tableData = { headers, rows, title }
+
+    const filename = `工序汇总_${sanitizeSheetName(order.order_name || order_id)}_${Date.now()}.xlsx`
+    const workbook = buildWorkbook(tableData, title)
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' })
+
+    const uploadRes = await cloud.uploadFile({
+      cloudPath: `exports/${filename}`,
+      fileContent: buffer
+    })
+
+    return {
+      code: 0,
+      msg: '导出成功',
+      data: {
+        file_id: uploadRes.fileID,
+        filename
+      }
+    }
+  } catch (err) {
+    return { code: -1, msg: '导出失败: ' + err.message }
   }
 }

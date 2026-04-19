@@ -7,6 +7,7 @@ function sanitizeSettingsRecord(data) {
   if (!normalized.qrcode_expire_days) normalized.qrcode_expire_days = 1
   if (normalized.face_recognition_enabled === undefined) normalized.face_recognition_enabled = false
   if (normalized.allow_home_checkin === undefined) normalized.allow_home_checkin = false
+  if (normalized.leaderboard_visible === undefined) normalized.leaderboard_visible = false
   normalized.checkpoints = normalizeCheckpoints(normalized)
 
   return normalized

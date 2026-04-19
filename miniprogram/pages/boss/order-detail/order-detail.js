@@ -103,6 +103,11 @@ Page({
     showPriceHistory: false,
     priceChangeLogs: [],
 
+    // 工序汇总预览
+    showProcessSummary: false,
+    processSummaryRows: [],
+    exportingProcess: false,
+
     // 编辑订单
     showEditOrder: false,
     editOrderName: '',
@@ -647,6 +652,55 @@ Page({
 
   hidePriceHistory() {
     this.setData({ showPriceHistory: false })
+  },
+
+  // ===== 工序汇总预览 =====
+  onShowProcessSummary() {
+    const rows = (this.data.processes || []).map((p, i) => ({
+      idx: i + 1,
+      name: p.process_name || '',
+      price: p.current_price != null ? '¥' + p.current_price : '未设置',
+      note: p.note || ''
+    }))
+    this.setData({ showProcessSummary: true, processSummaryRows: rows })
+  },
+
+  onHideProcessSummary() {
+    this.setData({ showProcessSummary: false })
+  },
+
+  async onExportProcessExcel() {
+    if (this.data.exportingProcess) return
+    this.setData({ exportingProcess: true })
+    try {
+      const res = await callCloud('export', {
+        action: 'exportProcessSummary',
+        order_id: this.data.orderId
+      })
+      if (res.code !== 0) {
+        showError(res.msg || '导出失败')
+        this.setData({ exportingProcess: false })
+        return
+      }
+      await this._downloadAndOpenFile(res.data.file_id, '工序汇总导出成功')
+    } catch (err) {
+      showError('导出失败: ' + (err.message || err))
+    }
+    this.setData({ exportingProcess: false })
+  },
+
+  async _downloadAndOpenFile(fileId, successMsg) {
+    showLoading('下载中...')
+    try {
+      const downloadRes = await wx.cloud.downloadFile({ fileID: fileId })
+      hideLoading()
+      const savedRes = await wx.saveFile({ tempFilePath: downloadRes.tempFilePath })
+      await wx.openDocument({ filePath: savedRes.savedFilePath, fileType: 'xlsx', showMenu: true })
+      showSuccess(successMsg || '导出成功')
+    } catch (err) {
+      hideLoading()
+      showError('文件下载失败')
+    }
   },
 
   // ===== 编辑订单 =====

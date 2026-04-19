@@ -224,14 +224,18 @@
 
 .table-cell {
   flex: 0 0 auto;
-  min-width: 160rpx;
-  max-width: 280rpx;
+  min-width: 180rpx;
+  max-width: 360rpx;
   padding: 18rpx 16rpx;
   border: 1rpx solid #e5edf8;
   font-size: 28rpx;
   display: flex;
   align-items: center;
   box-sizing: border-box;
+}
+
+.table-cell:first-child {
+  min-width: 200rpx;
 }
 
 .table-header-cell {

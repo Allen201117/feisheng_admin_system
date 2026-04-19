@@ -107,6 +107,11 @@
         <text class="menu-text">我的工资</text>
         <text class="menu-desc">查看工资与奖惩明细</text>
       </view>
+      <view class="quick-card" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}">
+        <view class="menu-icon bg-yellow" style="background:#FFF7E6;color:#FA8C16;">🏆</view>
+        <text class="menu-text">排行榜</text>
+        <text class="menu-desc">查看工时与薪资排名</text>
+      </view>
       <view class="quick-card" bindtap="openChangePwd">
         <view class="menu-icon bg-orange">🔒</view>
         <text class="menu-text">修改密码</text>
