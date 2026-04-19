@@ -99,6 +99,18 @@
     </view>
   </view>
 
+  <!-- 排行榜设置 -->
+  <view class="card">
+    <view class="section-title">排行榜设置</view>
+    <view class="switch-row">
+      <view class="switch-info">
+        <text class="switch-label">员工可见排行榜</text>
+        <text class="switch-desc text-sm text-gray">开启后员工可在首页查看排行榜，关闭则仅老板可见</text>
+      </view>
+      <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onSwitchChange" color="#1890FF" />
+    </view>
+  </view>
+
   <button class="btn-primary btn-block btn-lg mt-30" bindtap="onSave" disabled="{{loading}}">
     {{loading ? '保存中...' : '保存设置'}}
   </button>

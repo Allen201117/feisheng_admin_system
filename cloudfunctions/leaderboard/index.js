@@ -59,6 +59,25 @@ exports.main = async function(event, context) {
 async function getRank(event, period) {
   var dimension = event.dimension || 'hours'
 
+  // 鉴权：boss直接放行；employee/qc需检查排行榜可见设置
+  var wxContext = cloud.getWXContext()
+  var callerRes = await db.collection('Users').where({
+    openid: wxContext.OPENID, status: 'active'
+  }).limit(1).get()
+  var caller = callerRes.data.length > 0 ? callerRes.data[0] : null
+  if (!caller) return { code: -1, msg: '请先登录' }
+
+  if (caller.role !== 'boss') {
+    try {
+      var settingsRes = await db.collection('factory_settings').doc('main').get()
+      if (!settingsRes.data || !settingsRes.data.leaderboard_visible) {
+        return { code: -1, msg: '排行榜未开放' }
+      }
+    } catch (e) {
+      return { code: -1, msg: '排行榜未开放' }
+    }
+  }
+
   // 确定日期范围
   var startDate, endDate
   var orderInfo = null

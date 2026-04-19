@@ -545,3 +545,64 @@
 }
 .info-row:last-child { border-bottom: none; }
 .info-label { color: #666; }
+
+/* ===== 工序汇总预览表格 ===== */
+.process-summary-scroll {
+  flex: 1;
+  padding: 20rpx;
+  height: calc(100vh - 200rpx);
+}
+
+.ps-table {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 100%;
+}
+
+.ps-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.ps-row-alt {
+  background: #f8fbff;
+}
+
+.ps-header-row {
+  background: #175bb0;
+}
+
+.ps-header-row .ps-cell {
+  color: #fff;
+  font-weight: bold;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.ps-cell {
+  padding: 20rpx 16rpx;
+  border: 1rpx solid #e5edf8;
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.ps-cell-idx {
+  flex: 0 0 90rpx;
+  justify-content: center;
+}
+
+.ps-cell-name {
+  flex: 1 0 200rpx;
+}
+
+.ps-cell-price {
+  flex: 0 0 180rpx;
+  justify-content: flex-end;
+}
+
+.ps-cell-note {
+  flex: 1 0 200rpx;
+}

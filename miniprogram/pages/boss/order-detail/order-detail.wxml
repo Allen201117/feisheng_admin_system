@@ -50,6 +50,9 @@
       <button class="btn-clear-prices" bindtap="onClearAllPrices">🗑️ 一键清空所有工价</button>
       <button class="btn-price-history" bindtap="onShowPriceHistory">📋 工价变更记录</button>
     </view>
+    <view class="price-manage-row">
+      <button class="btn-price-history" bindtap="onShowProcessSummary">📊 工序汇总预览</button>
+    </view>
   </view>
 
   <!-- ========== 区块2：工序分配总览卡 ========== -->
@@ -341,6 +344,45 @@
         <input class="input-field" type="number" value="{{copyTotalQuantity}}" bindinput="onCopyTotalQuantityInput" />
       </view>
       <button class="btn-primary btn-block mt-20" bindtap="onConfirmCopyOrder">确认复制</button>
+    </view>
+  </view>
+</view>
+
+<!-- ========== 工序汇总预览面板 ========== -->
+<view wx:if="{{showProcessSummary}}" class="assign-panel">
+  <view class="assign-topbar">
+    <text class="assign-topbar-close" bindtap="onHideProcessSummary">关闭</text>
+    <text class="assign-topbar-title">工序汇总 - {{order.order_name}}</text>
+    <view style="width:80rpx;"></view>
+  </view>
+
+  <scroll-view scroll-y scroll-x class="process-summary-scroll">
+    <view class="ps-table">
+      <view class="ps-row ps-header-row">
+        <view class="ps-cell ps-cell-idx">序号</view>
+        <view class="ps-cell ps-cell-name">工序名称</view>
+        <view class="ps-cell ps-cell-price">工价(元/件)</view>
+        <view class="ps-cell ps-cell-note">备注</view>
+      </view>
+      <view wx:for="{{processSummaryRows}}" wx:key="idx" class="ps-row {{index % 2 === 1 ? 'ps-row-alt' : ''}}">
+        <view class="ps-cell ps-cell-idx">{{item.idx}}</view>
+        <view class="ps-cell ps-cell-name">{{item.name}}</view>
+        <view class="ps-cell ps-cell-price">{{item.price}}</view>
+        <view class="ps-cell ps-cell-note">{{item.note}}</view>
+      </view>
+      <view wx:if="{{processSummaryRows.length === 0}}" class="empty-state" style="padding:60rpx 0;">
+        <text class="empty-text">暂无工序数据</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="assign-bottom-bar safe-bottom">
+    <text class="assign-bottom-count">共 {{processSummaryRows.length}} 道工序</text>
+    <view class="assign-bottom-btns">
+      <button class="assign-bottom-cancel" bindtap="onHideProcessSummary">关闭</button>
+      <button class="assign-bottom-save" bindtap="onExportProcessExcel" loading="{{exportingProcess}}">
+        {{exportingProcess ? '导出中...' : '导出Excel'}}
+      </button>
     </view>
   </view>
 </view>
