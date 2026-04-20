@@ -550,7 +550,8 @@
 .process-summary-scroll {
   flex: 1;
   padding: 20rpx;
-  height: calc(100vh - 200rpx);
+  overflow: auto;
+  min-height: 0;
 }
 
 .ps-table {
