@@ -85,6 +85,12 @@ App({
   },
 
   routeByRole: function (role) {
+    const currentUser = this.globalData.userInfo || getStoredUser()
+    if (currentUser && currentUser.platform_role === 'platform_admin') {
+      wx.reLaunch({ url: '/pages/platform/home/home' })
+      return
+    }
+
     let url = ''
     switch (role) {
       case 'boss':

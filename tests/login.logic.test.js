@@ -6,13 +6,23 @@ const {
   validateLoginAttempt
 } = require('../cloudfunctions/login/login.logic')
 
-test('validateLoginAttempt requires name and password for all logins', () => {
-  assert.deepEqual(validateLoginAttempt({ name: '', phone: '', password: '' }), {
+test('validateLoginAttempt requires factory code, name, phone and password', () => {
+  assert.deepEqual(validateLoginAttempt({ factory_code: '', name: '', phone: '', password: '' }), {
+    ok: false,
+    msg: '请输入工厂码'
+  })
+
+  assert.deepEqual(validateLoginAttempt({ factory_code: 'HOME001', name: '', phone: '', password: '' }), {
     ok: false,
     msg: '请输入姓名'
   })
 
-  assert.deepEqual(validateLoginAttempt({ name: '张三', phone: '', password: '' }), {
+  assert.deepEqual(validateLoginAttempt({ factory_code: 'HOME001', name: '张三', phone: '', password: '' }), {
+    ok: false,
+    msg: '请输入手机号'
+  })
+
+  assert.deepEqual(validateLoginAttempt({ factory_code: 'HOME001', name: '张三', phone: '13800138000', password: '' }), {
     ok: false,
     msg: '请输入密码'
   })

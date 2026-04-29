@@ -5,6 +5,7 @@
       <view>
         <text class="hero-title">管理后台</text>
         <text class="hero-subtitle">{{todayDate}}</text>
+        <text class="hero-user" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
         <text class="hero-user">{{userInfo.name}}</text>
       </view>
       <view class="hero-action-pill" bindtap="onLogout">退出</view>

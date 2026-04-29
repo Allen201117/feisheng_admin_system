@@ -29,10 +29,11 @@ async function writeLocationLog(data) {
   }
 }
 
-async function writeAudit(action, details) {
+async function writeAudit(action, details, orgId) {
   try {
     await db.collection('audit_logs').add({
       data: {
+        org_id: orgId || '',
         action,
         details,
         created_at: db.serverDate()
@@ -41,9 +42,9 @@ async function writeAudit(action, details) {
   } catch (e) {}
 }
 
-async function validateQrToken(qrId) {
+async function validateQrToken(qrId, orgId) {
   if (!qrId) return { ok: false, msg: '缺少二维码标识' }
-  const qrRes = await db.collection('qr_codes').where({ token: qrId }).limit(1).get()
+  const qrRes = await db.collection('qr_codes').where({ org_id: orgId, token: qrId }).limit(1).get()
   if (!qrRes.data.length) return { ok: false, msg: '二维码不存在' }
 
   const qr = qrRes.data[0]
@@ -77,9 +78,15 @@ function formatTimeStr(date) {
 }
 
 // 获取工厂设置
-async function getFactorySettings() {
+async function getFactorySettings(orgId) {
   try {
-    const res = await db.collection('factory_settings').doc('main').get()
+    let res = null
+    try {
+      res = await db.collection('factory_settings').doc(orgId).get()
+    } catch (e) {}
+    if (!res || !res.data) {
+      res = await db.collection('factory_settings').doc('main').get()
+    }
     return normalizeFactorySettings(res.data || null)
   } catch (e) {
     return { ok: false, msg: '工厂位置加载失败，请联系管理员重新检查工厂设置' }
@@ -107,7 +114,16 @@ async function getCallerUserByEvent(event, wxContext) {
         status: 'active'
       }).limit(1).get()
       if (exactRes.data.length > 0) {
-        return exactRes.data[0]
+        const user = exactRes.data[0]
+        if (user.org_id) {
+          try {
+            const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+            if (!orgRes.data || orgRes.data.status !== 'active') return null
+          } catch (e) {
+            return null
+          }
+        }
+        return user
       }
     } catch (err) {}
   }
@@ -120,6 +136,14 @@ async function getCallerUserByEvent(event, wxContext) {
   return null
 }
 
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
+function ensureSameOrg(doc, caller) {
+  return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
 async function requireAttendanceActor(event, wxContext, targetUserId) {
   const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) {
@@ -127,6 +151,12 @@ async function requireAttendanceActor(event, wxContext, targetUserId) {
   }
 
   if (caller.role === 'boss') {
+    if (targetUserId && String(targetUserId) !== String(caller._id)) {
+      const targetRes = await db.collection('Users').doc(targetUserId).get()
+      if (!ensureSameOrg(targetRes.data, caller)) {
+        return { ok: false, response: { code: -1, msg: '无权操作其他工厂员工的考勤数据' } }
+      }
+    }
     return { ok: true, caller, actorUserId: targetUserId || caller._id }
   }
 
@@ -162,13 +192,15 @@ async function clockIn(event, wxContext) {
   if (!auth.ok) return auth.response
 
   const user_id = auth.actorUserId
+  const orgId = getOrgId(auth.caller)
   const { latitude, longitude, source, qr_id, accuracy, location_timestamp, device_info, raw_samples } = event
   const today = getDateStr(new Date())
-  const settings = await getFactorySettings()
+  const settings = await getFactorySettings(orgId)
 
   if (!settings.ok) {
     await writeLocationLog({
       user_id,
+      org_id: orgId,
       action: 'clock_in',
       location_status: 'invalid_factory_config',
       fail_reason: settings.msg,
@@ -188,7 +220,7 @@ async function clockIn(event, wxContext) {
   // 坐标合法性校验
   if (!isValidCoordinate(lat, lng)) {
     await writeLocationLog({
-      user_id, action: 'clock_in', location_status: 'invalid_employee_coord',
+      org_id: orgId, user_id, action: 'clock_in', location_status: 'invalid_employee_coord',
       latitude_gcj02: lat, longitude_gcj02: lng,
       factory_latitude_gcj02: factoryLat, factory_longitude_gcj02: factoryLng,
       fail_reason: '员工坐标无效', accuracy: accuracy || -1,
@@ -199,7 +231,7 @@ async function clockIn(event, wxContext) {
 
   if (!isValidCoordinate(factoryLat, factoryLng)) {
     await writeLocationLog({
-      user_id, action: 'clock_in', location_status: 'invalid_factory_coord',
+      org_id: orgId, user_id, action: 'clock_in', location_status: 'invalid_factory_coord',
       latitude_gcj02: lat, longitude_gcj02: lng,
       factory_latitude_gcj02: factoryLat, factory_longitude_gcj02: factoryLng,
       fail_reason: '工厂坐标未设置', accuracy: accuracy || -1
@@ -208,9 +240,9 @@ async function clockIn(event, wxContext) {
   }
 
   if (source === 'qrcode') {
-    const qrCheck = await validateQrToken(qr_id)
+    const qrCheck = await validateQrToken(qr_id, orgId)
     if (!qrCheck.ok) {
-      await writeAudit('clock_in_failed', `user_id=${user_id}; source=qrcode; reason=${qrCheck.msg}`)
+      await writeAudit('clock_in_failed', `user_id=${user_id}; source=qrcode; reason=${qrCheck.msg}`, orgId)
       return { code: -1, msg: qrCheck.msg }
     }
   }
@@ -253,6 +285,7 @@ async function clockIn(event, wxContext) {
 
   // 写入诊断日志（无论成功失败都写，含增强判定信息）
   const logData = {
+    org_id: orgId,
     user_id,
     action: 'clock_in',
     latitude_gcj02: lat,
@@ -281,7 +314,7 @@ async function clockIn(event, wxContext) {
     logData.location_status = 'out_of_geofence'
     logData.fail_reason = checkResult.reason
     await writeLocationLog(logData)
-    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=out_of_geofence; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}`)
+    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=out_of_geofence; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}`, orgId)
     let failMsg = checkResult.reason
     if (checkResult.suggestion) failMsg += '\n\n' + checkResult.suggestion
     return { code: -1, msg: failMsg }
@@ -291,23 +324,26 @@ async function clockIn(event, wxContext) {
     logData.location_status = 'retry_suggested'
     logData.fail_reason = checkResult.reason
     await writeLocationLog(logData)
-    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=retry_suggested; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}`)
+    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=retry_suggested; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}`, orgId)
     return { code: -2, msg: checkResult.suggestion || checkResult.reason, data: { retry: true } }
   }
 
   // 检查是否有未签退的记录（允许多次签到/签退）
   const existing = await db.collection('Attendances').where({
-    user_id, date: today
+    org_id: orgId, user_id, date: today
   }).orderBy('created_at', 'desc').get()
 
   const openRecord = (existing.data || []).find(item => item.clock_in_time && !item.clock_out_time)
   if (openRecord) {
-    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=open_record_exists`)
+    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=open_record_exists`, orgId)
     return { code: -1, msg: '请先签退当前记录后再签到' }
   }
 
   // 获取用户名
   const userRes = await db.collection('Users').doc(user_id).get()
+  if (!ensureSameOrg(userRes.data, auth.caller)) {
+    return { code: -1, msg: '无权操作其他工厂员工的考勤数据' }
+  }
   const userName = userRes.data ? userRes.data.name : ''
 
   const now = new Date()
@@ -315,9 +351,12 @@ async function clockIn(event, wxContext) {
   try {
     await db.collection('Attendances').add({
       data: {
+        org_id: orgId,
         user_id,
         user_name: userName,
         date: today,
+        date_key: today,
+        period_key: today.substring(0, 7),
         clock_in_time: now.toISOString(),
         clock_in_location: { latitude: lat, longitude: lng, accuracy: accVal, coordinate_system: 'gcj02' },
         clock_out_time: null,
@@ -338,10 +377,10 @@ async function clockIn(event, wxContext) {
     logData.location_status = 'success'
     logData.fail_reason = ''
     await writeLocationLog(logData)
-    await writeAudit('clock_in_success', `user_id=${user_id}; source=${source || 'normal'}; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}; confidence=${checkResult.confidence}`)
+    await writeAudit('clock_in_success', `user_id=${user_id}; source=${source || 'normal'}; distance=${roundedDistance}m; accuracy=${accVal}m; quality=${checkLog.quality_level}; confidence=${checkResult.confidence}`, orgId)
     return { code: 0, msg: '签到成功', data: { clock_in_time: now.toISOString(), distance: roundedDistance, quality: checkLog.quality_level } }
   } catch (err) {
-    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=db_error`)
+    await writeAudit('clock_in_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=db_error`, orgId)
     return { code: -1, msg: '签到失败' }
   }
 }
@@ -351,9 +390,10 @@ async function clockOut(event, wxContext) {
   if (!auth.ok) return auth.response
 
   const user_id = auth.actorUserId
+  const orgId = getOrgId(auth.caller)
   const { latitude, longitude, source, accuracy, location_timestamp, device_info } = event
   const today = getDateStr()
-  const settings = await getFactorySettings()
+  const settings = await getFactorySettings(orgId)
 
   if (!settings.ok) {
     return { code: -1, msg: settings.msg }
@@ -394,7 +434,7 @@ async function clockOut(event, wxContext) {
   // 与签到一致：围栏外直接拦截
   if (checkResult.status === 'rejected') {
     await writeLocationLog({
-      user_id, action: 'clock_out',
+      org_id: orgId, user_id, action: 'clock_out',
       latitude_gcj02: lat, longitude_gcj02: lng, accuracy: accVal,
       location_time: location_timestamp || '',
       factory_latitude_gcj02: factoryLat, factory_longitude_gcj02: factoryLng,
@@ -403,7 +443,7 @@ async function clockOut(event, wxContext) {
       location_status: 'out_of_geofence',
       fail_reason: checkResult.reason
     })
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=out_of_geofence; distance=${roundedDistance}m; accuracy=${accVal}m`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=out_of_geofence; distance=${roundedDistance}m; accuracy=${accVal}m`, orgId)
     let failMsg = checkResult.reason
     if (checkResult.suggestion) failMsg += '\n\n' + checkResult.suggestion
     return { code: -1, msg: failMsg }
@@ -411,7 +451,7 @@ async function clockOut(event, wxContext) {
 
   if (checkResult.status === 'retry') {
     await writeLocationLog({
-      user_id, action: 'clock_out',
+      org_id: orgId, user_id, action: 'clock_out',
       latitude_gcj02: lat, longitude_gcj02: lng, accuracy: accVal,
       location_time: location_timestamp || '',
       factory_latitude_gcj02: factoryLat, factory_longitude_gcj02: factoryLng,
@@ -420,19 +460,19 @@ async function clockOut(event, wxContext) {
       location_status: 'retry_suggested',
       fail_reason: checkResult.reason
     })
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=retry_suggested; distance=${roundedDistance}m; accuracy=${accVal}m`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=retry_suggested; distance=${roundedDistance}m; accuracy=${accVal}m`, orgId)
     return { code: -2, msg: checkResult.suggestion || checkResult.reason, data: { retry: true } }
   }
 
   // 查找今日签到记录
   const existing = await db.collection('Attendances').where({
-    user_id, date: today
+    org_id: orgId, user_id, date: today
   }).orderBy('created_at', 'desc').get()
 
   const records = existing.data || []
 
   if (records.length === 0) {
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=no_record_today`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=no_record_today`, orgId)
     return { code: -1, msg: '请先签到（今日无任何考勤记录）' }
   }
 
@@ -441,6 +481,7 @@ async function clockOut(event, wxContext) {
   // 兜底：如果当天没有可签退记录，尝试签退最近一条"未签退"记录（跨日加班场景）
   if (!openRecord) {
     const latestOpen = await db.collection('Attendances').where({
+      org_id: orgId,
       user_id,
       clock_in_time: _.neq(null),
       clock_out_time: _.eq(null)
@@ -454,15 +495,15 @@ async function clockOut(event, wxContext) {
   if (!openRecord) {
     const hasClockIn = records.some(item => !!item.clock_in_time)
     if (hasClockIn) {
-      await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=already_clocked_out`)
+      await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=already_clocked_out`, orgId)
       return { code: -1, msg: '今日已签退（所有记录均已有签退时间）' }
     }
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=no_clock_in`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=no_clock_in`, orgId)
     return { code: -1, msg: '请先签到（无签到时间）' }
   }
 
   if (openRecord.clock_out_time) {
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=already_clocked_out`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=already_clocked_out`, orgId)
     return { code: -1, msg: '今日已签退' }
   }
 
@@ -472,7 +513,7 @@ async function clockOut(event, wxContext) {
   const hours = Math.round((now - clockInTime) / (1000 * 60 * 60) * 100) / 100
 
   if (hours < 0) {
-    await writeAudit('clock_out_failed', `user_id=${user_id}; reason=negative_hours; hours=${hours}`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; reason=negative_hours; hours=${hours}`, orgId)
     return { code: -1, msg: '签退时间早于签到时间，无法签退' }
   }
 
@@ -490,7 +531,7 @@ async function clockOut(event, wxContext) {
 
     // 写入诊断日志
     await writeLocationLog({
-      user_id, action: 'clock_out',
+      org_id: orgId, user_id, action: 'clock_out',
       latitude_gcj02: lat, longitude_gcj02: lng, accuracy: accVal,
       location_time: location_timestamp || '',
       factory_latitude_gcj02: factoryLat, factory_longitude_gcj02: factoryLng,
@@ -501,8 +542,8 @@ async function clockOut(event, wxContext) {
     })
 
     // 更新用户月工时
-    await updateMonthlyHours(user_id)
-    await writeAudit('clock_out_success', `user_id=${user_id}; source=${source || 'normal'}; distance=${roundedDistance}m`)
+    await updateMonthlyHours(user_id, orgId)
+    await writeAudit('clock_out_success', `user_id=${user_id}; source=${source || 'normal'}; distance=${roundedDistance}m`, orgId)
 
     return {
       code: 0,
@@ -510,7 +551,7 @@ async function clockOut(event, wxContext) {
       data: { clock_out_time: now.toISOString(), hours, distance: roundedDistance }
     }
   } catch (err) {
-    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=db_error`)
+    await writeAudit('clock_out_failed', `user_id=${user_id}; source=${source || 'normal'}; reason=db_error`, orgId)
     return { code: -1, msg: '签退失败：' + (err.message || JSON.stringify(err)) }
   }
 }
@@ -521,12 +562,13 @@ async function getTodayRecord(event) {
   if (!auth.ok) return auth.response
 
   const user_id = auth.actorUserId
+  const orgId = getOrgId(auth.caller)
   const { date } = event
   const today = date || getDateStr(new Date())
 
   try {
     const res = await db.collection('Attendances').where({
-      user_id, date: today
+      org_id: orgId, user_id, date: today
     }).orderBy('created_at', 'desc').get()
 
     const records = res.data || []
@@ -572,6 +614,7 @@ async function getMonthlyHours(event) {
   if (!auth.ok) return auth.response
 
   const user_id = auth.actorUserId
+  const orgId = getOrgId(auth.caller)
   const range = bjTime.getBeijingMonthRange()
 
   try {
@@ -579,6 +622,7 @@ async function getMonthlyHours(event) {
     let batchLen = 0
     do {
       const res = await db.collection('Attendances').where({
+        org_id: orgId,
         user_id,
         date: _.gte(range.startDate).and(_.lt(range.endDate))
       }).skip(allRecords.length).limit(100).get()
@@ -595,13 +639,14 @@ async function getMonthlyHours(event) {
   }
 }
 
-async function updateMonthlyHours(userId) {
+async function updateMonthlyHours(userId, orgId) {
   const range = bjTime.getBeijingMonthRange()
 
   let allRecords = []
   let batchLen = 0
   do {
     const res = await db.collection('Attendances').where({
+      org_id: orgId,
       user_id: userId,
       date: _.gte(range.startDate).and(_.lt(range.endDate))
     }).skip(allRecords.length).limit(100).get()
@@ -618,10 +663,11 @@ async function updateMonthlyHours(userId) {
 }
 
 async function getPeriodRecords(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
+  const orgId = getOrgId(caller)
 
   const dimension = event.dimension === 'year' ? 'year' : 'month'
   const periodValue = dimension === 'year' ? event.year : event.month
@@ -633,6 +679,7 @@ async function getPeriodRecords(event, wxContext) {
 
     do {
       const res = await db.collection('Attendances').where({
+        org_id: orgId,
         date: _.gte(range.startDate).and(_.lt(range.endDate))
       }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
       batchLen = (res.data || []).length
@@ -652,10 +699,11 @@ async function getPeriodRecords(event, wxContext) {
 }
 
 async function getDailyRecords(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
+  const orgId = getOrgId(caller)
 
   const { date } = event
   try {
@@ -663,6 +711,7 @@ async function getDailyRecords(event, wxContext) {
     let batchLen = 0
     do {
       const res = await db.collection('Attendances').where({
+        org_id: orgId,
         date: date || getDateStr(new Date())
       }).orderBy('clock_in_time', 'desc').skip(allRecords.length).limit(100).get()
       batchLen = (res.data || []).length
@@ -682,16 +731,18 @@ async function getDailyRecords(event, wxContext) {
 }
 
 async function getAbnormalRecords(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
+  const orgId = getOrgId(caller)
 
   try {
     let allRecords = []
     let batchLen = 0
     do {
       const res = await db.collection('Attendances').where({
+        org_id: orgId,
         status: 'abnormal'
       }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
       batchLen = (res.data || []).length
@@ -710,10 +761,11 @@ async function getAbnormalRecords(event, wxContext) {
 }
 
 async function supplement(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足，仅管理员可补签' }
   }
+  const orgId = getOrgId(caller)
 
   const { attendance_id, user_id, date, clock_out_time } = event
   if (!attendance_id || !clock_out_time) {
@@ -725,6 +777,7 @@ async function supplement(event, wxContext) {
     if (!record.data) {
       return { code: -1, msg: '考勤记录不存在' }
     }
+    if (!ensureSameOrg(record.data, caller)) return { code: -1, msg: '无权补签其他工厂考勤' }
 
     const clockInTime = new Date(record.data.clock_in_time)
     const clockOutTime = new Date(clock_out_time)
@@ -745,11 +798,12 @@ async function supplement(event, wxContext) {
     })
 
     // 更新月工时
-    await updateMonthlyHours(record.data.user_id)
+    await updateMonthlyHours(record.data.user_id, orgId)
 
     // 审计日志
     await db.collection('audit_logs').add({
       data: {
+        org_id: orgId,
         operator_id: caller._id,
         operator_name: caller.name,
         action: 'supplement_attendance',
@@ -771,6 +825,7 @@ async function getUserMonthlyRecords(event) {
   if (!auth.ok) return auth.response
 
   const user_id = auth.actorUserId
+  const orgId = getOrgId(auth.caller)
   const range = bjTime.getBeijingMonthRange()
 
   try {
@@ -778,6 +833,7 @@ async function getUserMonthlyRecords(event) {
     let batchLen = 0
     do {
       const res = await db.collection('Attendances').where({
+        org_id: orgId,
         user_id,
         date: _.gte(range.startDate).and(_.lt(range.endDate))
       }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()

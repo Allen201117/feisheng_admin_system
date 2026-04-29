@@ -16,6 +16,33 @@ async function getCallerUser(wxContext) {
   return res.data.length > 0 ? res.data[0] : null
 }
 
+async function getCallerUserByEvent(event, wxContext) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+  if (authUserId && authSessionToken) {
+    try {
+      const res = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (res.data.length > 0) {
+        const user = res.data[0]
+        if (user.org_id) {
+          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        }
+        return user
+      }
+    } catch (e) {}
+  }
+  return await getCallerUser(wxContext)
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
 /** 分页拉取全量数据 */
 async function fetchAll(collectionName, where, options = {}) {
   const orderBy = options.orderBy || null
@@ -57,31 +84,31 @@ function sanitizeSheetName(name) {
 
 // ---- 数据获取：按时间范围通用 ----
 
-async function getWorkLogs(dateWhere) {
-  return await fetchAll('WorkLogs', dateWhere, { orderBy: { field: 'created_at', order: 'desc' } })
+async function getWorkLogs(dateWhere, orgId) {
+  return await fetchAll('WorkLogs', Object.assign({ org_id: orgId }, dateWhere), { orderBy: { field: 'created_at', order: 'desc' } })
 }
 
-async function getActiveUsers() {
-  return await fetchAll('Users', { role: _.in(['employee', 'qc']), status: 'active' })
+async function getActiveUsers(orgId) {
+  return await fetchAll('Users', { org_id: orgId, role: _.in(['employee', 'qc']), status: 'active' })
 }
 
-async function getAdjustments(userId, monthList) {
+async function getAdjustments(userId, monthList, orgId) {
   // monthList: 如 ['2026-01', '2026-02', ...] 或单个月 'YYYY-MM'
   if (Array.isArray(monthList)) {
-    return await fetchAll('SalaryAdjustments', { user_id: userId, month: _.in(monthList) })
+    return await fetchAll('SalaryAdjustments', { org_id: orgId, user_id: userId, month: _.in(monthList) })
   }
-  return await fetchAll('SalaryAdjustments', { user_id: userId, month: monthList })
+  return await fetchAll('SalaryAdjustments', { org_id: orgId, user_id: userId, month: monthList })
 }
 
-async function getAttendances(userId, dateWhere) {
-  return await fetchAll('Attendances', Object.assign({ user_id: userId }, dateWhere))
+async function getAttendances(userId, dateWhere, orgId) {
+  return await fetchAll('Attendances', Object.assign({ org_id: orgId, user_id: userId }, dateWhere))
 }
 
 // ---- 汇总型数据表 (按月/按年) ----
 
-async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj) {
-  const users = await getActiveUsers()
-  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) })
+async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj, orgId) {
+  const users = await getActiveUsers(orgId)
+  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId)
 
   // 按 user_id 分组
   const userLogMap = {}
@@ -105,11 +132,11 @@ async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj) 
       if (l.order_id) orderSet.add(l.order_id)
     })
 
-    const adjs = await getAdjustments(user._id, monthsForAdj)
+    const adjs = await getAdjustments(user._id, monthsForAdj, orgId)
     let reward = 0, penalty = 0
     adjs.forEach(a => { if (a.type === 'reward') reward += a.amount || 0; else penalty += a.amount || 0 })
 
-    const atts = await getAttendances(user._id, { date: _.gte(startDate).and(_.lt(endDate)) })
+    const atts = await getAttendances(user._id, { date: _.gte(startDate).and(_.lt(endDate)) }, orgId)
     let hours = 0, days = 0
     atts.forEach(a => { hours += a.hours || 0; if (a.clock_in_time) days++ })
 
@@ -135,8 +162,8 @@ async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj) 
 
 // ---- 细节型数据表 (按月/按年) ----
 
-async function buildDetailByDateRange(startDate, endDate, label) {
-  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) })
+async function buildDetailByDateRange(startDate, endDate, label, orgId) {
+  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId)
 
   const headers = ['员工', '订单名称', '工序名称', '报工数量', '单价(元)',
     '小计薪资(元)', '报工时间', '所属月份', '备注']
@@ -157,11 +184,11 @@ async function buildDetailByDateRange(startDate, endDate, label) {
 
 // ---- 按订单 汇总 ----
 
-async function buildSummaryByOrder(orderId) {
+async function buildSummaryByOrder(orderId, orgId) {
   const orderRes = await db.collection('Orders').doc(orderId).get()
   const order = orderRes.data
-  if (!order) return null
-  const logs = await fetchAll('WorkLogs', { order_id: orderId })
+  if (!order || order.org_id !== orgId) return null
+  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId })
 
   // 按员工聚合
   const userMap = {}
@@ -186,11 +213,11 @@ async function buildSummaryByOrder(orderId) {
 
 // ---- 按订单 细节 ----
 
-async function buildDetailByOrder(orderId) {
+async function buildDetailByOrder(orderId, orgId) {
   const orderRes = await db.collection('Orders').doc(orderId).get()
   const order = orderRes.data
-  if (!order) return null
-  const logs = await fetchAll('WorkLogs', { order_id: orderId }, { orderBy: { field: 'created_at', order: 'desc' } })
+  if (!order || order.org_id !== orgId) return null
+  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'desc' } })
 
   const headers = ['员工', '工序名称', '报工数量', '单价(元)', '小计薪资(元)', '报工时间', '备注']
   const rows = logs.map(l => ([
@@ -217,12 +244,13 @@ function getMonthsInYear(yearStr) {
 // ---- 统一数据调度 ----
 
 async function fetchReportDataV2(dimension, reportType, params) {
+  const orgId = params.orgId
   if (dimension === 'month') {
     const { startDate, endDate, month: monthStr } = getMonthRange(params.month)
     if (reportType === 'summary') {
-      return await buildSummaryByDateRange(startDate, endDate, `${monthStr}`, monthStr)
+      return await buildSummaryByDateRange(startDate, endDate, `${monthStr}`, monthStr, orgId)
     } else {
-      return await buildDetailByDateRange(startDate, endDate, `${monthStr}`)
+      return await buildDetailByDateRange(startDate, endDate, `${monthStr}`, orgId)
     }
   }
 
@@ -230,18 +258,18 @@ async function fetchReportDataV2(dimension, reportType, params) {
     const { startDate, endDate, year } = getYearRange(params.year)
     const months = getMonthsInYear(year)
     if (reportType === 'summary') {
-      return await buildSummaryByDateRange(startDate, endDate, `${year}年`, months)
+      return await buildSummaryByDateRange(startDate, endDate, `${year}年`, months, orgId)
     } else {
-      return await buildDetailByDateRange(startDate, endDate, `${year}年`)
+      return await buildDetailByDateRange(startDate, endDate, `${year}年`, orgId)
     }
   }
 
   if (dimension === 'order') {
     if (!params.order_id) return null
     if (reportType === 'summary') {
-      return await buildSummaryByOrder(params.order_id)
+      return await buildSummaryByOrder(params.order_id, orgId)
     } else {
-      return await buildDetailByOrder(params.order_id)
+      return await buildDetailByOrder(params.order_id, orgId)
     }
   }
 
@@ -250,13 +278,13 @@ async function fetchReportDataV2(dimension, reportType, params) {
 
 // ---- 兼容旧接口的数据获取 (保留原有 export_type 逻辑) ----
 
-async function fetchReportDataLegacy(export_type, startDate, endDate, monthStr) {
+async function fetchReportDataLegacy(export_type, startDate, endDate, monthStr, orgId) {
   switch (export_type) {
     case 'salary': {
-      return await buildSummaryByDateRange(startDate, endDate, monthStr, monthStr)
+      return await buildSummaryByDateRange(startDate, endDate, monthStr, monthStr, orgId)
     }
     case 'worklog': {
-      return await buildDetailByDateRange(startDate, endDate, monthStr)
+      return await buildDetailByDateRange(startDate, endDate, monthStr, orgId)
     }
     default:
       return null
@@ -304,10 +332,10 @@ exports.main = async (event, context) => {
 
 /** 获取订单列表（供前端选择器使用） */
 async function getOrderList(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
   try {
-    const orders = await fetchAll('Orders', {}, { orderBy: { field: 'created_at', order: 'desc' } })
+    const orders = await fetchAll('Orders', { org_id: getOrgId(caller) }, { orderBy: { field: 'created_at', order: 'desc' } })
     const list = orders.map(o => ({
       _id: o._id,
       order_name: o.order_name,
@@ -322,13 +350,13 @@ async function getOrderList(event, wxContext) {
 
 /** V2: 获取报表数据（按维度+报表类型） */
 async function getTableDataV2(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { dimension, report_type, month, year, order_id } = event
 
   try {
-    const tableData = await fetchReportDataV2(dimension, report_type, { month, year, order_id })
+    const tableData = await fetchReportDataV2(dimension, report_type, { month, year, order_id, orgId: getOrgId(caller) })
     if (!tableData) return { code: -1, msg: '未找到数据或参数错误' }
 
     return {
@@ -346,13 +374,13 @@ async function getTableDataV2(event, wxContext) {
 
 /** V2: 导出文件（按维度+报表类型） */
 async function exportToFileV2(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { dimension, report_type, month, year, order_id } = event
 
   try {
-    const tableData = await fetchReportDataV2(dimension, report_type, { month, year, order_id })
+    const tableData = await fetchReportDataV2(dimension, report_type, { month, year, order_id, orgId: getOrgId(caller) })
     if (!tableData) return { code: -1, msg: '未找到数据或参数错误' }
 
     // 生成文件名
@@ -377,6 +405,7 @@ async function exportToFileV2(event, wxContext) {
     await db.collection('export_history').add({
       data: {
         dimension,
+        org_id: getOrgId(caller),
         report_type,
         month: month || '',
         year: year || '',
@@ -409,14 +438,14 @@ async function exportToFileV2(event, wxContext) {
  * getTableData — 兼容旧版前端（保留原接口）
  */
 async function getTableData(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { export_type, month } = event
   const { startDate, endDate, month: monthStr } = getMonthRange(month)
 
   try {
-    const tableData = await fetchReportDataLegacy(export_type, startDate, endDate, monthStr)
+    const tableData = await fetchReportDataLegacy(export_type, startDate, endDate, monthStr, getOrgId(caller))
     if (!tableData) return { code: -1, msg: '未知导出类型' }
     return { code: 0, data: { headers: tableData.headers, rows: tableData.rows, title: tableData.title } }
   } catch (err) {
@@ -428,14 +457,14 @@ async function getTableData(event, wxContext) {
  * exportToFile — 兼容旧版前端
  */
 async function exportToFile(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { export_type, month } = event
   const { startDate, endDate, month: monthStr } = getMonthRange(month)
 
   try {
-    const tableData = await fetchReportDataLegacy(export_type, startDate, endDate, monthStr)
+    const tableData = await fetchReportDataLegacy(export_type, startDate, endDate, monthStr, getOrgId(caller))
     if (!tableData) return { code: -1, msg: '未知导出类型' }
 
     const filename = `${export_type}_${monthStr}_${Date.now()}.xlsx`
@@ -451,6 +480,7 @@ async function exportToFile(event, wxContext) {
 
     await db.collection('export_history').add({
       data: {
+        org_id: getOrgId(caller),
         export_type, month: monthStr, filename,
         file_id: uploadRes.fileID, status: 'downloaded',
         operator_id: caller._id, operator_name: caller.name,
@@ -468,11 +498,12 @@ async function exportToFile(event, wxContext) {
  * getHistory — 获取导出历史记录
  */
 async function getHistory(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   try {
     const res = await db.collection('export_history')
+      .where({ org_id: getOrgId(caller) })
       .orderBy('created_at', 'desc')
       .limit(20)
       .get()
@@ -484,7 +515,7 @@ async function getHistory(event, wxContext) {
 
 /** 导出工序汇总表（订单详情页使用） */
 async function exportProcessSummary(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { order_id } = event
@@ -493,9 +524,9 @@ async function exportProcessSummary(event, wxContext) {
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     const order = orderRes.data
-    if (!order) return { code: -1, msg: '订单不存在' }
+    if (!order || order.org_id !== getOrgId(caller)) return { code: -1, msg: '订单不存在' }
 
-    const processes = await fetchAll('Processes', { order_id }, { orderBy: { field: 'created_at', order: 'asc' } })
+    const processes = await fetchAll('Processes', { org_id: getOrgId(caller), order_id }, { orderBy: { field: 'created_at', order: 'asc' } })
 
     const headers = ['序号', '工序名称', '工价(元/件)', '备注']
     const rows = processes.map((p, i) => ([

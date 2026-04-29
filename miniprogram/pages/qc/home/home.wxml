@@ -6,6 +6,7 @@
     <view class="user-info">
       <text class="user-name">{{userInfo.name}}</text>
       <text class="user-role">{{userInfo.role === 'boss' ? '管理员(质检)' : '质检员'}}</text>
+      <text class="user-role" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
     </view>
     <view class="header-right" bindtap="{{userInfo.role === 'boss' ? 'goBack' : 'onLogout'}}">
       <text class="text-sm" style="color:rgba(255,255,255,0.8)">{{userInfo.role === 'boss' ? '返回' : '退出'}}</text>

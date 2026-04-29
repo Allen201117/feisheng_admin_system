@@ -6,6 +6,7 @@
       <view class="user-info">
         <text class="user-name">{{userInfo.name}}</text>
         <text class="user-role">员工工作台</text>
+        <text class="user-join-date" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
         <text class="user-join-date" wx:if="{{joinDateDisplay}}">入厂时间：{{joinDateDisplay}}</text>
       </view>
       <view class="time-panel">

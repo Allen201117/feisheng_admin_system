@@ -16,6 +16,7 @@ var app = getApp()
 
 Page({
   data: {
+    factoryCode: '',
     name: '',
     phone: '',
     password: '',
@@ -170,6 +171,10 @@ Page({
     this.setData({ name: e.detail.value })
   },
 
+  onInputFactoryCode: function(e) {
+    this.setData({ factoryCode: e.detail.value })
+  },
+
   onInputPhone: function(e) {
     this.setData({ phone: e.detail.value })
   },
@@ -184,6 +189,7 @@ Page({
 
   onLogin: function() {
     var that = this
+    var factoryCode = trim(this.data.factoryCode).toUpperCase()
     var name = trim(this.data.name)
     var phone = trim(this.data.phone)
     var password = this.data.password
@@ -194,8 +200,10 @@ Page({
       return
     }
 
+    if (!factoryCode) { showError('请输入工厂码'); return }
     if (!name) { showError('请输入姓名'); return }
-    if (phone && !isValidPhone(phone)) { showError('手机号格式不正确'); return }
+    if (!phone) { showError('请输入手机号'); return }
+    if (!isValidPhone(phone)) { showError('手机号格式不正确'); return }
     if (!password) { showError('请输入密码'); return }
 
     this.setData({ loading: true })
@@ -203,6 +211,7 @@ Page({
 
     callCloud('login', {
       action: 'login',
+      factory_code: factoryCode,
       name: name,
       phone: phone,
       password: password

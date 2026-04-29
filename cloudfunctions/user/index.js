@@ -20,7 +20,16 @@ async function getCallerUserByEvent(event) {
   try {
     const exactRes = await db.collection('Users').where(strictWhere).limit(1).get()
     if (exactRes.data.length > 0) {
-      return exactRes.data[0]
+      const user = exactRes.data[0]
+      if (user.org_id) {
+        try {
+          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        } catch (e) {
+          return null
+        }
+      }
+      return user
     }
   } catch (err) {}
 
@@ -31,6 +40,14 @@ async function getBossUserByEvent(event) {
   const caller = await getCallerUserByEvent(event)
   if (!caller || caller.role !== 'boss') return null
   return caller
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
+function isSameOrg(caller, doc) {
+  return !!(caller && doc && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
 exports.main = async (event, context) => {
@@ -57,10 +74,11 @@ exports.main = async (event, context) => {
 
 async function createUser(event) {
   const { name, phone, role, password } = event
+  const boss = event._boss
   if (!name || !phone) return { code: -1, msg: '姓名和手机号不能为空' }
   if (!['boss', 'qc', 'employee'].includes(role)) return { code: -1, msg: '无效的角色' }
 
-  const existing = await db.collection('Users').where({ phone }).count()
+  const existing = await db.collection('Users').where({ org_id: getOrgId(boss), name, phone }).count()
   if (existing.total > 0) return { code: -1, msg: '该手机号已注册' }
 
   const salt = generateSalt()
@@ -70,7 +88,9 @@ async function createUser(event) {
   try {
     await db.collection('Users').add({
       data: {
+        org_id: getOrgId(boss),
         name, phone, role, password_hash, salt,
+        platform_role: null,
         status: 'active',
         password_changed: false,
         must_change_password: true,
@@ -98,6 +118,7 @@ async function listUsers(event) {
     let batchLen = 0
     do {
       const res = await db.collection('Users')
+        .where({ org_id: getOrgId(caller) })
         .orderBy('created_at', 'desc').skip(allUsers.length).limit(100).get()
       batchLen = res.data.length
       allUsers.push(...res.data)
@@ -119,7 +140,7 @@ async function listEmployees(event) {
     let batchLen = 0
     do {
       const res = await db.collection('Users')
-        .where({ status: 'active', role: _.in(['employee', 'qc']) })
+        .where({ org_id: getOrgId(caller), status: 'active', role: _.in(['employee', 'qc']) })
         .orderBy('name', 'asc').skip(allUsers.length).limit(100).get()
       batchLen = res.data.length
       allUsers.push(...res.data)
@@ -148,6 +169,9 @@ async function getUser(event) {
   try {
     const res = await db.collection('Users').doc(targetUserId).get()
     const user = res.data
+    if (!isSameOrg(caller, user)) {
+      return { code: -1, msg: '无权查看其他工厂员工信息' }
+    }
     return { code: 0, data: { _id: user._id, name: user.name, phone: user.phone, role: user.role, status: user.status, join_date: user.join_date || '' } }
   } catch (err) {
     return { code: -1, msg: '获取用户信息失败' }
@@ -157,6 +181,7 @@ async function getUser(event) {
 async function updateUser(event) {
   const { user_id, name, phone, role, password } = event
   if (!user_id) return { code: -1, msg: '缺少用户ID' }
+  const boss = event._boss
 
   const updateData = { updated_at: db.serverDate() }
   if (name) updateData.name = name
@@ -169,6 +194,10 @@ async function updateUser(event) {
   }
 
   try {
+    const userRes = await db.collection('Users').doc(user_id).get()
+    if (!isSameOrg(boss, userRes.data)) {
+      return { code: -1, msg: '无权修改其他工厂员工' }
+    }
     await db.collection('Users').doc(user_id).update({ data: updateData })
     return { code: 0, msg: '更新成功' }
   } catch (err) {
@@ -178,15 +207,21 @@ async function updateUser(event) {
 
 async function updateStatus(event) {
   const { user_id, status } = event
+  const boss = event._boss
   if (!user_id || !['active', 'disabled'].includes(status)) return { code: -1, msg: '参数无效' }
 
   try {
+    const userRes = await db.collection('Users').doc(user_id).get()
+    if (!isSameOrg(boss, userRes.data)) {
+      return { code: -1, msg: '无权操作其他工厂员工' }
+    }
     await db.collection('Users').doc(user_id).update({
       data: { status, updated_at: db.serverDate() }
     })
     await db.collection('audit_logs').add({
       data: {
         action: status === 'active' ? 'enable_user' : 'disable_user',
+        org_id: getOrgId(boss),
         operator_id: event._boss ? event._boss._id : '',
         operator_name: event._boss ? event._boss.name : '',
         target_id: user_id,
@@ -210,6 +245,7 @@ async function resetPassword(event) {
     const userRes = await db.collection('Users').doc(user_id).get()
     const user = userRes.data
     if (!user) return { code: -1, msg: '用户不存在' }
+    if (!isSameOrg(boss, user)) return { code: -1, msg: '无权重置其他工厂员工密码' }
 
     // 重置密码为手机号
     const salt = generateSalt()
@@ -229,6 +265,7 @@ async function resetPassword(event) {
     await db.collection('audit_logs').add({
       data: {
         action: 'reset_password',
+        org_id: getOrgId(boss),
         operator_id: boss._id,
         operator_name: boss.name,
         target_id: user_id,
@@ -255,6 +292,7 @@ async function updateJoinDate(event) {
   try {
     const userRes = await db.collection('Users').doc(user_id).get()
     if (!userRes.data) return { code: -1, msg: '用户不存在' }
+    if (!isSameOrg(boss, userRes.data)) return { code: -1, msg: '无权操作其他工厂员工' }
 
     const oldDate = userRes.data.join_date || ''
 
@@ -271,6 +309,7 @@ async function updateJoinDate(event) {
     await db.collection('audit_logs').add({
       data: {
         action: 'user_join_date_update',
+        org_id: getOrgId(boss),
         operator_id: boss._id,
         operator_name: boss.name,
         target_id: user_id,

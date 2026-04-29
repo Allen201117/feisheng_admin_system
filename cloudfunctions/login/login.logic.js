@@ -3,11 +3,21 @@ function normalizeText(value) {
 }
 
 function validateLoginAttempt(payload) {
+  const factoryCode = normalizeText(payload && payload.factory_code)
   const name = normalizeText(payload && payload.name)
+  const phone = normalizeText(payload && payload.phone)
   const password = payload && payload.password ? String(payload.password) : ''
+
+  if (!factoryCode) {
+    return { ok: false, msg: '请输入工厂码' }
+  }
 
   if (!name) {
     return { ok: false, msg: '请输入姓名' }
+  }
+
+  if (!phone) {
+    return { ok: false, msg: '请输入手机号' }
   }
 
   if (!password) {

@@ -11,10 +11,24 @@ async function getCallerUserByEvent(event) {
 
   try {
     const res = await db.collection('Users').where(strictWhere).limit(1).get()
-    return res.data.length > 0 ? res.data[0] : null
+    if (res.data.length === 0) return null
+    const user = res.data[0]
+    if (user.org_id) {
+      try {
+        const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+        if (!orgRes.data || orgRes.data.status !== 'active') return null
+      } catch (e) {
+        return null
+      }
+    }
+    return user
   } catch (err) {
     return null
   }
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
 }
 
 async function getBossUserByEvent(event) {
@@ -27,7 +41,7 @@ exports.main = async function(event, context) {
   var action = event.action
   switch (action) {
     case 'getAll': return await getAll(event)
-    case 'getPublic': return await getPublic()
+    case 'getPublic': return await getPublic(event)
     case 'save': return await save(event)
     default: return { code: -1, msg: '未知操作' }
   }
@@ -40,7 +54,7 @@ async function getAll(event) {
   }
 
   try {
-    var res = await db.collection('factory_settings').doc('main').get()
+    var res = await db.collection('factory_settings').doc(getOrgId(caller)).get()
     return { code: 0, data: sanitizeSettingsRecord(res.data) }
   } catch (err) {
     return { code: -1, msg: '加载设置失败' }
@@ -48,9 +62,11 @@ async function getAll(event) {
 }
 
 /** 公开设置接口 — 不需要boss权限，只返回非敏感字段 */
-async function getPublic() {
+async function getPublic(event) {
+  const caller = await getCallerUserByEvent(event)
+  const orgId = getOrgId(caller)
   try {
-    var res = await db.collection('factory_settings').doc('main').get()
+    var res = await db.collection('factory_settings').doc(orgId || 'main').get()
     var data = res.data || {}
     return {
       code: 0,
@@ -71,7 +87,7 @@ async function save(event) {
 
   var existing = {}
   try {
-    var ex = await db.collection('factory_settings').doc('main').get()
+    var ex = await db.collection('factory_settings').doc(getOrgId(caller)).get()
     existing = ex.data || {}
   } catch (e) {}
 
@@ -124,6 +140,7 @@ async function save(event) {
   }
 
   var settingsData = {
+    org_id: getOrgId(caller),
     factory_latitude: nextFactoryLatitude,
     factory_longitude: nextFactoryLongitude,
     geofence_radius: parseInt(event.geofence_radius) || 100,
@@ -159,10 +176,11 @@ async function save(event) {
   }
 
   try {
-    await db.collection('factory_settings').doc('main').set({ data: settingsData })
+    await db.collection('factory_settings').doc(getOrgId(caller)).set({ data: settingsData })
 
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller._id,
         operator_name: caller.name,
         action: 'update_settings',
