@@ -90,6 +90,7 @@ exports.main = async (event, context) => {
   switch (action) {
     case 'listOrganizations': return await listOrganizations(event)
     case 'createOrganization': return await createOrganization(event)
+    case 'updateOrganization': return await updateOrganization(event)
     case 'disableOrganization': return await updateOrganizationStatus(event, 'disabled')
     case 'enableOrganization': return await updateOrganizationStatus(event, 'active')
     case 'listFactoryAdmins': return await listFactoryAdmins(event)
@@ -199,6 +200,53 @@ async function createOrganization(event) {
     return { code: 0, msg: '工厂创建成功', data: { org_id: addRes._id } }
   } catch (err) {
     return { code: -1, msg: '创建工厂失败: ' + err.message }
+  }
+}
+
+async function updateOrganization(event) {
+  const auth = await requirePlatformAdmin(event)
+  if (!auth.ok) return auth.response
+
+  const orgId = normalizeText(event.org_id)
+  const orgName = normalizeText(event.org_name)
+  const factoryCode = normalizeFactoryCode(event.factory_code)
+  const contactName = normalizeText(event.contact_name)
+  const contactPhone = normalizeText(event.contact_phone)
+
+  if (!orgId) return { code: -1, msg: '缺少工厂ID' }
+  if (!orgName || !factoryCode) {
+    return { code: -1, msg: '工厂名称和工厂码不能为空' }
+  }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    if (!org) return { code: -1, msg: '工厂不存在' }
+
+    if (factoryCode !== org.factory_code) {
+      const existing = await db.collection('Organizations').where({ factory_code: factoryCode }).limit(1).get()
+      const conflict = (existing.data || []).find(item => item._id !== orgId)
+      if (conflict) return { code: -1, msg: '工厂码已存在' }
+    }
+
+    const updateData = {
+      org_name: orgName,
+      factory_code: factoryCode,
+      contact_name: contactName,
+      contact_phone: contactPhone,
+      updated_at: db.serverDate()
+    }
+
+    await db.collection('Organizations').doc(orgId).update({ data: updateData })
+    await writePlatformLog(auth.caller, 'update_organization', orgId, `${org.factory_code}/${org.org_name} -> ${factoryCode}/${orgName}`)
+
+    return {
+      code: 0,
+      msg: '工厂信息已保存',
+      data: Object.assign({}, org, updateData)
+    }
+  } catch (err) {
+    return { code: -1, msg: '保存工厂信息失败: ' + err.message }
   }
 }
 

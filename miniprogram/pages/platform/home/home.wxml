@@ -1,89 +1,162 @@
 <view class="container">
-  <view class="platform-hero hero-panel">
-    <view>
+  <view class="platform-hero">
+    <view class="hero-copy">
       <text class="hero-title">平台管理</text>
-      <text class="hero-subtitle">工厂开通与状态管理</text>
+      <text class="hero-subtitle">多工厂统一维护</text>
       <text class="hero-user">{{userInfo.name}}</text>
     </view>
-    <view class="hero-action-pill" bindtap="onLogout">退出</view>
+    <button class="hero-logout" bindtap="onLogout">退出</button>
+  </view>
+
+  <view class="overview-panel">
+    <view class="overview-item">
+      <text class="overview-label">工厂总数</text>
+      <text class="overview-value">{{organizations.length}}</text>
+    </view>
+    <view class="overview-item">
+      <text class="overview-label">当前工厂</text>
+      <text class="overview-value overview-code">{{selectedOrg ? selectedOrg.factory_code : '--'}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedOrg}}" class="current-panel">
+    <view class="current-header">
+      <text class="current-label">当前选中</text>
+      <text class="status-chip {{selectedOrg.status === 'active' ? 'status-active' : 'status-disabled'}}">{{selectedOrg.status === 'active' ? '启用中' : '已停用'}}</text>
+    </view>
+    <text class="current-name">{{selectedOrg.org_name}}</text>
+    <text class="current-line">工厂码：{{selectedOrg.factory_code}}</text>
+    <text class="current-line" wx:if="{{selectedOrg.contact_name || selectedOrg.contact_phone}}">联系人：{{selectedOrg.contact_name}} {{selectedOrg.contact_phone}}</text>
   </view>
 
   <view class="card section-card">
-    <view class="panel-title-row">
-      <text class="section-title">创建工厂</text>
-      <text class="panel-title-note">工厂码登录使用</text>
-    </view>
-    <view class="input-group">
-      <text class="input-label">工厂名称</text>
-      <input class="input-field" value="{{orgForm.org_name}}" data-field="org_name" bindinput="onOrgInput" placeholder="例如 测试一厂" />
-    </view>
-    <view class="input-group">
-      <text class="input-label">工厂码</text>
-      <input class="input-field" value="{{orgForm.factory_code}}" data-field="factory_code" bindinput="onOrgInput" placeholder="例如 A001" />
-    </view>
-    <view class="input-group">
-      <text class="input-label">联系人</text>
-      <input class="input-field" value="{{orgForm.contact_name}}" data-field="contact_name" bindinput="onOrgInput" placeholder="可选" />
-    </view>
-    <view class="input-group">
-      <text class="input-label">联系电话</text>
-      <input class="input-field" value="{{orgForm.contact_phone}}" data-field="contact_phone" bindinput="onOrgInput" placeholder="可选" />
-    </view>
-    <button class="btn-primary btn-block action-btn" bindtap="createOrganization">创建工厂</button>
-  </view>
-
-  <view class="card section-card">
-    <view class="panel-title-row">
-      <text class="section-title">创建工厂管理员</text>
-      <text class="panel-title-note">默认需首次改密</text>
-    </view>
-    <picker mode="selector" range="{{organizations}}" range-key="org_name" bindchange="chooseAdminOrg">
-      <view class="picker-field">
-        <text>{{adminForm.org_id ? '已选择工厂' : '请选择工厂'}}</text>
-      </view>
-    </picker>
-    <view class="input-group">
-      <text class="input-label">姓名</text>
-      <input class="input-field" value="{{adminForm.name}}" data-field="name" bindinput="onAdminInput" placeholder="管理员姓名" />
-    </view>
-    <view class="input-group">
-      <text class="input-label">手机号</text>
-      <input class="input-field" value="{{adminForm.phone}}" data-field="phone" bindinput="onAdminInput" placeholder="管理员手机号" type="number" />
-    </view>
-    <view class="input-group">
-      <text class="input-label">初始密码</text>
-      <input class="input-field" value="{{adminForm.password}}" data-field="password" bindinput="onAdminInput" placeholder="不填则默认为手机号" password="{{true}}" />
-    </view>
-    <button class="btn-primary btn-block action-btn" bindtap="createFactoryAdmin">创建管理员</button>
-
-    <view wx:if="{{factoryAdmins.length > 0}}" class="admin-list">
-      <view wx:for="{{factoryAdmins}}" wx:key="_id" class="admin-row">
-        <view>
-          <text class="org-name">{{item.name}}</text>
-          <text class="org-meta">{{item.phone}}</text>
-        </view>
-        <button class="small-btn reset-btn" data-index="{{index}}" bindtap="resetFactoryAdminPassword">重置</button>
+    <view class="section-heading">
+      <text class="section-number">1</text>
+      <view class="section-copy">
+        <text class="section-title">选择工厂</text>
+        <text class="section-note">共 {{organizations.length}} 家</text>
       </view>
     </view>
-  </view>
 
-  <view class="card section-card">
-    <view class="panel-title-row">
-      <text class="section-title">工厂列表</text>
-      <text class="panel-title-note">{{organizations.length}} 家</text>
-    </view>
     <view wx:if="{{organizations.length === 0 && !loading}}" class="empty-state">
-      <text class="empty-text">暂无工厂</text>
+      <text class="empty-text">暂无工厂，请先创建</text>
     </view>
-    <view wx:for="{{organizations}}" wx:key="_id" class="org-card">
-      <view>
+
+    <view wx:for="{{organizations}}" wx:key="_id" class="org-card {{selectedOrgId === item._id ? 'org-card-selected' : ''}}" data-index="{{index}}" bindtap="selectOrganization">
+      <view class="org-title-row">
         <text class="org-name">{{item.org_name}}</text>
-        <text class="org-meta">{{item.factory_code}} · {{item.status === 'active' ? '启用中' : '已停用'}}</text>
-        <text class="org-meta" wx:if="{{item.contact_name || item.contact_phone}}">{{item.contact_name}} {{item.contact_phone}}</text>
+        <text class="status-chip {{item.status === 'active' ? 'status-active' : 'status-disabled'}}">{{item.status === 'active' ? '启用中' : '已停用'}}</text>
       </view>
-      <button class="small-btn {{item.status === 'active' ? 'danger-btn' : 'enable-btn'}}" data-index="{{index}}" bindtap="toggleOrganization">
-        {{item.status === 'active' ? '停用' : '启用'}}
+      <text class="org-meta">工厂码：{{item.factory_code}}</text>
+      <text class="org-meta" wx:if="{{item.contact_name || item.contact_phone}}">联系人：{{item.contact_name}} {{item.contact_phone}}</text>
+      <view class="selected-mark" wx:if="{{selectedOrgId === item._id}}">
+        <text>当前编辑</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="card section-card" wx:if="{{selectedOrg}}">
+    <view class="section-heading">
+      <text class="section-number">2</text>
+      <view class="section-copy">
+        <text class="section-title">编辑工厂资料</text>
+        <text class="section-note">{{selectedOrg.org_name}}</text>
+      </view>
+    </view>
+
+    <view class="form-list">
+      <view class="input-group">
+        <text class="input-label">工厂名称</text>
+        <input class="input-field" value="{{editForm.org_name}}" data-field="org_name" bindinput="onEditInput" placeholder="工厂名称" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">工厂码</text>
+        <input class="input-field code-input" value="{{editForm.factory_code}}" data-field="factory_code" bindinput="onEditInput" placeholder="例如 A001" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">联系人</text>
+        <input class="input-field" value="{{editForm.contact_name}}" data-field="contact_name" bindinput="onEditInput" placeholder="可选" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">联系电话</text>
+        <input class="input-field" value="{{editForm.contact_phone}}" data-field="contact_phone" bindinput="onEditInput" placeholder="可选" />
+      </view>
+    </view>
+
+    <view class="button-stack">
+      <button class="btn-primary full-button" bindtap="saveSelectedOrganization">保存工厂资料</button>
+      <button class="status-button {{selectedOrg.status === 'active' ? 'danger-btn' : 'enable-btn'}}" bindtap="toggleSelectedOrganization">
+        {{selectedOrg.status === 'active' ? '停用工厂' : '启用工厂'}}
       </button>
     </view>
+  </view>
+
+  <view class="card section-card" wx:if="{{selectedOrg}}">
+    <view class="section-heading">
+      <text class="section-number">3</text>
+      <view class="section-copy">
+        <text class="section-title">工厂管理员</text>
+        <text class="section-note">{{selectedOrg.org_name}}</text>
+      </view>
+    </view>
+
+    <view class="form-list">
+      <view class="input-group">
+        <text class="input-label">姓名</text>
+        <input class="input-field" value="{{adminForm.name}}" data-field="name" bindinput="onAdminInput" placeholder="管理员姓名" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">手机号</text>
+        <input class="input-field" value="{{adminForm.phone}}" data-field="phone" bindinput="onAdminInput" placeholder="管理员手机号" type="number" />
+      </view>
+      <view class="input-group full-width">
+        <text class="input-label">初始密码</text>
+        <input class="input-field" value="{{adminForm.password}}" data-field="password" bindinput="onAdminInput" placeholder="不填则默认为手机号" password="{{true}}" />
+      </view>
+    </view>
+
+    <button class="btn-primary full-button" bindtap="createFactoryAdmin">创建管理员</button>
+
+    <view class="admin-list">
+      <view wx:if="{{factoryAdmins.length === 0}}" class="empty-row">暂无管理员</view>
+      <view wx:for="{{factoryAdmins}}" wx:key="_id" class="admin-row">
+        <view class="admin-info">
+          <text class="admin-name">{{item.name}}</text>
+          <text class="admin-phone">{{item.phone}}</text>
+        </view>
+        <button class="reset-btn" data-index="{{index}}" bindtap="resetFactoryAdminPassword">重置密码</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="card section-card">
+    <view class="section-heading">
+      <text class="section-number">4</text>
+      <view class="section-copy">
+        <text class="section-title">新增工厂</text>
+        <text class="section-note">填写基础资料</text>
+      </view>
+    </view>
+
+    <view class="form-list">
+      <view class="input-group">
+        <text class="input-label">工厂名称</text>
+        <input class="input-field" value="{{orgForm.org_name}}" data-field="org_name" bindinput="onOrgInput" placeholder="例如 测试一厂" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">工厂码</text>
+        <input class="input-field code-input" value="{{orgForm.factory_code}}" data-field="factory_code" bindinput="onOrgInput" placeholder="例如 A001" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">联系人</text>
+        <input class="input-field" value="{{orgForm.contact_name}}" data-field="contact_name" bindinput="onOrgInput" placeholder="可选" />
+      </view>
+      <view class="input-group">
+        <text class="input-label">联系电话</text>
+        <input class="input-field" value="{{orgForm.contact_phone}}" data-field="contact_phone" bindinput="onOrgInput" placeholder="可选" />
+      </view>
+    </view>
+
+    <button class="btn-primary full-button" bindtap="createOrganization">创建工厂</button>
   </view>
 </view>
