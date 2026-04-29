@@ -4,6 +4,12 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 const { buildPaidMonthSet, selectRepriceableWorklogs } = require('./reprice-worklogs')
+const {
+  collectAssignedUserIds,
+  buildUserNameMap,
+  attachAssignedNamesToProcesses,
+  findInvalidAssignedUserIdProcesses
+} = require('./detail.logic')
 
 async function getCallerUser(wxContext) {
   const res = await db.collection('Users').where({
@@ -95,19 +101,23 @@ async function getOrderDetail(event) {
       allProcessData = allProcessData.concat(res.data || [])
     } while (procBatchLen === 100)
 
-    // 为每个工序获取分配的员工名称
-    const processes = []
-    for (const p of allProcessData) {
-      let assignedNames = '未分配'
-      if (p.assigned_user_ids && p.assigned_user_ids.length > 0) {
-        const userRes = await db.collection('Users')
-          .where({ _id: _.in(p.assigned_user_ids) })
-          .field({ name: true })
-          .get()
-        assignedNames = userRes.data.map(u => u.name).join('、')
-      }
-      processes.push({ ...p, assigned_names: assignedNames })
+    const invalidAssigned = findInvalidAssignedUserIdProcesses(allProcessData)
+    if (invalidAssigned.length > 0) {
+      console.warn('[order.getDetail] invalid assigned_user_ids ignored:', invalidAssigned)
     }
+
+    const assignedUserIds = collectAssignedUserIds(allProcessData)
+    const users = []
+    for (const chunk of chunkArray(assignedUserIds, 50)) {
+      const userRes = await db.collection('Users')
+        .where({ _id: _.in(chunk) })
+        .field({ _id: true, name: true })
+        .get()
+      users.push(...(userRes.data || []))
+    }
+
+    const userNameMap = buildUserNameMap(users)
+    const processes = attachAssignedNamesToProcesses(allProcessData, userNameMap)
 
     return {
       code: 0,
