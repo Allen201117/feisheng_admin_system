@@ -19,45 +19,82 @@ async function getCallerUser(wxContext) {
   return res.data.length > 0 ? res.data[0] : null
 }
 
+async function getCallerUserByEvent(event, wxContext) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+
+  if (authUserId && authSessionToken) {
+    try {
+      const res = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (res.data.length > 0) {
+        const user = res.data[0]
+        if (user.org_id) {
+          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        }
+        return user
+      }
+    } catch (err) {}
+  }
+
+  return await getCallerUser(wxContext)
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
+function ensureSameOrg(doc, caller) {
+  return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const { action } = event
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录已失效，请重新登录' }
+  }
 
   // 写操作需要boss权限
-  if (['create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'togglePriceHidden', 'clearOrderPrices'].includes(action)) {
-    const caller = await getCallerUser(wxContext)
+  if (['list', 'getDetail', 'getPriceChangeLogs', 'create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'togglePriceHidden', 'clearOrderPrices'].includes(action)) {
     if (!caller || caller.role !== 'boss') {
       return { code: -1, msg: '权限不足，仅管理员可操作' }
     }
   }
 
   switch (action) {
-    case 'list': return await listOrders()
-    case 'getDetail': return await getOrderDetail(event)
-    case 'create': return await createOrder(event)
-    case 'updateOrder': return await updateOrder(event, wxContext)
-    case 'copyOrder': return await copyOrder(event, wxContext)
-    case 'updateStatus': return await updateOrderStatus(event)
-    case 'deleteOrder': return await deleteOrder(event, wxContext)
-    case 'addProcess': return await addProcess(event)
-    case 'updateProcessPrice': return await updateProcessPrice(event, wxContext)
-    case 'updateProcess': return await updateProcess(event, wxContext)
-    case 'deleteProcess': return await deleteProcess(event)
-    case 'assignProcess': return await assignProcess(event)
-    case 'getAssignedProcesses': return await getAssignedProcesses(event)
-    case 'togglePriceHidden': return await togglePriceHidden(event, wxContext)
-    case 'clearOrderPrices': return await clearOrderPrices(event, wxContext)
-    case 'getPriceChangeLogs': return await getPriceChangeLogs(event)
+    case 'list': return await listOrders(caller)
+    case 'getDetail': return await getOrderDetail(event, caller)
+    case 'create': return await createOrder(event, caller)
+    case 'updateOrder': return await updateOrder(event, caller)
+    case 'copyOrder': return await copyOrder(event, caller)
+    case 'updateStatus': return await updateOrderStatus(event, caller)
+    case 'deleteOrder': return await deleteOrder(event, caller)
+    case 'addProcess': return await addProcess(event, caller)
+    case 'updateProcessPrice': return await updateProcessPrice(event, caller)
+    case 'updateProcess': return await updateProcess(event, caller)
+    case 'deleteProcess': return await deleteProcess(event, caller)
+    case 'assignProcess': return await assignProcess(event, caller)
+    case 'getAssignedProcesses': return await getAssignedProcesses(event, caller)
+    case 'togglePriceHidden': return await togglePriceHidden(event, caller)
+    case 'clearOrderPrices': return await clearOrderPrices(event, caller)
+    case 'getPriceChangeLogs': return await getPriceChangeLogs(event, caller)
     default: return { code: -1, msg: '未知操作' }
   }
 }
 
-async function listOrders() {
+async function listOrders(caller) {
   try {
     let allOrderData = []
     let batchLen = 0
     do {
       const res = await db.collection('Orders')
+        .where({ org_id: getOrgId(caller) })
         .orderBy('created_at', 'desc')
         .skip(allOrderData.length)
         .limit(100)
@@ -70,7 +107,7 @@ async function listOrders() {
     const orders = []
     for (const order of allOrderData) {
       const processCount = await db.collection('Processes')
-        .where({ order_id: order._id })
+        .where({ org_id: getOrgId(caller), order_id: order._id })
         .count()
       orders.push({
         ...order,
@@ -84,15 +121,18 @@ async function listOrders() {
   }
 }
 
-async function getOrderDetail(event) {
+async function getOrderDetail(event, caller) {
   const { order_id } = event
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) {
+      return { code: -1, msg: '无权访问该订单' }
+    }
     let allProcessData = []
     let procBatchLen = 0
     do {
       const res = await db.collection('Processes')
-        .where({ order_id })
+        .where({ org_id: getOrgId(caller), order_id })
         .orderBy('created_at', 'asc')
         .skip(allProcessData.length)
         .limit(100)
@@ -110,7 +150,7 @@ async function getOrderDetail(event) {
     const users = []
     for (const chunk of chunkArray(assignedUserIds, 50)) {
       const userRes = await db.collection('Users')
-        .where({ _id: _.in(chunk) })
+        .where({ org_id: getOrgId(caller), _id: _.in(chunk) })
         .field({ _id: true, name: true })
         .get()
       users.push(...(userRes.data || []))
@@ -131,7 +171,7 @@ async function getOrderDetail(event) {
   }
 }
 
-async function createOrder(event) {
+async function createOrder(event, caller) {
   const { order_name, start_date, end_date, total_quantity } = event
   if (!order_name || !start_date || !total_quantity) {
     return { code: -1, msg: '请填写完整的订单信息' }
@@ -140,6 +180,7 @@ async function createOrder(event) {
   try {
     await db.collection('Orders').add({
       data: {
+        org_id: getOrgId(caller),
         order_name,
         start_date,
         end_date: end_date || '',
@@ -155,7 +196,7 @@ async function createOrder(event) {
   }
 }
 
-async function updateOrder(event, wxContext) {
+async function updateOrder(event, caller) {
   const { order_id, order_name, start_date, end_date, total_quantity } = event
   if (!order_id) return { code: -1, msg: '参数不完整' }
 
@@ -163,6 +204,7 @@ async function updateOrder(event, wxContext) {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     const order = orderRes.data
     if (!order) return { code: -1, msg: '订单不存在' }
+    if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权修改该订单' }
     if (order.status !== 'active') return { code: -1, msg: '仅进行中的订单可编辑' }
 
     const newQty = parseInt(total_quantity)
@@ -170,10 +212,10 @@ async function updateOrder(event, wxContext) {
 
     // 检查各工序已报工数量是否超出新总量
     if (newQty !== order.total_quantity) {
-      const processes = await fetchAllDocs('Processes', { order_id })
+      const processes = await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id })
       const exceeded = []
       for (const proc of processes) {
-        const worklogs = await fetchAllDocs('WorkLogs', { order_id, process_id: proc._id }, { field: { quantity: true } })
+        const worklogs = await fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id, process_id: proc._id }, { field: { quantity: true } })
         const sum = worklogs.reduce((s, w) => s + (Number(w.quantity) || 0), 0)
         if (sum > newQty) {
           exceeded.push({ process_name: proc.process_name, current_sum: sum })
@@ -194,9 +236,9 @@ async function updateOrder(event, wxContext) {
     await db.collection('Orders').doc(order_id).update({ data: updateData })
 
     // 审计日志
-    const caller = await getCallerUser(wxContext)
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller ? caller._id : '',
         operator_name: caller ? caller.name : '',
         action: 'update_order',
@@ -213,7 +255,7 @@ async function updateOrder(event, wxContext) {
   }
 }
 
-async function copyOrder(event, wxContext) {
+async function copyOrder(event, caller) {
   const { source_order_id, new_total_quantity } = event
   if (!source_order_id) return { code: -1, msg: '参数不完整' }
 
@@ -221,12 +263,14 @@ async function copyOrder(event, wxContext) {
     const orderRes = await db.collection('Orders').doc(source_order_id).get()
     const source = orderRes.data
     if (!source) return { code: -1, msg: '源订单不存在' }
+    if (!ensureSameOrg(source, caller)) return { code: -1, msg: '无权复制该订单' }
 
     const qty = parseInt(new_total_quantity) || source.total_quantity
 
     // 创建新订单
     const newOrderRes = await db.collection('Orders').add({
       data: {
+        org_id: getOrgId(caller),
         order_name: source.order_name + ' (副本)',
         start_date: source.start_date,
         end_date: source.end_date || '',
@@ -240,10 +284,11 @@ async function copyOrder(event, wxContext) {
     const newOrderId = newOrderRes._id
 
     // 复制所有工序及分配
-    const processes = await fetchAllDocs('Processes', { order_id: source_order_id })
+    const processes = await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id: source_order_id })
     for (const proc of processes) {
       await db.collection('Processes').add({
         data: {
+          org_id: getOrgId(caller),
           order_id: newOrderId,
           process_name: proc.process_name,
           current_price: proc.current_price,
@@ -257,9 +302,9 @@ async function copyOrder(event, wxContext) {
     }
 
     // 审计日志
-    const caller = await getCallerUser(wxContext)
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller ? caller._id : '',
         operator_name: caller ? caller.name : '',
         action: 'copy_order',
@@ -275,13 +320,15 @@ async function copyOrder(event, wxContext) {
   }
 }
 
-async function updateOrderStatus(event) {
+async function updateOrderStatus(event, caller) {
   const { order_id, status } = event
   if (!['active', 'completed', 'cancelled'].includes(status)) {
     return { code: -1, msg: '无效的状态' }
   }
 
   try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权修改该订单' }
     await db.collection('Orders').doc(order_id).update({
       data: { status, updated_at: db.serverDate() }
     })
@@ -347,13 +394,14 @@ async function fetchDocsByIds(collectionName, fieldName, ids) {
   return all
 }
 
-async function syncZeroPriceWorklogsForProcess(processId, newPrice) {
+async function syncZeroPriceWorklogsForProcess(processId, newPrice, orgId) {
   const normalizedPrice = Number(newPrice)
   if (!processId || !Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
     return { updatedCount: 0 }
   }
 
   const worklogs = await fetchAllDocs('WorkLogs', {
+    org_id: orgId,
     process_id: processId
   }, {
     field: { _id: true, user_id: true, date: true, quantity: true, snapshot_price: true }
@@ -366,6 +414,7 @@ async function syncZeroPriceWorklogsForProcess(processId, newPrice) {
   const userIds = Array.from(new Set(worklogs.map(log => log.user_id).filter(Boolean)))
   const payments = userIds.length > 0
     ? await fetchAllDocs('SalaryPayments', {
+      org_id: orgId,
       user_id: _.in(userIds),
       paid: true
     }, {
@@ -392,7 +441,7 @@ async function syncZeroPriceWorklogsForProcess(processId, newPrice) {
   return { updatedCount }
 }
 
-async function deleteOrder(event, wxContext) {
+async function deleteOrder(event, caller) {
   const { order_id } = event
   if (!order_id) {
     return { code: -1, msg: '参数不完整' }
@@ -404,11 +453,12 @@ async function deleteOrder(event, wxContext) {
     if (!order) {
       return { code: -1, msg: '订单不存在' }
     }
+    if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权删除该订单' }
 
     const [processes, worklogs, adjustments] = await Promise.all([
-      fetchAllDocs('Processes', { order_id }, { field: { _id: true, process_name: true } }),
-      fetchAllDocs('WorkLogs', { order_id }, { field: { _id: true } }),
-      fetchAllDocs('SalaryAdjustments', { order_id }, { field: { _id: true } })
+      fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id }, { field: { _id: true, process_name: true } }),
+      fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id }, { field: { _id: true } }),
+      fetchAllDocs('SalaryAdjustments', { org_id: getOrgId(caller), order_id }, { field: { _id: true } })
     ])
 
     const processIds = processes.map(item => item._id)
@@ -421,9 +471,9 @@ async function deleteOrder(event, wxContext) {
 
     await db.collection('Orders').doc(order_id).remove()
 
-    const caller = await getCallerUser(wxContext)
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller ? caller._id : '',
         operator_name: caller ? caller.name : '',
         action: 'delete_order',
@@ -447,15 +497,18 @@ async function deleteOrder(event, wxContext) {
   }
 }
 
-async function addProcess(event) {
+async function addProcess(event, caller) {
   const { order_id, process_name, current_price, note } = event
   if (!order_id || !process_name || (current_price === undefined || current_price === null || current_price === '')) {
     return { code: -1, msg: '请填写完整的工序信息' }
   }
 
   try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权向该订单添加工序' }
     await db.collection('Processes').add({
       data: {
+        org_id: getOrgId(caller),
         order_id,
         process_name,
         current_price: parseFloat(current_price),
@@ -472,7 +525,7 @@ async function addProcess(event) {
   }
 }
 
-async function updateProcessPrice(event, wxContext) {
+async function updateProcessPrice(event, caller) {
   const { process_id, new_price, old_price } = event
   if (!process_id || new_price === undefined) {
     return { code: -1, msg: '参数不完整' }
@@ -482,6 +535,7 @@ async function updateProcessPrice(event, wxContext) {
     // 获取工序信息以记录 order_id 和 process_name
     const processRes = await db.collection('Processes').doc(process_id).get()
     const processData = processRes.data || {}
+    if (!ensureSameOrg(processData, caller)) return { code: -1, msg: '无权修改该工序' }
 
     const parsedPrice = parseFloat(new_price)
 
@@ -492,12 +546,12 @@ async function updateProcessPrice(event, wxContext) {
       }
     })
 
-    const syncResult = await syncZeroPriceWorklogsForProcess(process_id, parsedPrice)
+    const syncResult = await syncZeroPriceWorklogsForProcess(process_id, parsedPrice, getOrgId(caller))
 
     // 记录改价日志
-    const caller = await getCallerUser(wxContext)
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller._id,
         operator_name: caller.name,
         action: 'update_process_price',
@@ -517,7 +571,7 @@ async function updateProcessPrice(event, wxContext) {
   }
 }
 
-async function updateProcess(event, wxContext) {
+async function updateProcess(event, caller) {
   const { process_id, process_name, note, current_price } = event
   if (!process_id) {
     return { code: -1, msg: '参数不完整' }
@@ -526,6 +580,7 @@ async function updateProcess(event, wxContext) {
   try {
     const oldRes = await db.collection('Processes').doc(process_id).get()
     const oldProcess = oldRes.data
+    if (!ensureSameOrg(oldProcess, caller)) return { code: -1, msg: '无权修改该工序' }
 
     const updateData = { updated_at: db.serverDate() }
     const changes = []
@@ -551,13 +606,13 @@ async function updateProcess(event, wxContext) {
 
     let syncResult = { updatedCount: 0 }
     if (current_price !== undefined && parseFloat(current_price) !== oldProcess.current_price) {
-      syncResult = await syncZeroPriceWorklogsForProcess(process_id, parseFloat(current_price))
+      syncResult = await syncZeroPriceWorklogsForProcess(process_id, parseFloat(current_price), getOrgId(caller))
     }
 
-    const caller = await getCallerUser(wxContext)
     const hasPrice = changes.some(c => c.startsWith('单价'))
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller._id,
         operator_name: caller.name,
         action: 'process_update',
@@ -587,12 +642,14 @@ async function updateProcess(event, wxContext) {
   }
 }
 
-async function deleteProcess(event) {
+async function deleteProcess(event, caller) {
   const { process_id } = event
   try {
+    const processRes = await db.collection('Processes').doc(process_id).get()
+    if (!ensureSameOrg(processRes.data, caller)) return { code: -1, msg: '无权删除该工序' }
     // 检查是否有关联的报工记录
     const logCount = await db.collection('WorkLogs')
-      .where({ process_id })
+      .where({ org_id: getOrgId(caller), process_id })
       .count()
     if (logCount.total > 0) {
       return { code: -1, msg: '该工序已有报工记录，无法删除' }
@@ -605,16 +662,24 @@ async function deleteProcess(event) {
   }
 }
 
-async function assignProcess(event) {
+async function assignProcess(event, caller) {
   const { process_id, user_ids } = event
   try {
     // 获取旧分配
     const oldProcess = await db.collection('Processes').doc(process_id).get()
+    if (!ensureSameOrg(oldProcess.data, caller)) return { code: -1, msg: '无权分配该工序' }
     const oldIds = oldProcess.data ? (oldProcess.data.assigned_user_ids || []) : []
+    const nextUserIds = Array.isArray(user_ids) ? user_ids : []
+    if (nextUserIds.length > 0) {
+      const users = await fetchAllDocs('Users', { org_id: getOrgId(caller), _id: _.in(nextUserIds) }, { field: { _id: true } })
+      if (users.length !== nextUserIds.length) {
+        return { code: -1, msg: '不能分配其他工厂员工' }
+      }
+    }
 
     await db.collection('Processes').doc(process_id).update({
       data: {
-        assigned_user_ids: user_ids || [],
+        assigned_user_ids: nextUserIds,
         updated_at: db.serverDate()
       }
     })
@@ -622,9 +687,10 @@ async function assignProcess(event) {
     // 审计日志
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'process_assign',
         target_id: process_id,
-        details: `员工分配变更: [${oldIds.join(',')}] → [${(user_ids || []).join(',')}]`,
+        details: `员工分配变更: [${oldIds.join(',')}] → [${nextUserIds.join(',')}]`,
         created_at: db.serverDate()
       }
     })
@@ -635,14 +701,18 @@ async function assignProcess(event) {
   }
 }
 
-async function getAssignedProcesses(event) {
+async function getAssignedProcesses(event, caller) {
   const { user_id } = event
+  if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
+    return { code: -1, msg: '无权查看其他员工工序' }
+  }
   try {
     // 查找分配给该员工的工序
     let allAssignedProcesses = []
     let assignBatchLen = 0
     do {
       const res = await db.collection('Processes').where({
+        org_id: getOrgId(caller),
         assigned_user_ids: user_id,
         status: 'active'
       }).skip(allAssignedProcesses.length).limit(100).get()
@@ -656,7 +726,7 @@ async function getAssignedProcesses(event) {
       let orderName = ''
       try {
         const orderRes = await db.collection('Orders').doc(p.order_id).get()
-        if (orderRes.data && orderRes.data.status === 'active') {
+        if (ensureSameOrg(orderRes.data, caller) && orderRes.data.status === 'active') {
           orderName = orderRes.data.order_name
 
           // 统计该订单该工序累计报工数量（所有员工）
@@ -664,6 +734,7 @@ async function getAssignedProcesses(event) {
           let batchLen = 0
           do {
             const logRes = await db.collection('WorkLogs').where({
+              org_id: getOrgId(caller),
               order_id: p.order_id,
               process_id: p._id
             }).skip(allLogs.length).limit(100).get()
@@ -703,13 +774,15 @@ async function getAssignedProcesses(event) {
   }
 }
 
-async function togglePriceHidden(event, wxContext) {
+async function togglePriceHidden(event, caller) {
   const { order_id, price_hidden } = event
   if (!order_id || typeof price_hidden !== 'boolean') {
     return { code: -1, msg: '参数不完整' }
   }
 
   try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单' }
     await db.collection('Orders').doc(order_id).update({
       data: {
         price_hidden: price_hidden,
@@ -717,9 +790,9 @@ async function togglePriceHidden(event, wxContext) {
       }
     })
 
-    const caller = await getCallerUser(wxContext)
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller ? caller._id : '',
         operator_name: caller ? caller.name : '',
         action: 'toggle_price_hidden',
@@ -736,18 +809,20 @@ async function togglePriceHidden(event, wxContext) {
 }
 
 // 一键清空订单所有工序工价
-async function clearOrderPrices(event, wxContext) {
+async function clearOrderPrices(event, caller) {
   const { order_id } = event
   if (!order_id) {
     return { code: -1, msg: '参数不完整' }
   }
 
   try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单' }
     let allProcesses = []
     let clearBatchLen = 0
     do {
       const res = await db.collection('Processes')
-        .where({ order_id })
+        .where({ org_id: getOrgId(caller), order_id })
         .skip(allProcesses.length)
         .limit(100)
         .get()
@@ -759,7 +834,6 @@ async function clearOrderPrices(event, wxContext) {
       return { code: -1, msg: '该订单没有工序' }
     }
 
-    const caller = await getCallerUser(wxContext)
     const processesToClear = allProcesses.filter((p) => p.current_price !== null && p.current_price !== undefined)
 
     if (processesToClear.length === 0) {
@@ -780,6 +854,7 @@ async function clearOrderPrices(event, wxContext) {
 
         await db.collection('audit_logs').add({
           data: {
+            org_id: getOrgId(caller),
             operator_id: caller ? caller._id : '',
             operator_name: caller ? caller.name : '',
             action: 'clear_price',
@@ -802,19 +877,21 @@ async function clearOrderPrices(event, wxContext) {
 }
 
 // 获取订单工价变更日志
-async function getPriceChangeLogs(event) {
+async function getPriceChangeLogs(event, caller) {
   const { order_id } = event
   if (!order_id) {
     return { code: -1, msg: '参数不完整' }
   }
 
   try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权访问该订单' }
     // 先获取该订单的所有工序 ID
     let allProcData = []
     let procIdBatchLen = 0
     do {
       const res = await db.collection('Processes')
-        .where({ order_id })
+        .where({ org_id: getOrgId(caller), order_id })
         .field({ _id: true })
         .skip(allProcData.length)
         .limit(100)
@@ -834,6 +911,7 @@ async function getPriceChangeLogs(event) {
       do {
         const res = await db.collection('audit_logs')
           .where({
+            org_id: getOrgId(caller),
             target_id: _.in(processIds),
             action: _.in(priceActions)
           })
@@ -852,6 +930,7 @@ async function getPriceChangeLogs(event) {
     do {
       const res = await db.collection('audit_logs')
         .where({
+          org_id: getOrgId(caller),
           order_id: order_id,
           action: _.in(priceActions)
         })

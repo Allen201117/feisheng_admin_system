@@ -41,6 +41,33 @@ async function getOrderRange(orderId) {
   } catch (e) { return null }
 }
 
+async function getCallerUserByEvent(event) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+  if (authUserId && authSessionToken) {
+    try {
+      var res = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (res.data.length > 0) {
+        var user = res.data[0]
+        if (user.org_id) {
+          var orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        }
+        return user
+      }
+    } catch (e) {}
+  }
+  return null
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
 exports.main = async function(event, context) {
   var action = event.action
   switch (action) {
@@ -60,16 +87,12 @@ async function getRank(event, period) {
   var dimension = event.dimension || 'hours'
 
   // 鉴权：boss直接放行；employee/qc需检查排行榜可见设置
-  var wxContext = cloud.getWXContext()
-  var callerRes = await db.collection('Users').where({
-    openid: wxContext.OPENID, status: 'active'
-  }).limit(1).get()
-  var caller = callerRes.data.length > 0 ? callerRes.data[0] : null
+  var caller = await getCallerUserByEvent(event)
   if (!caller) return { code: -1, msg: '请先登录' }
 
   if (caller.role !== 'boss') {
     try {
-      var settingsRes = await db.collection('factory_settings').doc('main').get()
+      var settingsRes = await db.collection('factory_settings').doc(getOrgId(caller)).get()
       if (!settingsRes.data || !settingsRes.data.leaderboard_visible) {
         return { code: -1, msg: '排行榜未开放' }
       }
@@ -90,7 +113,7 @@ async function getRank(event, period) {
   } else if (period === 'order') {
     if (!event.order_id) return { code: -1, msg: '请选择订单' }
     orderInfo = await getOrderRange(event.order_id)
-    if (!orderInfo) return { code: -1, msg: '订单不存在' }
+    if (!orderInfo || orderInfo.org_id !== getOrgId(caller)) return { code: -1, msg: '订单不存在' }
     // 订单维度使用订单创建到现在（或结束）的范围
     startDate = toDateStr(orderInfo.created_at) || '2020-01-01'
     endDate = toDateStr(orderInfo.completed_at) || '2099-12-31'
@@ -102,6 +125,7 @@ async function getRank(event, period) {
     var batchLen = 0
     do {
       var usersRes = await db.collection('Users').where({
+        org_id: getOrgId(caller),
         role: _.in(['employee', 'qc']), status: 'active'
       }).skip(users.length).limit(100).get()
       batchLen = usersRes.data.length
@@ -121,7 +145,7 @@ async function getRank(event, period) {
 
       if (dimension === 'hours') {
         // 工时维度
-        var attQuery = { user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
+        var attQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
         if (period === 'order' && event.order_id) {
           // 订单维度工时：取该时间段的出勤
           // 注意：出勤不区分订单，故只能用日期范围
@@ -144,7 +168,7 @@ async function getRank(event, period) {
 
       } else if (dimension === 'salary') {
         // 薪资维度
-        var logQuery = { user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
+        var logQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
         if (period === 'order' && event.order_id) {
           logQuery.order_id = event.order_id
         }
@@ -164,7 +188,7 @@ async function getRank(event, period) {
 
       } else if (dimension === 'quality') {
         // 质量维度
-        var qLogQuery = { user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)), status: 'inspected' }
+        var qLogQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)), status: 'inspected' }
         if (period === 'order' && event.order_id) {
           qLogQuery.order_id = event.order_id
         }

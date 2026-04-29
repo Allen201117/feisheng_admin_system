@@ -26,7 +26,16 @@ async function getCallerUserByEvent(event, wxContext) {
         status: 'active'
       }).limit(1).get()
       if (exactRes.data.length > 0) {
-        return exactRes.data[0]
+        const user = exactRes.data[0]
+        if (user.org_id) {
+          try {
+            const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+            if (!orgRes.data || orgRes.data.status !== 'active') return null
+          } catch (e) {
+            return null
+          }
+        }
+        return user
       }
     } catch (err) {}
   }
@@ -48,10 +57,19 @@ async function getCallerUserByEvent(event, wxContext) {
   }
 }
 
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
+function ensureSameOrg(doc, caller) {
+  return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
 // 检查某用户某月是否已发薪锁定
-async function isPeriodLocked(userId, dateStr) {
+async function isPeriodLocked(userId, dateStr, orgId) {
   const month = dateStr.substring(0, 7) // YYYY-MM
   const paidRes = await db.collection('SalaryPayments').where({
+    org_id: orgId,
     user_id: userId,
     month: month,
     paid: true
@@ -59,9 +77,10 @@ async function isPeriodLocked(userId, dateStr) {
   return paidRes.data.length > 0
 }
 
-async function getPeriodPaidRecord(userId, dateStr) {
+async function getPeriodPaidRecord(userId, dateStr, orgId) {
   const month = dateStr.substring(0, 7)
   const paidRes = await db.collection('SalaryPayments').where({
+    org_id: orgId,
     user_id: userId,
     month,
     paid: true
@@ -127,7 +146,7 @@ function normalizeSnapshotPrice(value) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-async function sumProcessReportedQuantity(orderId, processId, excludeLogId = null, dbInstance = db) {
+async function sumProcessReportedQuantity(orderId, processId, excludeLogId = null, dbInstance = db, orgId = '') {
   if (!orderId || !processId) return 0
 
   let total = 0
@@ -136,6 +155,7 @@ async function sumProcessReportedQuantity(orderId, processId, excludeLogId = nul
 
   do {
     const res = await dbInstance.collection('WorkLogs').where({
+      org_id: orgId,
       order_id: orderId,
       process_id: processId
     }).skip(logs.length).limit(100).get()
@@ -152,14 +172,14 @@ async function sumProcessReportedQuantity(orderId, processId, excludeLogId = nul
   return total
 }
 
-async function getProcessQuotaSnapshot(orderId, processId, excludeLogId = null) {
+async function getProcessQuotaSnapshot(orderId, processId, excludeLogId = null, orgId = '') {
   if (!orderId || !processId) {
     return { ok: false, msg: '缺少订单或工序信息' }
   }
 
   try {
     const orderRes = await db.collection('Orders').doc(orderId).get()
-    if (!orderRes.data) {
+    if (!orderRes.data || orderRes.data.org_id !== orgId) {
       return { ok: false, msg: '订单不存在' }
     }
 
@@ -168,7 +188,12 @@ async function getProcessQuotaSnapshot(orderId, processId, excludeLogId = null) 
       return { ok: false, msg: '订单总量配置无效' }
     }
 
-    const currentTotal = await sumProcessReportedQuantity(orderId, processId, excludeLogId)
+    const processRes = await db.collection('Processes').doc(processId).get()
+    if (!processRes.data || processRes.data.org_id !== orgId || processRes.data.order_id !== orderId) {
+      return { ok: false, msg: '工序不存在' }
+    }
+
+    const currentTotal = await sumProcessReportedQuantity(orderId, processId, excludeLogId, db, orgId)
     const remaining = Math.max(orderTotal - currentTotal, 0)
 
     return {
@@ -194,7 +219,8 @@ async function submitWorkLogWithQuotaGuard(payload) {
     order_name,
     quantity,
     snapshot_price,
-    date
+    date,
+    org_id
   } = payload
 
   let retry = 0
@@ -202,7 +228,7 @@ async function submitWorkLogWithQuotaGuard(payload) {
     const transaction = await db.startTransaction()
     try {
       const orderRes = await transaction.collection('Orders').doc(order_id).get()
-      if (!orderRes.data) {
+      if (!orderRes.data || orderRes.data.org_id !== org_id) {
         await transaction.rollback()
         return { code: -1, msg: '订单不存在' }
       }
@@ -218,7 +244,7 @@ async function submitWorkLogWithQuotaGuard(payload) {
         return { code: -1, msg: '该订单已完成，员工不可再报工' }
       }
 
-      const currentTotal = await sumProcessReportedQuantity(order_id, process_id, null, transaction)
+      const currentTotal = await sumProcessReportedQuantity(order_id, process_id, null, transaction, org_id)
       const newTotal = currentTotal + quantity
       if (newTotal > orderTotal) {
         await transaction.rollback()
@@ -243,6 +269,7 @@ async function submitWorkLogWithQuotaGuard(payload) {
 
       await transaction.collection('WorkLogs').add({
         data: {
+          org_id,
           user_id,
           user_name: user_name || '',
           process_id,
@@ -258,6 +285,7 @@ async function submitWorkLogWithQuotaGuard(payload) {
           inspected_by: null,
           inspected_at: null,
           date,
+          period_key: date ? date.substring(0, 7) : '',
           created_at: db.serverDate()
         }
       })
@@ -293,7 +321,7 @@ exports.main = async (event, context) => {
 
   switch (action) {
     case 'submit': return await submitWorkLog(event, wxContext)
-    case 'getProcessQuota': return await getProcessQuota(event)
+    case 'getProcessQuota': return await getProcessQuota(event, wxContext)
     case 'getTodayEarnings': return await getTodayEarnings(event, wxContext)
     case 'getUserLogs': return await getUserLogs(event, wxContext)
     case 'getMonthLogs': return await getMonthLogs(event, wxContext)
@@ -325,6 +353,7 @@ async function cancelOwnWorkLog(event, wxContext) {
     const logRes = await db.collection('WorkLogs').doc(log_id).get()
     const log = logRes.data
     if (!log) return { code: -1, msg: '报工记录不存在' }
+    if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权撤销其他工厂报工记录' }
 
     // 只允许撤销本人提交的记录，角色不做额外限制，避免账号角色标记差异导致误拦截
     if (String(log.user_id) !== String(caller._id)) {
@@ -339,6 +368,9 @@ async function cancelOwnWorkLog(event, wxContext) {
     // 已完成订单不可撤销
     try {
       const orderRes = await db.collection('Orders').doc(log.order_id).get()
+      if (!ensureSameOrg(orderRes.data, caller)) {
+        return { code: -1, msg: '订单状态校验失败' }
+      }
       if (orderRes.data && orderRes.data.status === 'completed') {
         return { code: -1, msg: '该订单已完成，员工不可撤销相关报工' }
       }
@@ -347,7 +379,7 @@ async function cancelOwnWorkLog(event, wxContext) {
     }
 
     // 发薪锁定遵循时间顺序：报工时间晚于发薪时间时允许撤销
-    const paidRecord = await getPeriodPaidRecord(log.user_id, log.date)
+    const paidRecord = await getPeriodPaidRecord(log.user_id, log.date, getOrgId(caller))
     if (paidRecord) {
       const paidAtTs = toTimestamp(paidRecord.paid_at)
       const logCreatedTs = toTimestamp(log.created_at)
@@ -360,6 +392,7 @@ async function cancelOwnWorkLog(event, wxContext) {
 
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'worklog_self_cancel',
         worklog_id: log_id,
         target_user_id: log.user_id,
@@ -379,9 +412,13 @@ async function cancelOwnWorkLog(event, wxContext) {
   }
 }
 
-async function getProcessQuota(event) {
+async function getProcessQuota(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) {
+    return { code: -1, msg: '登录状态失效，请重新登录后再试' }
+  }
   const { order_id, process_id, exclude_log_id } = event
-  const quota = await getProcessQuotaSnapshot(order_id, process_id, exclude_log_id || null)
+  const quota = await getProcessQuotaSnapshot(order_id, process_id, exclude_log_id || null, getOrgId(caller))
   if (!quota.ok) {
     return { code: -1, msg: quota.msg }
   }
@@ -398,12 +435,13 @@ function getYearRange(yearValue) {
   return { start: r.startDate, end: r.endDate }
 }
 
-async function fetchLogsByDateRange(startDate, endDate) {
+async function fetchLogsByDateRange(startDate, endDate, orgId) {
   let allLogs = []
   let lastLen = 0
 
   do {
     const res = await db.collection('WorkLogs').where({
+      org_id: orgId,
       date: _.gte(startDate).and(_.lt(endDate))
     }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
     lastLen = res.data.length
@@ -421,7 +459,7 @@ async function getManageLogs(event, wxContext) {
   }
 
   const { view_type, date, month, order_id } = event
-  const where = {}
+  const where = { org_id: getOrgId(caller) }
 
   if (view_type === 'day') {
     if (!date) return { code: -1, msg: '请选择日期' }
@@ -432,6 +470,8 @@ async function getManageLogs(event, wxContext) {
     where.date = _.gte(range.start).and(_.lt(range.end))
   } else if (view_type === 'order') {
     if (!order_id) return { code: -1, msg: '请选择订单' }
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权查看该订单报工' }
     where.order_id = order_id
     if (month) {
       const range = getMonthRange(month)
@@ -476,12 +516,13 @@ async function getOrderProgress(event, wxContext) {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     const order = orderRes.data
     if (!order) return { code: -1, msg: '订单不存在' }
+    if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权查看该订单进度' }
 
     // 获取所有工序
     let allProcesses = []
     let batchLen = 0
     do {
-      const res = await db.collection('Processes').where({ order_id })
+      const res = await db.collection('Processes').where({ org_id: getOrgId(caller), order_id })
         .skip(allProcesses.length).limit(100).get()
       batchLen = res.data.length
       allProcesses = allProcesses.concat(res.data)
@@ -491,7 +532,7 @@ async function getOrderProgress(event, wxContext) {
     let allLogs = []
     batchLen = 0
     do {
-      const res = await db.collection('WorkLogs').where({ order_id })
+      const res = await db.collection('WorkLogs').where({ org_id: getOrgId(caller), order_id })
         .skip(allLogs.length).limit(100).get()
       batchLen = res.data.length
       allLogs = allLogs.concat(res.data)
@@ -552,6 +593,12 @@ async function submitWorkLog(event, wxContext) {
   if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
     return { code: -1, msg: '无权为他人提交报工' }
   }
+  if (caller.role === 'boss') {
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) {
+      return { code: -1, msg: '无权为其他工厂员工提交报工' }
+    }
+  }
 
   try {
     // 获取工序当前单价（快照）
@@ -561,6 +608,9 @@ async function submitWorkLog(event, wxContext) {
     }
 
     const process = processRes.data
+    if (!ensureSameOrg(process, caller)) {
+      return { code: -1, msg: '工序不存在' }
+    }
     if (process.order_id !== order_id) {
       return { code: -1, msg: '工序与订单不匹配' }
     }
@@ -575,6 +625,7 @@ async function submitWorkLog(event, wxContext) {
     let orderName = ''
     try {
       const orderRes = await db.collection('Orders').doc(order_id).get()
+      if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '订单不存在' }
       orderName = orderRes.data ? orderRes.data.order_name : ''
     } catch (e) {}
 
@@ -589,7 +640,8 @@ async function submitWorkLog(event, wxContext) {
       order_name: orderName,
       quantity: toInt(quantity),
       snapshot_price: snapshotPrice,
-      date: dateStr
+      date: dateStr,
+      org_id: getOrgId(caller)
     })
   } catch (err) {
     return { code: -1, msg: '提交失败: ' + err.message }
@@ -613,6 +665,7 @@ async function getTodayEarnings(event, wxContext) {
 
   try {
     const res = await db.collection('WorkLogs').where({
+      org_id: getOrgId(caller),
       user_id,
       date: dateStr
     }).get()
@@ -624,6 +677,7 @@ async function getTodayEarnings(event, wxContext) {
       for (let i = 0; i < orderIds.length; i += 100) {
         const batch = orderIds.slice(i, i + 100)
         const orderRes = await db.collection('Orders').where({
+          org_id: getOrgId(caller),
           _id: _.in(batch)
         }).field({ _id: true, price_hidden: true }).get()
         orderRes.data.forEach(o => {
@@ -683,6 +737,7 @@ async function getUserLogs(event, wxContext) {
 
   try {
     const res = await db.collection('WorkLogs').where({
+      org_id: getOrgId(caller),
       user_id,
       date: _.gte(startDate).and(_.lt(endDate))
     }).orderBy('created_at', 'desc').get()
@@ -692,6 +747,7 @@ async function getUserLogs(event, wxContext) {
       let batchLen = 0
       do {
         const batch = await db.collection('WorkLogs').where({
+          org_id: getOrgId(caller),
           user_id,
           date: _.gte(startDate).and(_.lt(endDate))
         }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
@@ -702,6 +758,7 @@ async function getUserLogs(event, wxContext) {
 
     // 检查该月发薪锁定状态
     const paidRes = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id: user_id,
       month: currentMonth,
       paid: true
@@ -714,6 +771,7 @@ async function getUserLogs(event, wxContext) {
     for (let i = 0; i < orderIds.length; i += 100) {
       const batch = orderIds.slice(i, i + 100)
       const orderRes = await db.collection('Orders').where({
+        org_id: getOrgId(caller),
         _id: _.in(batch)
       }).field({ _id: true, price_hidden: true }).get()
       orderRes.data.forEach(o => {
@@ -754,7 +812,7 @@ async function getPeriodLogs(event, wxContext) {
     : getMonthRange(event.month || bjTime.getBeijingMonth())
 
   try {
-    const logs = await fetchLogsByDateRange(range.start, range.end)
+    const logs = await fetchLogsByDateRange(range.start, range.end, getOrgId(caller))
     return { code: 0, data: logs }
   } catch (err) {
     return { code: -1, msg: '获取报工记录失败: ' + err.message }
@@ -782,7 +840,7 @@ async function getMonthLogs(event, wxContext) {
 
   try {
     // 云数据库单次最多100条，需要分页获取
-    const logs = await fetchLogsByDateRange(startDate, endDate)
+    const logs = await fetchLogsByDateRange(startDate, endDate, getOrgId(caller))
     return { code: 0, data: logs }
   } catch (err) {
     return { code: -1, msg: '获取月报工记录失败: ' + err.message }
@@ -798,6 +856,7 @@ async function getPendingLogs(event, wxContext) {
 
   try {
     const res = await db.collection('WorkLogs').where({
+      org_id: getOrgId(caller),
       status: 'pending'
     }).orderBy('created_at', 'desc').limit(100).get()
 
@@ -816,6 +875,7 @@ async function getInspectedLogs(event, wxContext) {
 
   try {
     const res = await db.collection('WorkLogs').where({
+      org_id: getOrgId(caller),
       status: 'inspected'
     }).orderBy('inspected_at', 'desc').limit(100).get()
 
@@ -835,6 +895,9 @@ async function getLogDetail(event, wxContext) {
   const { log_id } = event
   try {
     const res = await db.collection('WorkLogs').doc(log_id).get()
+    if (res.data && !ensureSameOrg(res.data, caller)) {
+      return { code: -1, msg: '无权查看该报工详情' }
+    }
 
     // 只允许本人或老板查看
     if (res.data && String(caller._id) !== String(res.data.user_id) && caller.role !== 'boss' && caller.role !== 'qc') {
@@ -863,11 +926,13 @@ async function deleteWorkLog(event, wxContext) {
     const logRes = await db.collection('WorkLogs').doc(log_id).get()
     const log = logRes.data
     if (!log) return { code: -1, msg: '报工记录不存在' }
+    if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权删除其他工厂报工记录' }
 
     await db.collection('WorkLogs').doc(log_id).remove()
 
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'worklog_delete',
         worklog_id: log_id,
         target_user_id: log.user_id,
@@ -906,6 +971,7 @@ async function inspect(event, wxContext) {
     }
 
     const log = logRes.data
+    if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权质检其他工厂报工' }
     if (log.status === 'inspected') {
       return { code: -1, msg: '已质检，请勿重复操作' }
     }
@@ -952,6 +1018,7 @@ async function updateWorkLog(event, wxContext) {
     const logRes = await db.collection('WorkLogs').doc(log_id).get()
     if (!logRes.data) return { code: -1, msg: '报工记录不存在' }
     const log = logRes.data
+    if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权修改其他工厂报工记录' }
 
     // 权限校验
     if (caller.role === 'employee') {
@@ -969,7 +1036,7 @@ async function updateWorkLog(event, wxContext) {
     }
 
     // 发薪锁定检查
-    const locked = await isPeriodLocked(log.user_id, log.date)
+    const locked = await isPeriodLocked(log.user_id, log.date, getOrgId(caller))
     if (locked) {
       return { code: -1, msg: '该月工资已发放，报工记录已锁定，无法修改' }
     }
@@ -1003,6 +1070,7 @@ async function updateWorkLog(event, wxContext) {
     if (caller.role === 'boss' && process_id && process_id !== log.process_id) {
       const processRes = await db.collection('Processes').doc(process_id).get()
       if (!processRes.data) return { code: -1, msg: '目标工序不存在' }
+      if (!ensureSameOrg(processRes.data, caller)) return { code: -1, msg: '目标工序不存在' }
       auditChanges.push({
         field: 'process_id',
         old_value: log.process_id,
@@ -1020,6 +1088,7 @@ async function updateWorkLog(event, wxContext) {
       let orderName = ''
       try {
         const orderRes = await db.collection('Orders').doc(order_id).get()
+        if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '目标订单不存在' }
         orderName = orderRes.data ? orderRes.data.order_name : ''
       } catch (e) {}
       auditChanges.push({
@@ -1042,7 +1111,7 @@ async function updateWorkLog(event, wxContext) {
     )
 
     if (shouldCheckQuota) {
-      const quotaSnapshot = await getProcessQuotaSnapshot(targetOrderId, targetProcessId, log._id)
+      const quotaSnapshot = await getProcessQuotaSnapshot(targetOrderId, targetProcessId, log._id, getOrgId(caller))
       if (!quotaSnapshot.ok) {
         return { code: -1, msg: quotaSnapshot.msg }
       }
@@ -1064,7 +1133,7 @@ async function updateWorkLog(event, wxContext) {
         const transaction = await db.startTransaction()
         try {
           const orderRes = await transaction.collection('Orders').doc(targetOrderId).get()
-          if (!orderRes.data) {
+          if (!orderRes.data || orderRes.data.org_id !== getOrgId(caller)) {
             await transaction.rollback()
             return { code: -1, msg: '订单不存在' }
           }
@@ -1075,7 +1144,7 @@ async function updateWorkLog(event, wxContext) {
             return { code: -1, msg: '订单总量配置无效' }
           }
 
-          const currentTotal = await sumProcessReportedQuantity(targetOrderId, targetProcessId, log._id, transaction)
+          const currentTotal = await sumProcessReportedQuantity(targetOrderId, targetProcessId, log._id, transaction, getOrgId(caller))
           const newTotal = currentTotal + toInt(targetQty)
           if (newTotal > orderTotal) {
             await transaction.rollback()
@@ -1111,6 +1180,7 @@ async function updateWorkLog(event, wxContext) {
     // 写入审计日志 WorkLogAudit
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'worklog_update',
         worklog_id: log_id,
         target_user_id: log.user_id,

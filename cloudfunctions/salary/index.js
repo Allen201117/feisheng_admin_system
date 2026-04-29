@@ -34,6 +34,37 @@ async function getCallerUser(wxContext) {
   return res.data.length > 0 ? res.data[0] : null
 }
 
+async function getCallerUserByEvent(event, wxContext) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+  if (authUserId && authSessionToken) {
+    try {
+      const res = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (res.data.length > 0) {
+        const user = res.data[0]
+        if (user.org_id) {
+          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        }
+        return user
+      }
+    } catch (e) {}
+  }
+  return await getCallerUser(wxContext)
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
+function ensureSameOrg(doc, caller) {
+  return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
 function getMonthRange(monthStr) {
   const range = monthStr
     ? bjTime.getBeijingMonthRange(monthStr)
@@ -51,11 +82,12 @@ function buildMonthFilter(monthKeys) {
   return monthKeys.length === 1 ? monthKeys[0] : _.in(monthKeys)
 }
 
-async function getPeriodSalarySummary(params = {}) {
+async function getPeriodSalarySummary(params = {}, orgId) {
   const period = resolvePeriodRange(params)
   const monthFilter = buildMonthFilter(period.monthKeys)
 
   const users = await fetchAllByWhere('Users', {
+    org_id: orgId,
     role: _.in(['employee', 'qc']),
     status: 'active'
   }, {
@@ -64,21 +96,25 @@ async function getPeriodSalarySummary(params = {}) {
 
   const [logs, adjustments, attendances, payments] = await Promise.all([
     fetchAllByWhere('WorkLogs', {
+      org_id: orgId,
       date: _.gte(period.startDate).and(_.lt(period.endDate))
     }, {
       field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
     }),
     fetchAllByWhere('SalaryAdjustments', {
+      org_id: orgId,
       month: monthFilter
     }, {
       field: { user_id: true, month: true, type: true, amount: true }
     }),
     fetchAllByWhere('Attendances', {
+      org_id: orgId,
       date: _.gte(period.startDate).and(_.lt(period.endDate))
     }, {
       field: { user_id: true, date: true, hours: true, clock_in_time: true }
     }),
     fetchAllByWhere('SalaryPayments', {
+      org_id: orgId,
       month: monthFilter,
       paid: true
     }, {
@@ -97,24 +133,27 @@ async function getPeriodSalarySummary(params = {}) {
 }
 
 // 计算某用户某月的完整薪资数据
-async function calcUserSalary(userId, month) {
+async function calcUserSalary(userId, month, orgId) {
   const { startDate, endDate } = getMonthRange(month)
   const currentMonth = getCurrentMonth(month)
 
   const [logs, adjustments, attendances] = await Promise.all([
     fetchAllByWhere('WorkLogs', {
+      org_id: orgId,
       user_id: userId,
       date: _.gte(startDate).and(_.lt(endDate))
     }, {
       field: { quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
     }),
     fetchAllByWhere('SalaryAdjustments', {
+      org_id: orgId,
       user_id: userId,
       month: currentMonth
     }, {
       orderBy: { field: 'created_at', order: 'desc' }
     }),
     fetchAllByWhere('Attendances', {
+      org_id: orgId,
       user_id: userId,
       date: _.gte(startDate).and(_.lt(endDate))
     }, {
@@ -187,17 +226,22 @@ async function getUserMonthlySalary(event, wxContext) {
   const currentMonth = getCurrentMonth(month)
 
   // Auth check: caller must be the user themselves or a boss
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) return { code: -1, msg: '登录已失效' }
   if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
+  if (caller.role === 'boss' && String(caller._id) !== String(user_id)) {
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '权限不足' }
+  }
 
   try {
-    var data = await calcUserSalary(user_id, month)
+    var data = await calcUserSalary(user_id, month, getOrgId(caller))
 
     // 检查该月是否已发薪
     var paidRes = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id: user_id, month: currentMonth, paid: true
     }).get()
     var isPaid = paidRes.data.length > 0
@@ -234,6 +278,7 @@ async function getUserMonthlySalary(event, wxContext) {
       for (let i = 0; i < orderIds.length; i += 100) {
         const batch = orderIds.slice(i, i + 100)
         const orderRes = await db.collection('Orders').where({
+          org_id: getOrgId(caller),
           _id: _.in(batch)
         }).field({ _id: true, price_hidden: true }).get()
         orderRes.data.forEach(o => {
@@ -271,16 +316,19 @@ async function getUserMonthlySalary(event, wxContext) {
 
 // 管理员查看某员工月工资 - 完整明细
 async function getUserMonthlySalaryByBoss(event, wxContext) {
-  var caller = await getCallerUser(wxContext)
+  var caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   var { user_id, month } = event
   var currentMonth = getCurrentMonth(month)
 
   try {
-    var data = await calcUserSalary(user_id, month)
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '权限不足' }
+    var data = await calcUserSalary(user_id, month, getOrgId(caller))
     // 检查发薪状态
     var paidRes = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id: user_id, month: currentMonth, paid: true
     }).get()
     data.is_paid = paidRes.data.length > 0
@@ -293,7 +341,7 @@ async function getUserMonthlySalaryByBoss(event, wxContext) {
 
 // 管理员查看全部员工月工资汇总
 async function getAllMonthlySalary(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -305,6 +353,7 @@ async function getAllMonthlySalary(event, wxContext) {
   try {
     // 获取所有员工（仅必要字段）
     const users = await fetchAllByWhere('Users', {
+      org_id: getOrgId(caller),
       role: _.in(['employee', 'qc']),
       status: 'active'
     }, {
@@ -314,16 +363,19 @@ async function getAllMonthlySalary(event, wxContext) {
     // 批量拉取当月报工、奖惩、出勤，避免按员工循环查询导致超时
     const [monthLogs, monthAdjustments, monthAttendances] = await Promise.all([
       fetchAllByWhere('WorkLogs', {
+        org_id: getOrgId(caller),
         date: _.gte(startDate).and(_.lt(endDate))
       }, {
         field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true }
       }),
       fetchAllByWhere('SalaryAdjustments', {
+        org_id: getOrgId(caller),
         month: currentMonth
       }, {
         field: { user_id: true, type: true, amount: true }
       }),
       fetchAllByWhere('Attendances', {
+        org_id: getOrgId(caller),
         date: _.gte(startDate).and(_.lt(endDate))
       }, {
         field: { user_id: true, hours: true, clock_in_time: true }
@@ -401,7 +453,7 @@ async function getAllMonthlySalary(event, wxContext) {
 
 // 添加奖惩
 async function getAllPeriodSalary(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -411,7 +463,7 @@ async function getAllPeriodSalary(event, wxContext) {
     : { month: event.month }
 
   try {
-    const summary = await getPeriodSalarySummary(params)
+    const summary = await getPeriodSalarySummary(params, getOrgId(caller))
     return { code: 0, data: summary }
   } catch (err) {
     return { code: -1, msg: '\u83b7\u53d6\u5de5\u8d44\u6c47\u603b\u5931\u8d25' }
@@ -428,7 +480,7 @@ async function getAllPeriodSalary(event, wxContext) {
 
 */
 async function addAdjustment(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -445,8 +497,11 @@ async function addAdjustment(event, wxContext) {
   const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '无权给其他工厂员工添加奖惩' }
     await db.collection('SalaryAdjustments').add({
       data: {
+        org_id: getOrgId(caller),
         user_id,
         user_name: user_name || '',
         type,
@@ -462,6 +517,7 @@ async function addAdjustment(event, wxContext) {
     // 审计日志
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         operator_id: caller._id,
         operator_name: caller.name,
         action: type === 'reward' ? 'add_reward' : 'add_penalty',
@@ -479,7 +535,7 @@ async function addAdjustment(event, wxContext) {
 
 // 修改奖惩 - 已发薪期间走冲正
 async function updateAdjustment(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { adjustment_id, amount, reason, date, period_key, order_id, edit_reason } = event
@@ -490,9 +546,11 @@ async function updateAdjustment(event, wxContext) {
     const adjRes = await db.collection('SalaryAdjustments').doc(adjustment_id).get()
     if (!adjRes.data) return { code: -1, msg: '奖惩记录不存在' }
     const adj = adjRes.data
+    if (!ensureSameOrg(adj, caller)) return { code: -1, msg: '无权修改其他工厂奖惩' }
 
     // 检查发薪锁定
     const paidRes = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id: adj.user_id,
       month: adj.month,
       paid: true
@@ -507,6 +565,7 @@ async function updateAdjustment(event, wxContext) {
       await db.collection('SalaryAdjustments').add({
         data: {
           user_id: adj.user_id,
+          org_id: getOrgId(caller),
           user_name: adj.user_name,
           type: reverseType === 'reward' ? 'penalty' : 'reward',
           amount: reverseAmount,
@@ -525,6 +584,7 @@ async function updateAdjustment(event, wxContext) {
         await db.collection('SalaryAdjustments').add({
           data: {
             user_id: adj.user_id,
+            org_id: getOrgId(caller),
             user_name: adj.user_name,
             type: adj.type,
             amount: parseFloat(amount),
@@ -542,6 +602,7 @@ async function updateAdjustment(event, wxContext) {
       await db.collection('audit_logs').add({
         data: {
           action: 'adjustment_reversal',
+          org_id: getOrgId(caller),
           operator_id: caller._id,
           operator_name: caller.name,
           target_id: adjustment_id,
@@ -568,6 +629,7 @@ async function updateAdjustment(event, wxContext) {
     // 审计
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'adjustment_update',
         operator_id: caller._id,
         operator_name: caller.name,
@@ -588,7 +650,7 @@ async function updateAdjustment(event, wxContext) {
 
 // 删除奖惩 - 已发薪走冲正
 async function deleteAdjustment(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
 
   const { adjustment_id, delete_reason } = event
@@ -599,8 +661,10 @@ async function deleteAdjustment(event, wxContext) {
     const adjRes = await db.collection('SalaryAdjustments').doc(adjustment_id).get()
     if (!adjRes.data) return { code: -1, msg: '奖惩记录不存在' }
     const adj = adjRes.data
+    if (!ensureSameOrg(adj, caller)) return { code: -1, msg: '无权删除其他工厂奖惩' }
 
     const paidRes = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id: adj.user_id, month: adj.month, paid: true
     }).get()
     const isLocked = paidRes.data.length > 0
@@ -610,6 +674,7 @@ async function deleteAdjustment(event, wxContext) {
       await db.collection('SalaryAdjustments').add({
         data: {
           user_id: adj.user_id,
+          org_id: getOrgId(caller),
           user_name: adj.user_name,
           type: adj.type === 'reward' ? 'penalty' : 'reward',
           amount: adj.amount,
@@ -629,6 +694,7 @@ async function deleteAdjustment(event, wxContext) {
     // 审计
     await db.collection('audit_logs').add({
       data: {
+        org_id: getOrgId(caller),
         action: 'adjustment_delete',
         operator_id: caller._id,
         operator_name: caller.name,
@@ -653,7 +719,7 @@ async function getAdjustments(event, wxContext) {
   const currentMonth = month || bjTime.getBeijingMonth()
 
   // Auth check
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) return { code: -1, msg: '登录已失效' }
   if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
@@ -661,6 +727,7 @@ async function getAdjustments(event, wxContext) {
 
   try {
     const res = await db.collection('SalaryAdjustments').where({
+      org_id: getOrgId(caller),
       user_id,
       month: currentMonth
     }).orderBy('created_at', 'desc').get()
@@ -673,7 +740,7 @@ async function getAdjustments(event, wxContext) {
 
 // Boss首页仪表盘数据
 async function getDashboard(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -686,19 +753,24 @@ async function getDashboard(event, wxContext) {
   try {
     const [employeeCount, todayAttendance, activeOrders, pendingQC, monthLogs] = await Promise.all([
       db.collection('Users').where({
+        org_id: getOrgId(caller),
         role: _.in(['employee', 'qc']),
         status: 'active'
       }).count(),
       db.collection('Attendances').where({
+        org_id: getOrgId(caller),
         date: todayStr
       }).count(),
       db.collection('Orders').where({
+        org_id: getOrgId(caller),
         status: 'active'
       }).count(),
       db.collection('WorkLogs').where({
+        org_id: getOrgId(caller),
         status: 'pending'
       }).count(),
       fetchAllByWhere('WorkLogs', {
+        org_id: getOrgId(caller),
         date: _.gte(monthStart).and(_.lt(monthEnd))
       }, {
         field: { quantity: true, passed_qty: true, snapshot_price: true }
@@ -727,7 +799,7 @@ async function getDashboard(event, wxContext) {
 
 // 获取所有有数据的月份
 async function getAvailableMonths(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -736,7 +808,7 @@ async function getAvailableMonths(event, wxContext) {
     const monthSet = {}
 
     // 从 WorkLogs 取月份
-    const logs = await fetchAllByWhere('WorkLogs', {}, {
+    const logs = await fetchAllByWhere('WorkLogs', { org_id: getOrgId(caller) }, {
       field: { date: true },
       pageSize: 100
     })
@@ -745,7 +817,7 @@ async function getAvailableMonths(event, wxContext) {
     })
 
     // 从 SalaryAdjustments 取月份
-    const adjs = await fetchAllByWhere('SalaryAdjustments', {}, {
+    const adjs = await fetchAllByWhere('SalaryAdjustments', { org_id: getOrgId(caller) }, {
       field: { month: true },
       pageSize: 100
     })
@@ -754,7 +826,7 @@ async function getAvailableMonths(event, wxContext) {
     })
 
     // 从 SalaryPayments 取月份
-    const pays = await fetchAllByWhere('SalaryPayments', {}, {
+    const pays = await fetchAllByWhere('SalaryPayments', { org_id: getOrgId(caller) }, {
       field: { month: true },
       pageSize: 100
     })
@@ -775,7 +847,7 @@ async function getAvailableMonths(event, wxContext) {
 
 // 标记/取消标记员工已发工资
 async function markPaid(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -788,9 +860,12 @@ async function markPaid(event, wxContext) {
   const currentMonth = month || bjTime.getBeijingMonth()
 
   try {
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '无权操作其他工厂员工工资' }
     // 使用确定性ID防止并发重复创建
-    const docId = `${user_id}_${currentMonth}`
+    const docId = `${getOrgId(caller)}_${user_id}_${currentMonth}`
     const existing = await db.collection('SalaryPayments').where({
+      org_id: getOrgId(caller),
       user_id,
       month: currentMonth
     }).get()
@@ -801,6 +876,7 @@ async function markPaid(event, wxContext) {
         await db.collection('SalaryPayments').doc(existing.data[0]._id).update({
           data: {
             paid: true,
+            org_id: getOrgId(caller),
             paid_at: db.serverDate(),
             operator_id: caller._id,
             operator_name: caller.name
@@ -810,6 +886,7 @@ async function markPaid(event, wxContext) {
         await db.collection('SalaryPayments').doc(docId).set({
           data: {
             _id: docId,
+            org_id: getOrgId(caller),
             user_id,
             user_name: user_name || '',
             month: currentMonth,
@@ -843,7 +920,7 @@ async function markPaid(event, wxContext) {
 
 // 获取某月所有员工的发放状态
 async function getPaidStatus(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
@@ -853,6 +930,7 @@ async function getPaidStatus(event, wxContext) {
 
   try {
     const paidRecords = await fetchAllByWhere('SalaryPayments', {
+      org_id: getOrgId(caller),
       month: currentMonth,
       paid: true
     })

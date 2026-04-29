@@ -12,6 +12,7 @@ const {
 
 const CONSENT_VERSION = '2026-03-05-v1'
 const CONSENT_POLICY_HASH = 'privacy-policy-hash-20260305-v1'
+const LOGIN_FAILED_MSG = '账号或密码错误'
 
 function hashPassword(password, salt) {
   return crypto.createHash('sha256').update(password + salt).digest('hex')
@@ -126,11 +127,12 @@ async function recordConsent(event, wxContext) {
 }
 
 async function login(event, wxContext) {
+  const factoryCode = normalizeText(event.factory_code).toUpperCase()
   const name = normalizeText(event.name)
   const phone = normalizeText(event.phone)
   const password = event.password ? String(event.password) : ''
 
-  const validation = validateLoginAttempt({ name, phone, password })
+  const validation = validateLoginAttempt({ factory_code: factoryCode, name, phone, password })
   if (!validation.ok) {
     return { code: -1, msg: validation.msg }
   }
@@ -147,9 +149,26 @@ async function login(event, wxContext) {
       return { code: -1, msg: '请先同意隐私政策与用户协议' }
     }
 
+    const orgRes = await db.collection('Organizations').where({
+      factory_code: factoryCode
+    }).limit(1).get()
+    const org = orgRes.data && orgRes.data.length ? orgRes.data[0] : null
+    if (!org || org.status !== 'active') {
+      await db.collection('audit_logs').add({
+        data: {
+          action: 'login_failed',
+          details: `login failed - ${factoryCode}/${name}`,
+          created_at: db.serverDate()
+        }
+      })
+      return { code: -1, msg: LOGIN_FAILED_MSG }
+    }
+
     const userRes = await db.collection('Users').where({
-      name: name
-    }).limit(20).get()
+      org_id: org._id,
+      name: name,
+      phone: phone
+    }).limit(1).get()
 
     const pickResult = pickLoginUser({
       name,
@@ -160,12 +179,13 @@ async function login(event, wxContext) {
     if (!pickResult.ok) {
       await db.collection('audit_logs').add({
         data: {
+          org_id: org._id,
           action: 'login_failed',
-          details: `${pickResult.field || 'login'}错误 - ${name}`,
+          details: `login failed - ${factoryCode}/${name}`,
           created_at: db.serverDate()
         }
       })
-      return { code: -1, msg: pickResult.msg }
+      return { code: -1, msg: LOGIN_FAILED_MSG }
     }
 
     const user = pickResult.user
@@ -173,7 +193,7 @@ async function login(event, wxContext) {
     const needChangePassword = !!(user.must_change_password || !user.password_changed)
 
     if (user.status === 'disabled') {
-      return { code: -1, msg: '账号已停用，请联系管理员' }
+      return { code: -1, msg: LOGIN_FAILED_MSG }
     }
 
     // 验证密码
@@ -192,12 +212,13 @@ async function login(event, wxContext) {
     if (!passwordValid) {
       await db.collection('audit_logs').add({
         data: {
+          org_id: org._id,
           action: 'login_failed',
-          details: '密码错误 - ' + name,
+          details: `login failed - ${factoryCode}/${name}`,
           created_at: db.serverDate()
         }
       })
-      return { code: -1, msg: '密码错误' }
+      return { code: -1, msg: LOGIN_FAILED_MSG }
     }
 
     // 生成会话token
@@ -208,7 +229,8 @@ async function login(event, wxContext) {
       data: {
         openid: wxContext.OPENID,
         session_token: sessionToken,
-        last_login: db.serverDate()
+        last_login: db.serverDate(),
+        updated_at: db.serverDate()
       }
     })
 
@@ -217,9 +239,13 @@ async function login(event, wxContext) {
       msg: '登录成功',
       data: {
         _id: user._id,
+        org_id: org._id,
+        org_name: org.org_name || '',
+        factory_code: org.factory_code || factoryCode,
         name: user.name,
         phone: user.phone,
         role: user.role,
+        platform_role: user.platform_role || null,
         openid: wxContext.OPENID,
         session_token: sessionToken,
         need_change_password: needChangePassword
@@ -302,6 +328,14 @@ async function verifyToken(event, wxContext) {
     if (!user || user.status !== 'active' || user.session_token !== session_token) {
       return { code: -1, msg: '登录已失效，请重新登录' }
     }
+    let org = null
+    if (user.org_id) {
+      const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+      org = orgRes.data || null
+      if (!org || org.status !== 'active') {
+        return { code: -1, msg: '工厂已停用，请联系平台管理员' }
+      }
+    }
     // 校验 openid 一致性，防止 token 跨设备盗用
     if (wxContext.OPENID && user.openid && user.openid !== wxContext.OPENID) {
       return { code: -1, msg: '登录已在其他设备生效，请重新登录' }
@@ -311,9 +345,13 @@ async function verifyToken(event, wxContext) {
       msg: 'token有效',
       data: {
         _id: user._id,
+        org_id: user.org_id || '',
+        org_name: org ? (org.org_name || '') : '',
+        factory_code: org ? (org.factory_code || '') : '',
         name: user.name,
         phone: user.phone,
         role: user.role,
+        platform_role: user.platform_role || null,
         openid: user.openid,
         session_token: user.session_token,
         need_change_password: !!(user.must_change_password || !user.password_changed)

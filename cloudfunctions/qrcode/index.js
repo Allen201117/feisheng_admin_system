@@ -15,6 +15,33 @@ async function getCallerUser(wxContext) {
   return res.data.length > 0 ? res.data[0] : null
 }
 
+async function getCallerUserByEvent(event, wxContext) {
+  const authUserId = event && event.auth_user_id
+  const authSessionToken = event && event.auth_session_token
+  if (authUserId && authSessionToken) {
+    try {
+      const res = await db.collection('Users').where({
+        _id: authUserId,
+        session_token: authSessionToken,
+        status: 'active'
+      }).limit(1).get()
+      if (res.data.length > 0) {
+        const user = res.data[0]
+        if (user.org_id) {
+          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
+          if (!orgRes.data || orgRes.data.status !== 'active') return null
+        }
+        return user
+      }
+    } catch (e) {}
+  }
+  return await getCallerUser(wxContext)
+}
+
+function getOrgId(user) {
+  return user && user.org_id ? user.org_id : ''
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const { action } = event
@@ -33,10 +60,11 @@ function buildShortQrId() {
   return `${Date.now().toString(36)}${crypto.randomBytes(4).toString('hex')}`
 }
 
-async function writeAudit(action, details) {
+async function writeAudit(action, details, orgId) {
   try {
     await db.collection('audit_logs').add({
       data: {
+        org_id: orgId || '',
         action,
         details,
         created_at: db.serverDate()
@@ -102,6 +130,7 @@ async function generateSchemeQR({ qrId, scene, nonce, expireAt, expireDays, call
   await db.collection(QR_COLLECTION).add({
     data: {
       qr_id: qrId,
+      org_id: getOrgId(caller),
       token: qrId,
       scene,
       page: 'pages/login/login',
@@ -123,13 +152,14 @@ async function generateSchemeQR({ qrId, scene, nonce, expireAt, expireDays, call
   })
   const tempUrl = urlRes.fileList[0].tempFileURL
 
-  await writeAudit('qrcode_generate_scheme', `qr_id=${qrId}; wxacodeErr=${errInfo || ''}; schemeEnv=${schemeData.envVersion}`)
+  await writeAudit('qrcode_generate_scheme', `qr_id=${qrId}; wxacodeErr=${errInfo || ''}; schemeEnv=${schemeData.envVersion}`, getOrgId(caller))
 
   return {
     code: 0,
     msg: '已生成考勤二维码（微信扫一扫可直接跳转小程序）',
     data: {
       qr_id: qrId,
+      org_id: getOrgId(caller),
       token: qrId,
       scene,
       file_id: uploadRes.fileID,
@@ -183,7 +213,7 @@ async function generateFallbackQR({ qrId, scene, nonce, expireAt, expireDays, ca
   })
   const tempUrl = urlRes.fileList[0].tempFileURL
 
-  await writeAudit('qrcode_generate_fallback', `qr_id=${qrId}; errCode=${errInfo}; type=image_fallback`)
+  await writeAudit('qrcode_generate_fallback', `qr_id=${qrId}; errCode=${errInfo}; type=image_fallback`, getOrgId(caller))
 
   return {
     code: 0,
@@ -202,7 +232,7 @@ async function generateFallbackQR({ qrId, scene, nonce, expireAt, expireDays, ca
 }
 
 async function generateQRCode(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足，仅管理员可生成' }
   }
@@ -211,7 +241,7 @@ async function generateQRCode(event, wxContext) {
     // 获取过期时间配置（天）
     let expireDays = 1
     try {
-      const settings = await db.collection('factory_settings').doc('main').get()
+      const settings = await db.collection('factory_settings').doc(getOrgId(caller)).get()
       if (settings.data) {
         if (settings.data.qrcode_expire_days) {
           expireDays = settings.data.qrcode_expire_days
@@ -265,6 +295,7 @@ async function generateQRCode(event, wxContext) {
     await db.collection(QR_COLLECTION).add({
       data: {
         qr_id: qrId,
+        org_id: getOrgId(caller),
         token: qrId,
         scene,
         page: 'pages/login/login',
@@ -301,19 +332,20 @@ async function generateQRCode(event, wxContext) {
       }
     }
   } catch (err) {
-    await writeAudit('qrcode_generate_failed', `err=${err.message || err.errMsg || 'unknown'}`)
+    await writeAudit('qrcode_generate_failed', `err=${err.message || err.errMsg || 'unknown'}`, getOrgId(caller))
     return { code: -1, msg: '生成失败: ' + (err.message || err.errMsg || '未知错误') }
   }
 }
 
 async function getLatest(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足' }
   }
 
   try {
     const res = await db.collection(QR_COLLECTION)
+      .where({ org_id: getOrgId(caller) })
       .orderBy('created_at', 'desc')
       .limit(1)
       .get()
@@ -373,7 +405,7 @@ async function verifyQRCode(event) {
       return { code: -1, msg: '二维码已过期' }
     }
 
-    await writeAudit('qrcode_verify', `qr_id=${qr.qr_id || qr.token}; ok=1`)
+    await writeAudit('qrcode_verify', `qr_id=${qr.qr_id || qr.token}; ok=1`, qr.org_id || '')
 
     return {
       code: 0,
@@ -391,7 +423,7 @@ async function verifyQRCode(event) {
 }
 
 async function revokeQRCode(event, wxContext) {
-  const caller = await getCallerUser(wxContext)
+  const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足，仅管理员可作废' }
   }
@@ -399,7 +431,7 @@ async function revokeQRCode(event, wxContext) {
   try {
     const qrId = event.qr_id || event.token
     if (!qrId) {
-      const latest = await db.collection(QR_COLLECTION).orderBy('created_at', 'desc').limit(1).get()
+      const latest = await db.collection(QR_COLLECTION).where({ org_id: getOrgId(caller) }).orderBy('created_at', 'desc').limit(1).get()
       if (!latest.data.length) return { code: -1, msg: '暂无可作废二维码' }
       await db.collection(QR_COLLECTION).doc(latest.data[0]._id).update({
         data: {
@@ -408,11 +440,11 @@ async function revokeQRCode(event, wxContext) {
           revoked_by: caller._id
         }
       })
-      await writeAudit('qrcode_revoke', `qr_id=${latest.data[0].qr_id || latest.data[0].token}`)
+      await writeAudit('qrcode_revoke', `qr_id=${latest.data[0].qr_id || latest.data[0].token}`, getOrgId(caller))
       return { code: 0, msg: '已作废最新二维码' }
     }
 
-    const found = await db.collection(QR_COLLECTION).where({ token: qrId }).limit(1).get()
+    const found = await db.collection(QR_COLLECTION).where({ org_id: getOrgId(caller), token: qrId }).limit(1).get()
     if (!found.data.length) return { code: -1, msg: '二维码不存在' }
     await db.collection(QR_COLLECTION).doc(found.data[0]._id).update({
       data: {
@@ -421,7 +453,7 @@ async function revokeQRCode(event, wxContext) {
         revoked_by: caller._id
       }
     })
-    await writeAudit('qrcode_revoke', `qr_id=${found.data[0].qr_id || found.data[0].token}`)
+    await writeAudit('qrcode_revoke', `qr_id=${found.data[0].qr_id || found.data[0].token}`, getOrgId(caller))
     return { code: 0, msg: '二维码已作废' }
   } catch (err) {
     return { code: -1, msg: '作废失败' }
