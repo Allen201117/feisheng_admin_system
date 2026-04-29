@@ -106,6 +106,39 @@ function toTimestamp(input) {
   return 0
 }
 
+function getSortableTime(doc, fields) {
+  const candidates = fields || ['created_at', 'updated_at', 'date']
+  for (const field of candidates) {
+    const ts = toTimestamp(doc && doc[field])
+    if (ts) return ts
+  }
+  return 0
+}
+
+function sortDocsByFields(list, fields, direction) {
+  const multiplier = direction === 'asc' ? 1 : -1
+  return (list || []).slice().sort((a, b) => {
+    const diff = getSortableTime(a, fields) - getSortableTime(b, fields)
+    if (diff !== 0) return diff * multiplier
+    return String(a._id || '').localeCompare(String(b._id || '')) * multiplier
+  })
+}
+
+async function fetchAllDocs(collectionName, where, pageSize = 100) {
+  const all = []
+  let batchLen = 0
+  do {
+    const res = await db.collection(collectionName)
+      .where(where)
+      .skip(all.length)
+      .limit(pageSize)
+      .get()
+    batchLen = (res.data || []).length
+    all.push(...(res.data || []))
+  } while (batchLen === pageSize)
+  return all
+}
+
 function formatTwoDigits(num) {
   return String(num).padStart(2, '0')
 }
@@ -436,19 +469,11 @@ function getYearRange(yearValue) {
 }
 
 async function fetchLogsByDateRange(startDate, endDate, orgId) {
-  let allLogs = []
-  let lastLen = 0
-
-  do {
-    const res = await db.collection('WorkLogs').where({
+  const allLogs = await fetchAllDocs('WorkLogs', {
       org_id: orgId,
       date: _.gte(startDate).and(_.lt(endDate))
-    }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
-    lastLen = res.data.length
-    allLogs = allLogs.concat(res.data)
-  } while (lastLen === 100)
-
-  return allLogs
+    })
+  return sortDocsByFields(allLogs, ['created_at', 'date'], 'desc')
 }
 
 // 老板报工管理：按日/按月/按订单查询所有员工报工
@@ -484,18 +509,11 @@ async function getManageLogs(event, wxContext) {
   }
 
   try {
-    let allLogs = []
-    let batchLen = 0
-    do {
-      const res = await db.collection('WorkLogs').where(where)
-        .orderBy('created_at', 'desc')
-        .skip(allLogs.length)
-        .limit(100)
-        .get()
-
-      batchLen = res.data.length
-      allLogs = allLogs.concat(res.data)
-    } while (batchLen === 100)
+    const allLogs = sortDocsByFields(
+      await fetchAllDocs('WorkLogs', where),
+      ['created_at', 'date'],
+      'desc'
+    )
 
     return { code: 0, data: allLogs }
   } catch (err) {
@@ -736,25 +754,11 @@ async function getUserLogs(event, wxContext) {
   }
 
   try {
-    const res = await db.collection('WorkLogs').where({
+    const allLogs = sortDocsByFields(await fetchAllDocs('WorkLogs', {
       org_id: getOrgId(caller),
       user_id,
       date: _.gte(startDate).and(_.lt(endDate))
-    }).orderBy('created_at', 'desc').get()
-    let allLogs = res.data || []
-    // 如果刚好100条，可能还有更多，继续分页
-    if (allLogs.length === 20) {
-      let batchLen = 0
-      do {
-        const batch = await db.collection('WorkLogs').where({
-          org_id: getOrgId(caller),
-          user_id,
-          date: _.gte(startDate).and(_.lt(endDate))
-        }).orderBy('created_at', 'desc').skip(allLogs.length).limit(100).get()
-        batchLen = (batch.data || []).length
-        allLogs = allLogs.concat(batch.data || [])
-      } while (batchLen === 100)
-    }
+    }), ['created_at', 'date'], 'desc')
 
     // 检查该月发薪锁定状态
     const paidRes = await db.collection('SalaryPayments').where({
@@ -855,12 +859,12 @@ async function getPendingLogs(event, wxContext) {
   }
 
   try {
-    const res = await db.collection('WorkLogs').where({
+    const data = sortDocsByFields(await fetchAllDocs('WorkLogs', {
       org_id: getOrgId(caller),
       status: 'pending'
-    }).orderBy('created_at', 'desc').limit(100).get()
+    }), ['created_at', 'date'], 'desc').slice(0, 100)
 
-    return { code: 0, data: res.data }
+    return { code: 0, data }
   } catch (err) {
     return { code: -1, msg: '获取待检列表失败' }
   }
@@ -874,12 +878,12 @@ async function getInspectedLogs(event, wxContext) {
   }
 
   try {
-    const res = await db.collection('WorkLogs').where({
+    const data = sortDocsByFields(await fetchAllDocs('WorkLogs', {
       org_id: getOrgId(caller),
       status: 'inspected'
-    }).orderBy('inspected_at', 'desc').limit(100).get()
+    }), ['inspected_at', 'created_at', 'date'], 'desc').slice(0, 100)
 
-    return { code: 0, data: res.data }
+    return { code: 0, data }
   } catch (err) {
     return { code: -1, msg: '获取已检列表失败' }
   }

@@ -52,9 +52,41 @@ function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
+function toTimestamp(input) {
+  if (!input) return 0
+  if (input instanceof Date) return input.getTime()
+  if (typeof input === 'number') return input
+  if (typeof input === 'string') {
+    const t = new Date(input).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.$date) {
+    const t = new Date(input.$date).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.seconds) {
+    return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
+  }
+  return 0
+}
+
+function getSortableTime(doc) {
+  return toTimestamp(doc.created_at || doc.updated_at || doc.start_date || doc.date || doc.clock_in_time)
+}
+
+function sortDocsByTime(list, direction) {
+  const multiplier = direction === 'asc' ? 1 : -1
+  return (list || []).slice().sort((a, b) => {
+    const diff = getSortableTime(a) - getSortableTime(b)
+    if (diff !== 0) return diff * multiplier
+    return String(a._id || '').localeCompare(String(b._id || '')) * multiplier
+  })
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const { action } = event
+
   const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) {
     return { code: -1, msg: '登录已失效，请重新登录' }
@@ -90,18 +122,10 @@ exports.main = async (event, context) => {
 
 async function listOrders(caller) {
   try {
-    let allOrderData = []
-    let batchLen = 0
-    do {
-      const res = await db.collection('Orders')
-        .where({ org_id: getOrgId(caller) })
-        .orderBy('created_at', 'desc')
-        .skip(allOrderData.length)
-        .limit(100)
-        .get()
-      batchLen = (res.data || []).length
-      allOrderData = allOrderData.concat(res.data || [])
-    } while (batchLen === 100)
+    const allOrderData = sortDocsByTime(
+      await fetchAllDocs('Orders', { org_id: getOrgId(caller) }),
+      'desc'
+    )
 
     // 获取每个订单的工序数量
     const orders = []
@@ -128,18 +152,10 @@ async function getOrderDetail(event, caller) {
     if (!ensureSameOrg(orderRes.data, caller)) {
       return { code: -1, msg: '无权访问该订单' }
     }
-    let allProcessData = []
-    let procBatchLen = 0
-    do {
-      const res = await db.collection('Processes')
-        .where({ org_id: getOrgId(caller), order_id })
-        .orderBy('created_at', 'asc')
-        .skip(allProcessData.length)
-        .limit(100)
-        .get()
-      procBatchLen = (res.data || []).length
-      allProcessData = allProcessData.concat(res.data || [])
-    } while (procBatchLen === 100)
+    const allProcessData = sortDocsByTime(
+      await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id }),
+      'asc'
+    )
 
     const invalidAssigned = findInvalidAssignedUserIdProcesses(allProcessData)
     if (invalidAssigned.length > 0) {
