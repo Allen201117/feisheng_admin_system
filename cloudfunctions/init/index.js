@@ -2,6 +2,7 @@
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
+const _ = db.command
 const crypto = require('crypto')
 const { migrateLocationData } = require('./migrate-location')
 const { migrateTimezoneData } = require('./migrate-timezone')
@@ -54,6 +55,9 @@ exports.main = async (event, context) => {
   }
   if (event.action === 'migrate_multi_tenant') {
     return await migrateMultiTenant()
+  }
+  if (event.action === 'migrate_missing_org_batch') {
+    return await migrateMissingOrgBatch(event)
   }
   if (event.action === 'migrate_location') {
     return await migrateLocationData()
@@ -320,6 +324,20 @@ async function fetchAllDocs(collectionName) {
   return all
 }
 
+async function getDocById(collectionName, id) {
+  if (!id) return null
+  try {
+    const res = await db.collection(collectionName).doc(id).get()
+    return res.data || null
+  } catch (err) {
+    return null
+  }
+}
+
+function missingOrgId(value) {
+  return value === undefined || value === null || value === ''
+}
+
 function toTimestamp(input) {
   if (!input) return 0
   if (input instanceof Date) return input.getTime()
@@ -354,16 +372,108 @@ function toDateKey(input) {
     String(d.getUTCDate()).padStart(2, '0')
 }
 
-async function migrateCollectionOrgId(collectionName, deriveExtra) {
+function getDeriveExtra(collectionName) {
+  if (collectionName === 'WorkLogs') {
+    return (doc) => ({ period_key: doc.period_key || toPeriodKey(doc.created_at || doc.date) })
+  }
+  if (collectionName === 'Attendances') {
+    return (doc) => ({
+      period_key: doc.period_key || toPeriodKey(doc.clock_in_time || doc.created_at || doc.date),
+      date_key: doc.date_key || doc.date || toDateKey(doc.clock_in_time || doc.created_at)
+    })
+  }
+  if (collectionName === 'SalaryAdjustments') {
+    return (doc) => ({ period_key: doc.period_key || doc.month || toPeriodKey(doc.date || doc.created_at) })
+  }
+  if (collectionName === 'SalaryPayments') {
+    return (doc) => ({ period_key: doc.period_key || doc.month || toPeriodKey(doc.paid_at || doc.created_at) })
+  }
+  return null
+}
+
+async function buildTenantLookups() {
+  const [orders, users, processes] = await Promise.all([
+    fetchAllDocs('Orders'),
+    fetchAllDocs('Users'),
+    fetchAllDocs('Processes')
+  ])
+
+  const orderOrgMap = {}
+  orders.forEach((doc) => {
+    if (doc && doc._id) orderOrgMap[doc._id] = doc.org_id || DEFAULT_HOME_ORG_ID
+  })
+
+  const userOrgMap = {}
+  users.forEach((doc) => {
+    if (doc && doc._id) userOrgMap[doc._id] = doc.org_id || DEFAULT_HOME_ORG_ID
+  })
+
+  const processOrgMap = {}
+  processes.forEach((doc) => {
+    if (!doc || !doc._id) return
+    processOrgMap[doc._id] = doc.org_id || orderOrgMap[doc.order_id] || DEFAULT_HOME_ORG_ID
+  })
+
+  return { orderOrgMap, userOrgMap, processOrgMap }
+}
+
+function deriveLegacyOrgId(collectionName, doc, lookups) {
+  if (!doc) return DEFAULT_HOME_ORG_ID
+  if (!missingOrgId(doc.org_id)) return doc.org_id
+
+  if (doc.order_id && lookups.orderOrgMap[doc.order_id]) return lookups.orderOrgMap[doc.order_id]
+  if (doc.user_id && lookups.userOrgMap[doc.user_id]) return lookups.userOrgMap[doc.user_id]
+  if (doc.employee_id && lookups.userOrgMap[doc.employee_id]) return lookups.userOrgMap[doc.employee_id]
+  if (doc.process_id && lookups.processOrgMap[doc.process_id]) return lookups.processOrgMap[doc.process_id]
+
+  if (collectionName === 'Users' && doc.platform_role === 'platform_admin') return DEFAULT_PLATFORM_ORG_ID
+  return DEFAULT_HOME_ORG_ID
+}
+
+async function deriveLegacyOrgIdLive(collectionName, doc) {
+  if (!doc) return DEFAULT_HOME_ORG_ID
+  if (!missingOrgId(doc.org_id)) return doc.org_id
+
+  if (doc.order_id) {
+    const order = await getDocById('Orders', doc.order_id)
+    if (order && !missingOrgId(order.org_id)) return order.org_id
+  }
+
+  const userId = doc.user_id || doc.employee_id
+  if (userId) {
+    const user = await getDocById('Users', userId)
+    if (user && !missingOrgId(user.org_id)) return user.org_id
+  }
+
+  if (doc.process_id) {
+    const process = await getDocById('Processes', doc.process_id)
+    if (process) {
+      if (!missingOrgId(process.org_id)) return process.org_id
+      if (process.order_id) {
+        const order = await getDocById('Orders', process.order_id)
+        if (order && !missingOrgId(order.org_id)) return order.org_id
+      }
+    }
+  }
+
+  if (collectionName === 'Users' && doc.platform_role === 'platform_admin') return DEFAULT_PLATFORM_ORG_ID
+  return DEFAULT_HOME_ORG_ID
+}
+
+async function migrateCollectionOrgId(collectionName, deriveExtra, lookups) {
   const docs = await fetchAllDocs(collectionName)
   let updated = 0
+  let orgUpdated = 0
   for (const doc of docs) {
     const data = {}
-    if (!doc.org_id) data.org_id = DEFAULT_HOME_ORG_ID
+    if (missingOrgId(doc.org_id)) {
+      data.org_id = deriveLegacyOrgId(collectionName, doc, lookups)
+      orgUpdated++
+    }
     const extra = deriveExtra ? deriveExtra(doc) : null
     if (extra) {
       Object.keys(extra).forEach((key) => {
-        if (doc[key] === undefined || doc[key] === null || doc[key] === '') {
+        if (missingOrgId(doc[key])) {
           data[key] = extra[key]
         }
       })
@@ -374,13 +484,105 @@ async function migrateCollectionOrgId(collectionName, deriveExtra) {
       updated++
     }
   }
-  return { collection: collectionName, total: docs.length, updated }
+  return { collection: collectionName, total: docs.length, updated, org_updated: orgUpdated }
+}
+
+function getMigratableCollections() {
+  return [
+    'Users',
+    'Orders',
+    'Processes',
+    'ProcessAssignments',
+    'WorkLogs',
+    'WorkLogAudit',
+    'WorkLogEditAudit',
+    'Attendances',
+    'SalaryAdjustments',
+    'SalaryPayments',
+    'qr_codes',
+    'audit_logs',
+    'export_history',
+    'sign_location_logs'
+  ]
+}
+
+async function countMissingOrgDocs(collectionName) {
+  const missingField = await db.collection(collectionName).where({ org_id: _.exists(false) }).count()
+  const blankField = await db.collection(collectionName).where({ org_id: '' }).count()
+  const nullField = await db.collection(collectionName).where({ org_id: null }).count()
+  return (missingField.total || 0) + (blankField.total || 0) + (nullField.total || 0)
+}
+
+async function fetchMissingOrgDocs(collectionName, batchSize) {
+  const queries = [
+    { org_id: _.exists(false) },
+    { org_id: '' },
+    { org_id: null }
+  ]
+
+  for (const where of queries) {
+    const res = await db.collection(collectionName).where(where).limit(batchSize).get()
+    if (res.data && res.data.length > 0) return res.data
+  }
+  return []
+}
+
+async function migrateMissingOrgBatch(event) {
+  await ensureHomeOrganization()
+
+  const collectionName = String(event.collection || '')
+  const collections = getMigratableCollections()
+  if (!collections.includes(collectionName)) {
+    return { code: -1, msg: '不支持的集合: ' + collectionName }
+  }
+
+  const batchSize = Math.max(1, Math.min(parseInt(event.batch_size || 20, 10) || 20, 30))
+  const docs = await fetchMissingOrgDocs(collectionName, batchSize)
+  const deriveExtra = getDeriveExtra(collectionName)
+  let updated = 0
+  let orgUpdated = 0
+
+  for (const doc of docs) {
+    const data = {}
+    if (missingOrgId(doc.org_id)) {
+      data.org_id = await deriveLegacyOrgIdLive(collectionName, doc)
+      orgUpdated++
+    }
+
+    const extra = deriveExtra ? deriveExtra(doc) : null
+    if (extra) {
+      Object.keys(extra).forEach((key) => {
+        if (missingOrgId(doc[key])) data[key] = extra[key]
+      })
+    }
+
+    if (Object.keys(data).length > 0) {
+      data.updated_at = db.serverDate()
+      await db.collection(collectionName).doc(doc._id).update({ data })
+      updated++
+    }
+  }
+
+  const remaining = await countMissingOrgDocs(collectionName)
+  return {
+    code: 0,
+    msg: `${collectionName} 批量迁移完成，本批更新 ${updated} 条，剩余 ${remaining} 条`,
+    data: {
+      collection: collectionName,
+      selected: docs.length,
+      updated,
+      org_updated: orgUpdated,
+      remaining,
+      has_more: remaining > 0
+    }
+  }
 }
 
 async function migrateMultiTenant() {
   await ensureHomeOrganization()
 
   const results = []
+  const lookups = await buildTenantLookups()
   const collections = [
     'Users',
     'Orders',
@@ -400,20 +602,8 @@ async function migrateMultiTenant() {
 
   for (const name of collections) {
     try {
-      let deriveExtra = null
-      if (name === 'WorkLogs') {
-        deriveExtra = (doc) => ({ period_key: doc.period_key || toPeriodKey(doc.created_at || doc.date) })
-      } else if (name === 'Attendances') {
-        deriveExtra = (doc) => ({
-          period_key: doc.period_key || toPeriodKey(doc.clock_in_time || doc.created_at || doc.date),
-          date_key: doc.date_key || doc.date || toDateKey(doc.clock_in_time || doc.created_at)
-        })
-      } else if (name === 'SalaryAdjustments') {
-        deriveExtra = (doc) => ({ period_key: doc.period_key || doc.month || toPeriodKey(doc.date || doc.created_at) })
-      } else if (name === 'SalaryPayments') {
-        deriveExtra = (doc) => ({ period_key: doc.period_key || doc.month || toPeriodKey(doc.paid_at || doc.created_at) })
-      }
-      results.push(await migrateCollectionOrgId(name, deriveExtra))
+      const deriveExtra = getDeriveExtra(name)
+      results.push(await migrateCollectionOrgId(name, deriveExtra, lookups))
     } catch (err) {
       results.push({ collection: name, status: '失败: ' + err.message })
     }

@@ -144,6 +144,56 @@ function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
+function toTimestamp(input) {
+  if (!input) return 0
+  if (input instanceof Date) return input.getTime()
+  if (typeof input === 'number') return input
+  if (typeof input === 'string') {
+    const t = new Date(input).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.$date) {
+    const t = new Date(input.$date).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.seconds) {
+    return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
+  }
+  return 0
+}
+
+function getSortableTime(doc, fields) {
+  for (const field of fields) {
+    const ts = toTimestamp(doc && doc[field])
+    if (ts) return ts
+  }
+  return 0
+}
+
+function sortDocsByFields(list, fields, direction) {
+  const multiplier = direction === 'asc' ? 1 : -1
+  return (list || []).slice().sort((a, b) => {
+    const diff = getSortableTime(a, fields) - getSortableTime(b, fields)
+    if (diff !== 0) return diff * multiplier
+    return String(a._id || '').localeCompare(String(b._id || '')) * multiplier
+  })
+}
+
+async function fetchAllDocs(collectionName, where, pageSize = 100) {
+  const all = []
+  let batchLen = 0
+  do {
+    const res = await db.collection(collectionName)
+      .where(where)
+      .skip(all.length)
+      .limit(pageSize)
+      .get()
+    batchLen = (res.data || []).length
+    all.push(...(res.data || []))
+  } while (batchLen === pageSize)
+  return all
+}
+
 async function requireAttendanceActor(event, wxContext, targetUserId) {
   const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) {
@@ -674,17 +724,10 @@ async function getPeriodRecords(event, wxContext) {
   const range = getPeriodRange(dimension, periodValue)
 
   try {
-    let allRecords = []
-    let batchLen = 0
-
-    do {
-      const res = await db.collection('Attendances').where({
+    const allRecords = sortDocsByFields(await fetchAllDocs('Attendances', {
         org_id: orgId,
         date: _.gte(range.startDate).and(_.lt(range.endDate))
-      }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
-      batchLen = (res.data || []).length
-      allRecords = allRecords.concat(res.data || [])
-    } while (batchLen === 100)
+      }), ['date', 'clock_in_time', 'created_at'], 'desc')
 
     const records = allRecords.map(r => ({
       ...r,
@@ -707,16 +750,10 @@ async function getDailyRecords(event, wxContext) {
 
   const { date } = event
   try {
-    let allRecords = []
-    let batchLen = 0
-    do {
-      const res = await db.collection('Attendances').where({
+    const allRecords = sortDocsByFields(await fetchAllDocs('Attendances', {
         org_id: orgId,
         date: date || getDateStr(new Date())
-      }).orderBy('clock_in_time', 'desc').skip(allRecords.length).limit(100).get()
-      batchLen = (res.data || []).length
-      allRecords = allRecords.concat(res.data || [])
-    } while (batchLen === 100)
+      }), ['clock_in_time', 'created_at', 'date'], 'desc')
 
     const records = allRecords.map(r => ({
       ...r,
@@ -738,16 +775,10 @@ async function getAbnormalRecords(event, wxContext) {
   const orgId = getOrgId(caller)
 
   try {
-    let allRecords = []
-    let batchLen = 0
-    do {
-      const res = await db.collection('Attendances').where({
+    const allRecords = sortDocsByFields(await fetchAllDocs('Attendances', {
         org_id: orgId,
         status: 'abnormal'
-      }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
-      batchLen = (res.data || []).length
-      allRecords = allRecords.concat(res.data || [])
-    } while (batchLen === 100)
+      }), ['date', 'clock_in_time', 'created_at'], 'desc')
 
     const records = allRecords.map(r => ({
       ...r,
@@ -829,17 +860,11 @@ async function getUserMonthlyRecords(event) {
   const range = bjTime.getBeijingMonthRange()
 
   try {
-    let allRecords = []
-    let batchLen = 0
-    do {
-      const res = await db.collection('Attendances').where({
+    const allRecords = sortDocsByFields(await fetchAllDocs('Attendances', {
         org_id: orgId,
         user_id,
         date: _.gte(range.startDate).and(_.lt(range.endDate))
-      }).orderBy('date', 'desc').skip(allRecords.length).limit(100).get()
-      batchLen = (res.data || []).length
-      allRecords = allRecords.concat(res.data || [])
-    } while (batchLen === 100)
+      }), ['date', 'clock_in_time', 'created_at'], 'desc')
 
     const records = allRecords.map(r => ({
       ...r,
