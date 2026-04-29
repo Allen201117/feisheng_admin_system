@@ -6,8 +6,16 @@ Page({
   data: {
     userInfo: null,
     organizations: [],
+    selectedOrgId: '',
+    selectedOrg: null,
     factoryAdmins: [],
     orgForm: {
+      org_name: '',
+      factory_code: '',
+      contact_name: '',
+      contact_phone: ''
+    },
+    editForm: {
       org_name: '',
       factory_code: '',
       contact_name: '',
@@ -40,7 +48,22 @@ Page({
     this.setData({ loading: true })
     try {
       const res = await callCloud('platform', { action: 'listOrganizations' })
-      this.setData({ organizations: res.data || [] })
+      const organizations = res.data || []
+      const currentId = this.data.selectedOrgId
+      const selected = organizations.find(item => item._id === currentId) || organizations[0] || null
+      this.setData({ organizations })
+      if (selected) {
+        this.applySelectedOrganization(selected, false)
+        this.loadFactoryAdmins(selected._id)
+      } else {
+        this.setData({
+          selectedOrgId: '',
+          selectedOrg: null,
+          factoryAdmins: [],
+          editForm: { org_name: '', factory_code: '', contact_name: '', contact_phone: '' },
+          'adminForm.org_id': ''
+        })
+      }
     } catch (err) {
       showError(err.message || '加载工厂失败')
     } finally {
@@ -58,12 +81,34 @@ Page({
     this.setData({ ['adminForm.' + field]: e.detail.value })
   },
 
-  chooseAdminOrg(e) {
-    const index = Number(e.detail.value)
+  onEditInput(e) {
+    const field = e.currentTarget.dataset.field
+    this.setData({ ['editForm.' + field]: e.detail.value })
+  },
+
+  selectOrganization(e) {
+    const index = Number(e.currentTarget.dataset.index)
     const org = this.data.organizations[index]
     if (!org) return
-    this.setData({ 'adminForm.org_id': org._id })
+    this.applySelectedOrganization(org, true)
     this.loadFactoryAdmins(org._id)
+  },
+
+  applySelectedOrganization(org, showTip) {
+    this.setData({
+      selectedOrgId: org._id,
+      selectedOrg: org,
+      editForm: {
+        org_name: org.org_name || '',
+        factory_code: org.factory_code || '',
+        contact_name: org.contact_name || '',
+        contact_phone: org.contact_phone || ''
+      },
+      'adminForm.org_id': org._id
+    })
+    if (showTip) {
+      showSuccess('已选中' + (org.org_name || '工厂'))
+    }
   },
 
   async loadFactoryAdmins(orgId) {
@@ -112,8 +157,41 @@ Page({
     }
   },
 
-  async toggleOrganization(e) {
-    const org = this.data.organizations[Number(e.currentTarget.dataset.index)]
+  async saveSelectedOrganization() {
+    const org = this.data.selectedOrg
+    if (!org) {
+      showError('请先选择工厂')
+      return
+    }
+    const form = this.data.editForm
+    const orgName = trim(form.org_name)
+    const factoryCode = trim(form.factory_code).toUpperCase()
+    if (!orgName || !factoryCode) {
+      showError('工厂名称和工厂码不能为空')
+      return
+    }
+
+    showLoading('保存中...')
+    try {
+      await callCloud('platform', {
+        action: 'updateOrganization',
+        org_id: org._id,
+        org_name: orgName,
+        factory_code: factoryCode,
+        contact_name: trim(form.contact_name),
+        contact_phone: trim(form.contact_phone)
+      })
+      hideLoading()
+      showSuccess('已保存')
+      await this.loadOrganizations()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '保存失败')
+    }
+  },
+
+  async toggleSelectedOrganization() {
+    const org = this.data.selectedOrg
     if (!org) return
     const action = org.status === 'active' ? 'disableOrganization' : 'enableOrganization'
     const title = org.status === 'active' ? '停用工厂' : '启用工厂'
@@ -155,8 +233,8 @@ Page({
       })
       hideLoading()
       showSuccess('管理员已创建')
-      this.setData({ adminForm: { org_id: '', name: '', phone: '', password: '' } })
-      this.setData({ factoryAdmins: [] })
+      this.setData({ adminForm: { org_id: form.org_id, name: '', phone: '', password: '' } })
+      await this.loadFactoryAdmins(form.org_id)
     } catch (err) {
       hideLoading()
       showError(err.message || '创建失败')
