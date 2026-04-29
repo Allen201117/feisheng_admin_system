@@ -68,6 +68,26 @@
 - 小功能建议单独 Git commit，避免多个高风险改动混在一个提交里。
 - 交付说明必须写清楚：改了什么、为什么改、怎么测、还有什么风险。
 
+## Git 助手规则
+
+每次完成代码任务后，必须自动执行：
+
+1. `git status --short`
+2. `git diff --stat`
+3. 总结本次改动
+4. 生成建议 commit message
+
+但未经用户明确确认，不得自动执行：
+
+- `git add`
+- `git commit`
+- `git restore`
+- `git reset`
+- `git clean`
+- `git push`
+
+当用户说“确认提交”后，只允许提交本次任务相关文件，不允许使用 `git add .`。提交后必须再次输出 `git status --short`。
+
 ## 推荐迭代顺序
 
 1. 先修 P0：权限泄漏、工资口径、删除规则、数据错误。
