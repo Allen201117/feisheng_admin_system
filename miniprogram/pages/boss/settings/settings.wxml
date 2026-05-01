@@ -1,5 +1,11 @@
 ﻿<!--pages/boss/settings/settings.wxml-->
 <view class="container">
+  <view class="card">
+    <view class="section-title">服务与续费</view>
+    <view class="location-tip">查看当前版本、到期时间，并复制开通信息发给平台管理员。</view>
+    <button class="btn-default btn-block" bindtap="goSubscription">服务状态与续费</button>
+  </view>
+
   <!-- 打卡点管理 -->
   <view class="card">
     <view class="section-title">打卡点管理</view>

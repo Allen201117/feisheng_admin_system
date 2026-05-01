@@ -1,0 +1,47 @@
+<view class="container">
+  <view wx:if="{{subscription}}" class="status-panel {{statusClass}}">
+    <text class="status-label">当前服务</text>
+    <text class="factory-name">{{subscription.org_name}}</text>
+    <text class="status-main">{{subscription.billing_status_label}}</text>
+    <text class="status-line">当前版本：{{subscription.plan_name}}</text>
+    <text class="status-line">服务到期：{{subscription.current_period_end_text}}</text>
+    <text class="status-line">宽限到期：{{subscription.grace_until_text}}</text>
+  </view>
+
+  <view wx:if="{{subscription}}" class="card info-card">
+    <view class="section-title">开通方式</view>
+    <text class="body-text">需要开通或续费时，请联系平台管理员确认。付款完成后，由管理员为工厂开通服务。</text>
+    <view class="button-stack">
+      <button class="btn-primary btn-block" bindtap="copyOpenInfo">复制开通信息</button>
+      <button class="btn-default btn-block" bindtap="showContactTip">联系管理员</button>
+    </view>
+  </view>
+
+  <view wx:if="{{subscription}}" class="card info-card">
+    <view class="section-title">发送给管理员</view>
+    <view class="copy-box">
+      <text class="copy-text">{{requestInfoText}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{!subscription && !loading}}" class="card empty-card">
+    <text class="empty-title">暂未获取到服务状态</text>
+    <button class="btn-primary btn-block" bindtap="loadSubscription">重新加载</button>
+  </view>
+</view>
+
+<view wx:if="{{showContactQr}}" class="contact-mask" bindtap="hideContactQr">
+  <view class="contact-dialog" catchtap="stopBubble">
+    <view class="contact-header">
+      <text class="contact-title">添加管理员微信</text>
+      <text class="contact-close" bindtap="hideContactQr">×</text>
+    </view>
+    <text class="contact-desc">请用微信扫码添加管理员，发送工厂开通信息后确认订阅。</text>
+    <image class="contact-qr" src="{{adminWechatQr}}" mode="widthFix" bindtap="previewContactQr" show-menu-by-longpress="{{true}}" />
+    <text class="contact-hint">点击二维码可放大，长按可识别或保存</text>
+    <view class="contact-actions">
+      <button class="btn-default contact-btn" bindtap="copyOpenInfo">复制开通信息</button>
+      <button class="btn-primary contact-btn" bindtap="hideContactQr">我知道了</button>
+    </view>
+  </view>
+</view>

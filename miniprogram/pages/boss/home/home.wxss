@@ -102,6 +102,74 @@
   color: rgba(244, 248, 252, 0.72);
 }
 
+.subscription-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  width: 100%;
+  margin-bottom: 22rpx;
+  padding: 24rpx;
+  border: 2rpx solid #dce7f2;
+  border-radius: 20rpx;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.subscription-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.subscription-title,
+.subscription-note,
+.subscription-action {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.subscription-title {
+  font-size: 32rpx;
+  line-height: 1.4;
+  font-weight: bold;
+  color: #203650;
+}
+
+.subscription-note {
+  margin-top: 6rpx;
+  font-size: 26rpx;
+  line-height: 1.45;
+  color: #657b91;
+}
+
+.subscription-action {
+  flex: 0 0 auto;
+  padding: 12rpx 18rpx;
+  border-radius: 999rpx;
+  background: #eef6ff;
+  color: #1766b7;
+  font-size: 28rpx;
+  line-height: 1.35;
+  font-weight: bold;
+}
+
+.subscription-trial {
+  background: #f4faff;
+  border-color: #cfe4f8;
+}
+
+.subscription-grace {
+  background: #fff9e8;
+  border-color: #f2d38b;
+}
+
+.subscription-expired {
+  background: #fff4f2;
+  border-color: #f0b4aa;
+}
+
 .stats-panel,
 .menu-panel {
   border: 2rpx solid #e8eef8;

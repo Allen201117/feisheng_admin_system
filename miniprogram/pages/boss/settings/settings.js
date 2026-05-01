@@ -217,6 +217,10 @@ Page({
       })
   },
 
+  goSubscription() {
+    wx.navigateTo({ url: '/pages/boss/subscription/subscription' })
+  },
+
   async getLocation() {
     // 先检查权限
     const perm = await checkLocationPermission()

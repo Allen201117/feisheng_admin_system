@@ -10,8 +10,8 @@ const {
   pickLoginUser
 } = require('./login.logic')
 
-const CONSENT_VERSION = '2026-03-05-v1'
-const CONSENT_POLICY_HASH = 'privacy-policy-hash-20260305-v1'
+const CONSENT_VERSION = '2026-05-01-v2'
+const CONSENT_POLICY_HASH = 'privacy-policy-hash-20260501-v2'
 const LOGIN_FAILED_MSG = '账号或密码错误'
 
 function hashPassword(password, salt) {

@@ -22,10 +22,26 @@ Page({
     // 进度总览
     progressOrderIndex: -1,
     progressOrder: null,
-    progressData: null
+    progressData: null,
+
+    // 工序报工明细
+    processDetail: null,
+    showEditWorkLog: false,
+    editWL: null,
+    editWLQuantity: 0,
+    editWLNote: '',
+    editWLReason: '',
+    editWLReasonIndex: -1,
+    editWLReasons: ['员工少报/多报修正', '老板代员工修正', '录入错误', '工序数量核对后修正', '其他'],
+    processEmployees: [],
+    processEmployeeIndex: -1,
+    selectedProcessEmployee: null,
+    showAddWorkLog: false,
+    addWLQuantity: 0,
+    addWLNote: ''
   },
 
-  onLoad() {
+  onLoad(options = {}) {
     const user = getStoredUser()
     if (!user || user.role !== 'boss') {
       wx.reLaunch({ url: '/pages/login/login' })
@@ -39,8 +55,23 @@ Page({
       orderMonth: today.slice(0, 7)
     })
 
+    if (options.mode === 'process') {
+      this.setData({
+        mainTab: 'process',
+        processDetail: {
+          order_id: options.order_id || '',
+          process_id: options.process_id || '',
+          order_name: decodeURIComponent(options.order_name || ''),
+          process_name: decodeURIComponent(options.process_name || '')
+        }
+      })
+    }
+
     this.loadOrders().then(() => {
-      if (this.data.mainTab === 'progress') {
+      if (this.data.mainTab === 'process') {
+        this.loadProcessLogs()
+        this.loadProcessEmployees()
+      } else if (this.data.mainTab === 'progress') {
         this.autoSelectProgressOrder()
       } else {
         this.loadLogs()
@@ -49,7 +80,9 @@ Page({
   },
 
   onPullDownRefresh() {
-    const p = this.data.mainTab === 'progress' ? this.loadOrderProgress() : this.loadLogs()
+    const p = this.data.mainTab === 'process'
+      ? this.loadProcessLogs()
+      : (this.data.mainTab === 'progress' ? this.loadOrderProgress() : this.loadLogs())
     p.finally(() => wx.stopPullDownRefresh())
   },
 
@@ -62,6 +95,23 @@ Page({
     } else {
       this.loadLogs()
     }
+  },
+
+  goProcessWorklogs(e) {
+    const process = e.currentTarget.dataset.process
+    const order = this.data.progressOrder || {}
+    if (!process || !process._id || !order._id) {
+      showError('缺少工序信息')
+      return
+    }
+    const params = [
+      'mode=process',
+      `order_id=${encodeURIComponent(order._id)}`,
+      `process_id=${encodeURIComponent(process._id)}`,
+      `order_name=${encodeURIComponent(order.order_name || this.data.progressOrder.order_name || '')}`,
+      `process_name=${encodeURIComponent(process.process_name || '')}`
+    ].join('&')
+    wx.navigateTo({ url: `/pages/boss/worklog-manage/worklog-manage?${params}` })
   },
 
   autoSelectProgressOrder() {
@@ -261,6 +311,204 @@ Page({
     }
   },
 
+  async loadProcessLogs() {
+    const detail = this.data.processDetail
+    if (!detail || !detail.order_id || !detail.process_id) {
+      this.setData({
+        groupedLogs: [],
+        summary: { count: 0, quantity: 0, amount: '0.00' }
+      })
+      return
+    }
+
+    this.setData({ loading: true })
+    showLoading('加载工序明细...')
+    try {
+      const res = await callCloud('worklog', {
+        action: 'getManageLogs',
+        view_type: 'process',
+        order_id: detail.order_id,
+        process_id: detail.process_id
+      })
+      hideLoading()
+      this.normalizeLogs(res.data || [])
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '加载工序明细失败')
+      this.setData({
+        groupedLogs: [],
+        summary: { count: 0, quantity: 0, amount: '0.00' }
+      })
+    } finally {
+      this.setData({ loading: false })
+    }
+  },
+
+  async loadProcessEmployees() {
+    try {
+      const res = await callCloud('user', { action: 'listEmployees' })
+      const employees = res.data || []
+      this.setData({
+        processEmployees: employees,
+        processEmployeeIndex: employees.length > 0 ? 0 : -1,
+        selectedProcessEmployee: employees[0] || null
+      })
+    } catch (err) {
+      this.setData({
+        processEmployees: [],
+        processEmployeeIndex: -1,
+        selectedProcessEmployee: null
+      })
+    }
+  },
+
+  reloadCurrentLogs() {
+    if (this.data.mainTab === 'process') return this.loadProcessLogs()
+    return this.loadLogs()
+  },
+
+  onEditWorkLog(e) {
+    const log = e.currentTarget.dataset.log
+    if (!log || !log._id) return
+    this.setData({
+      showEditWorkLog: true,
+      editWL: log,
+      editWLQuantity: log.quantity,
+      editWLNote: log.note || '',
+      editWLReason: '',
+      editWLReasonIndex: -1
+    })
+  },
+
+  closeEditWorkLog() {
+    this.setData({ showEditWorkLog: false, editWL: null })
+  },
+
+  stopBubble() {},
+
+  onEditWLQtyInput(e) {
+    this.setData({ editWLQuantity: parseInt(e.detail.value, 10) || 0 })
+  },
+
+  onEditWLNoteInput(e) {
+    this.setData({ editWLNote: e.detail.value })
+  },
+
+  onEditWLReasonChange(e) {
+    const idx = parseInt(e.detail.value, 10)
+    this.setData({
+      editWLReasonIndex: idx,
+      editWLReason: this.data.editWLReasons[idx] || ''
+    })
+  },
+
+  onEditWLReasonCustom(e) {
+    this.setData({ editWLReason: e.detail.value })
+  },
+
+  async onSaveEditWorkLog() {
+    if (!this.data.editWL || !this.data.editWL._id) return
+    if (this.data.editWLQuantity <= 0) {
+      showError('报工数量必须大于0')
+      return
+    }
+    if (!this.data.editWLReason) {
+      showError('请选择或输入修改原因')
+      return
+    }
+
+    showLoading('保存修改...')
+    try {
+      await callCloud('worklog', {
+        action: 'updateWorkLog',
+        log_id: this.data.editWL._id,
+        quantity: this.data.editWLQuantity,
+        note: this.data.editWLNote,
+        reason: this.data.editWLReason
+      })
+      hideLoading()
+      showSuccess('修改成功')
+      this.setData({ showEditWorkLog: false, editWL: null })
+      this.reloadCurrentLogs()
+      if (this.data.mainTab === 'progress') this.loadOrderProgress()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '修改失败')
+    }
+  },
+
+  async openAddWorkLog() {
+    if (!this.data.processDetail || !this.data.processDetail.order_id || !this.data.processDetail.process_id) {
+      showError('缺少工序信息')
+      return
+    }
+    if (this.data.processEmployees.length === 0) {
+      await this.loadProcessEmployees()
+    }
+    if (this.data.processEmployees.length === 0) {
+      showError('暂无可选择员工')
+      return
+    }
+    this.setData({
+      showAddWorkLog: true,
+      addWLQuantity: 0,
+      addWLNote: ''
+    })
+  },
+
+  closeAddWorkLog() {
+    this.setData({ showAddWorkLog: false })
+  },
+
+  onAddEmployeeChange(e) {
+    const idx = Number(e.detail.value)
+    this.setData({
+      processEmployeeIndex: idx,
+      selectedProcessEmployee: this.data.processEmployees[idx] || null
+    })
+  },
+
+  onAddWLQtyInput(e) {
+    this.setData({ addWLQuantity: parseInt(e.detail.value, 10) || 0 })
+  },
+
+  onAddWLNoteInput(e) {
+    this.setData({ addWLNote: e.detail.value })
+  },
+
+  async onSubmitAddWorkLog() {
+    const employee = this.data.selectedProcessEmployee
+    const detail = this.data.processDetail
+    if (!employee || !employee._id) {
+      showError('请选择员工')
+      return
+    }
+    if (this.data.addWLQuantity <= 0) {
+      showError('请输入有效的报工数量')
+      return
+    }
+
+    showLoading('新增报工...')
+    try {
+      await callCloud('worklog', {
+        action: 'submit',
+        user_id: employee._id,
+        user_name: employee.name,
+        order_id: detail.order_id,
+        process_id: detail.process_id,
+        quantity: this.data.addWLQuantity,
+        note: this.data.addWLNote
+      })
+      hideLoading()
+      showSuccess('新增成功')
+      this.setData({ showAddWorkLog: false, addWLQuantity: 0, addWLNote: '' })
+      this.loadProcessLogs()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '新增失败')
+    }
+  },
+
   onDeleteLog(e) {
     const log = e.currentTarget.dataset.log
     if (!log || !log._id) return
@@ -281,7 +529,7 @@ Page({
           })
           hideLoading()
           showSuccess('删除成功')
-          this.loadLogs()
+          this.reloadCurrentLogs()
         } catch (err) {
           hideLoading()
           showError(err.message || '删除失败')

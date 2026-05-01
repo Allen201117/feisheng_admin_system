@@ -6,8 +6,12 @@ function getStartupSessionAction(options) {
     return 'noop'
   }
 
-  if (!hasConsent || !user.session_token) {
+  if (!user.session_token) {
     return 'clear'
+  }
+
+  if (!hasConsent) {
+    return 'noop'
   }
 
   return 'resume'

@@ -11,7 +11,7 @@
       <view class="form-head">
         <view>
           <text class="form-title">账号登录</text>
-          <text class="form-subtitle">请输入工厂码、姓名、手机号和密码</text>
+          <text class="form-subtitle">{{hasRememberedLoginInfo ? '已带出上次账号，请输入密码登录' : '首次登录请输入完整账号信息'}}</text>
         </view>
         <view wx:if="{{existingUser}}" class="stored-badge">已有登录态</view>
       </view>
@@ -20,7 +20,7 @@
         <text class="field-label">工厂码</text>
         <input
           class="field-input"
-          placeholder="例如 HOME001"
+          placeholder="例如 A001"
           value="{{factoryCode}}"
           bindinput="onInputFactoryCode"
           maxlength="20"
@@ -86,8 +86,8 @@
 
       <view class="login-notice-panel">
         <text class="login-notice-title">登录提示</text>
-        <text class="login-tip text-sm text-gray">首次登录请联系管理员开通账号。</text>
-        <text class="login-tip text-sm text-gray">登录即表示同意</text>
+        <text class="login-tip text-sm text-gray">首次登录请联系管理员开通账号；登录成功后会记住登录态，下次可自动进入。</text>
+        <text class="login-tip text-sm text-gray">请先自主阅读以下协议，再在弹窗中手动选择是否同意。</text>
         <view class="agreement-row">
           <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策》</text>
           <text class="agreement-divider">/</text>
@@ -105,7 +105,7 @@
       </view>
       <view class="modal-body">
         <view class="text-sm text-gray">
-          我们将收集手机号用于账号登录绑定、工资发放通知与账号找回，不会向第三方共享。你可在设置中查看协议并申请查询、更正、删除或撤回同意。
+          请先阅读《隐私政策》和《用户服务协议》。你可以选择同意或暂不同意；未同意前，我们不会进行登录，也不会收集手机号用于账号绑定。
         </view>
         <view class="consent-link-row mt-20">
           <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策》</text>
@@ -115,12 +115,12 @@
           <checkbox-group bindchange="onConsentCheck">
             <checkbox value="agree" checked="{{consentChecked}}" color="#1890FF" />
           </checkbox-group>
-          <text class="text-sm">我已阅读并同意以上协议（版本 {{consentVersion || '最新'}}）</text>
+          <text class="text-sm">我已自主阅读并同意《隐私政策》和《用户服务协议》（版本 {{consentVersion || '最新'}}）</text>
         </label>
       </view>
       <view class="modal-footer">
         <button class="btn-default modal-btn" bindtap="onContinueWithoutConsent">暂不同意</button>
-        <button class="btn-primary modal-btn" bindtap="onConfirmConsent">同意并继续</button>
+        <button class="btn-primary modal-btn" bindtap="onConfirmConsent" disabled="{{!consentChecked}}">同意并继续</button>
       </view>
     </view>
   </view>

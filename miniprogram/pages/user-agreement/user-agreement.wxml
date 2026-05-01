@@ -1,7 +1,7 @@
 <view class="container">
   <view class="card">
     <view class="section-title">用户服务协议</view>
-    <view class="text-sm text-gray">版本：2026-03-05-v1，生效日期：{{updatedAt}}</view>
+    <view class="text-sm text-gray">版本：2026-05-01-v2，生效日期：{{updatedAt}}</view>
   </view>
 
   <view class="card">
@@ -10,6 +10,9 @@
 
     <view class="policy-title">2. 账号使用规范</view>
     <view class="policy-text">账号仅限本人使用，不得转借。你需妥善保管手机号与密码信息，若发现异常登录请及时联系管理员处理。</view>
+
+    <view class="policy-title">2.1 协议确认</view>
+    <view class="policy-text">我们不会通过“登录即同意”等方式默认取得你的同意。你需要先自主阅读协议内容，再手动勾选同意后，才能继续使用登录及相关服务。</view>
 
     <view class="policy-title">3. 用户义务</view>
     <view class="policy-text">你应保证提交的信息真实有效，不得利用系统进行任何违法违规行为。</view>

@@ -277,6 +277,148 @@ page {
   color: #64798e;
 }
 
+.billing-line {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  width: 100%;
+  margin-top: 14rpx;
+}
+
+.billing-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 8rpx 16rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  line-height: 1.35;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.billing-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 28rpx;
+  line-height: 1.45;
+  color: #64798e;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.billing-active {
+  color: #1f7a3f;
+  background: #edf8f0;
+}
+
+.billing-trial {
+  color: #1d5f96;
+  background: #eef7ff;
+}
+
+.billing-grace {
+  color: #9a5b00;
+  background: #fff7df;
+}
+
+.billing-expired {
+  color: #b42318;
+  background: #fff1f1;
+}
+
+.billing-muted {
+  color: #53677d;
+  background: #eef3f7;
+}
+
+.billing-status-box {
+  width: 100%;
+  margin-bottom: 24rpx;
+  padding: 24rpx;
+  border: 2rpx solid #dbe8f3;
+  border-radius: 16rpx;
+  background: #f7fbff;
+}
+
+.billing-status-title,
+.billing-status-text,
+.history-title,
+.history-main,
+.history-sub {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.billing-status-title {
+  font-size: 36rpx;
+  line-height: 1.4;
+  font-weight: bold;
+  color: #203650;
+}
+
+.billing-status-text {
+  margin-top: 8rpx;
+  font-size: 30rpx;
+  line-height: 1.5;
+  color: #536b84;
+}
+
+.picker-field {
+  width: 100%;
+  min-height: 96rpx;
+  padding: 22rpx 24rpx;
+  border: 2rpx solid #d6e2ee;
+  border-radius: 14rpx;
+  background: #fbfdff;
+  color: #203650;
+  font-size: 34rpx;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.billing-history {
+  width: 100%;
+  margin-top: 28rpx;
+  padding-top: 4rpx;
+}
+
+.history-title {
+  font-size: 32rpx;
+  line-height: 1.45;
+  font-weight: bold;
+  color: #203650;
+}
+
+.history-row {
+  width: 100%;
+  margin-top: 16rpx;
+  padding: 20rpx;
+  border: 2rpx solid #dfe8f2;
+  border-radius: 14rpx;
+  background: #fbfdff;
+}
+
+.history-main {
+  font-size: 30rpx;
+  line-height: 1.45;
+  font-weight: bold;
+  color: #203650;
+}
+
+.history-sub {
+  margin-top: 6rpx;
+  font-size: 26rpx;
+  line-height: 1.45;
+  color: #6f8498;
+}
+
 .selected-mark {
   margin-top: 18rpx;
   padding: 14rpx 18rpx;

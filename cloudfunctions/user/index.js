@@ -50,6 +50,98 @@ function isSameOrg(caller, doc) {
   return !!(caller && doc && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
+function toTimestamp(input) {
+  if (!input) return 0
+  if (input instanceof Date) return input.getTime()
+  if (typeof input === 'number') return input
+  if (typeof input === 'string') {
+    const t = new Date(input).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.$date) {
+    const t = new Date(input.$date).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.seconds) {
+    return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
+  }
+  return 0
+}
+
+function getDefaultPlanLimit(planId) {
+  if (planId === 'trial') return 10
+  return 0
+}
+
+async function getEmployeeLimit(org) {
+  if (!org || org.billing_status === 'not_enabled' || org.billing_status === 'permanent') return 0
+
+  try {
+    if (org.plan_id) {
+      const planRes = await db.collection('Plans').where({
+        plan_id: org.plan_id,
+        status: 'active'
+      }).limit(1).get()
+      const plan = planRes.data && planRes.data[0]
+      if (plan) return Number(plan.employee_limit || 0)
+    }
+  } catch (err) {}
+
+  return getDefaultPlanLimit(org.plan_id)
+}
+
+async function ensureWritableEntitlement(caller) {
+  const orgId = getOrgId(caller)
+  if (!orgId || caller.platform_role === 'platform_admin') return { ok: true }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    if (!org || org.status !== 'active') return { ok: false, msg: '工厂已停用，请联系平台管理员' }
+    const billingStatus = org.billing_status || 'not_enabled'
+    if (billingStatus === 'not_enabled') return { ok: true }
+    if (billingStatus === 'disabled' || billingStatus === 'expired') {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+
+    const now = Date.now()
+    const endTs = toTimestamp(org.current_period_end || org.trial_end)
+    const graceTs = toTimestamp(org.grace_until)
+    if (endTs && now > endTs && (!graceTs || now > graceTs)) {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, msg: '服务状态校验失败，请稍后重试' }
+  }
+}
+
+async function ensureEmployeeLimit(caller, role) {
+  if (!['employee', 'qc'].includes(role)) return { ok: true }
+
+  const orgId = getOrgId(caller)
+  if (!orgId) return { ok: true }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    const limit = await getEmployeeLimit(org)
+    if (!limit) return { ok: true }
+
+    const countRes = await db.collection('Users').where({
+      org_id: orgId,
+      status: 'active',
+      role: _.in(['employee', 'qc'])
+    }).count()
+    if ((countRes.total || 0) >= limit) {
+      return { ok: false, msg: `当前套餐最多支持${limit}名员工，请升级标准版后再添加` }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, msg: '员工数量校验失败，请稍后重试' }
+  }
+}
+
 exports.main = async (event, context) => {
   const { action } = event
 
@@ -57,6 +149,11 @@ exports.main = async (event, context) => {
     const boss = await getBossUserByEvent(event)
     if (!boss) return { code: -1, msg: '权限不足，仅管理员可操作' }
     event._boss = boss
+  }
+
+  if (action === 'create') {
+    const entitlement = await ensureWritableEntitlement(event._boss)
+    if (!entitlement.ok) return { code: -1, msg: entitlement.msg }
   }
 
   switch (action) {
@@ -80,6 +177,9 @@ async function createUser(event) {
 
   const existing = await db.collection('Users').where({ org_id: getOrgId(boss), name, phone }).count()
   if (existing.total > 0) return { code: -1, msg: '该手机号已注册' }
+
+  const limitResult = await ensureEmployeeLimit(boss, role)
+  if (!limitResult.ok) return { code: -1, msg: limitResult.msg }
 
   const salt = generateSalt()
   const pwd = password || phone

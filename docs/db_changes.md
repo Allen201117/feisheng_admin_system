@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-04-30 订阅收费一期
+
+### Organizations 集合
+
+新增订阅快照字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `billing_status` | String | `not_enabled/trial/active/permanent/grace/expired/disabled` |
+| `plan_id` | String | 当前套餐 ID |
+| `subscription_id` | String | 当前订阅记录 ID |
+| `trial_end` | Date/String | 试用结束时间 |
+| `current_period_start` | Date | 当前服务周期开始时间 |
+| `current_period_end` | Date | 当前服务周期结束时间 |
+| `grace_until` | Date | 宽限期结束时间 |
+| `billing_owner_user_id` | String | 付费联系人用户 ID，可为空 |
+| `billing_updated_at` | ServerDate | 订阅快照更新时间 |
+
+### 新增集合
+
+| 集合 | 说明 |
+|------|------|
+| `Plans` | 套餐配置，包含价格、周期、员工上限、功能权益 |
+| `Subscriptions` | 工厂订阅周期记录 |
+| `BillingOrders` | 人工收款/未来线上支付订单记录 |
+| `UsageMonthly` | 月度用量统计预留 |
+
+### 迁移
+
+- 新增 `init.migrate_billing_v1`。
+- 迁移会创建默认套餐，为已有工厂补充订阅状态。
+- `org_home` / 工厂码 `A001` 默认迁移为 `standard_year` 永久免费；其他已有工厂默认迁移为 7 天试用期。
+- 默认套餐只保留试用版与标准版；试用版 `trial_days=7`、`employee_limit=10`，标准版 `features=['all']`。
+- `billing_status` 缺失或为 `not_enabled` 时，写操作暂不拦截，避免未迁移工厂被误停。
+
+---
+
 ## 一、Users 集合
 
 | 字段 | 类型 | 说明 |

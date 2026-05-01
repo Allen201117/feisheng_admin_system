@@ -8,9 +8,10 @@ const { migrateLocationData } = require('./migrate-location')
 const { migrateTimezoneData } = require('./migrate-timezone')
 
 const DEFAULT_HOME_ORG_ID = 'org_home'
-const DEFAULT_HOME_FACTORY_CODE = 'HOME001'
+const DEFAULT_HOME_FACTORY_CODE = 'A001'
 const DEFAULT_PLATFORM_ORG_ID = 'org_platform'
 const DEFAULT_PLATFORM_FACTORY_CODE = 'PLATFORM'
+const DEPRECATED_BILLING_PLAN_IDS = ['basic_year', 'pro_year']
 
 // 需要创建的集合列表
 const COLLECTIONS = [
@@ -28,12 +29,28 @@ const COLLECTIONS = [
   'factory_settings',
   'audit_logs',
   'PlatformOperationLogs',
+  'Plans',
+  'Subscriptions',
+  'BillingOrders',
+  'UsageMonthly',
   'qr_codes',
   'export_history',
   'UsageDaily',
   'privacy_consents',
   'sign_location_logs'
 ]
+
+function isCollectionAlreadyExistsError(err) {
+  const text = String((err && (err.message || err.errMsg)) || '')
+  return !!(err && (
+    err.errCode === -502005 ||
+    err.errCode === -501001 ||
+    text.includes('already exists') ||
+    text.includes('Table exist') ||
+    text.includes('ResourceExist') ||
+    text.includes('DATABASE_COLLECTION_ALREADY_EXIST')
+  ))
+}
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
@@ -59,6 +76,9 @@ exports.main = async (event, context) => {
   if (event.action === 'migrate_missing_org_batch') {
     return await migrateMissingOrgBatch(event)
   }
+  if (event.action === 'migrate_billing_v1') {
+    return await migrateBillingV1(event)
+  }
   if (event.action === 'migrate_location') {
     return await migrateLocationData()
   }
@@ -74,7 +94,7 @@ exports.main = async (event, context) => {
       await db.createCollection(name)
       results.push({ collection: name, status: '创建成功' })
     } catch (err) {
-      if (err.errCode === -502005 || err.message.includes('already exists')) {
+      if (isCollectionAlreadyExistsError(err)) {
         results.push({ collection: name, status: '已存在' })
       } else {
         results.push({ collection: name, status: '失败: ' + err.message })
@@ -82,7 +102,7 @@ exports.main = async (event, context) => {
     }
   }
 
-  // 2. 创建默认工厂，历史单厂数据归属 HOME001
+  // 2. 创建默认工厂，历史单厂数据归属 A001
   try {
     const org = await ensureHomeOrganization()
     results.push({ item: '默认工厂', status: `已就绪（${org.factory_code} / ${org.org_name}）` })
@@ -220,7 +240,15 @@ exports.main = async (event, context) => {
     results.push({ item: '多工厂迁移', status: '失败: ' + err.message })
   }
 
-  // 6. 记录初始化日志
+  // 6. 初始化订阅套餐与已有工厂订阅状态
+  try {
+    const billingResult = await migrateBillingV1({ batch_size: 20 })
+    results.push({ item: '订阅迁移', status: billingResult.msg, details: billingResult.data })
+  } catch (err) {
+    results.push({ item: '订阅迁移', status: '失败: ' + err.message })
+  }
+
+  // 7. 记录初始化日志
   try {
     await db.collection('audit_logs').add({
       data: {
@@ -636,6 +664,249 @@ async function migrateMultiTenant() {
   } catch (e) {}
 
   return { code: 0, msg: '多工厂基础迁移完成', data: results }
+}
+
+const DEFAULT_BILLING_PLANS = [
+  {
+    plan_id: 'trial',
+    plan_name: '试用版',
+    status: 'active',
+    price_cents: 0,
+    billing_period: 'trial',
+    period_months: 0,
+    trial_days: 7,
+    employee_limit: 10,
+    order_limit_per_month: 30,
+    features: ['orders', 'worklogs', 'attendance']
+  },
+  {
+    plan_id: 'standard_year',
+    plan_name: '标准版年付',
+    status: 'active',
+    price_cents: 199900,
+    billing_period: 'year',
+    period_months: 12,
+    employee_limit: 0,
+    order_limit_per_month: 0,
+    features: ['all']
+  }
+]
+
+async function ensureBillingCollections() {
+  for (const name of ['Plans', 'Subscriptions', 'BillingOrders', 'UsageMonthly']) {
+    try {
+      await db.createCollection(name)
+    } catch (err) {
+      if (isCollectionAlreadyExistsError(err)) continue
+      throw err
+    }
+  }
+}
+
+async function seedBillingPlans() {
+  const results = []
+  for (const plan of DEFAULT_BILLING_PLANS) {
+    try {
+      const existing = await db.collection('Plans').where({ plan_id: plan.plan_id }).limit(1).get()
+      const payload = Object.assign({}, plan, { updated_at: db.serverDate() })
+      if (existing.data && existing.data.length) {
+        await db.collection('Plans').doc(existing.data[0]._id).update({ data: payload })
+        results.push({ plan_id: plan.plan_id, status: '已更新' })
+      } else {
+        await db.collection('Plans').add({
+          data: Object.assign({}, payload, { created_at: db.serverDate() })
+        })
+        results.push({ plan_id: plan.plan_id, status: '已创建' })
+      }
+    } catch (err) {
+      results.push({ plan_id: plan.plan_id, status: '失败: ' + err.message })
+    }
+  }
+  for (const planId of DEPRECATED_BILLING_PLAN_IDS) {
+    try {
+      const existing = await db.collection('Plans').where({ plan_id: planId }).limit(1).get()
+      if (existing.data && existing.data.length) {
+        await db.collection('Plans').doc(existing.data[0]._id).update({
+          data: { status: 'disabled', updated_at: db.serverDate() }
+        })
+        results.push({ plan_id: planId, status: '已停用' })
+      }
+    } catch (err) {}
+  }
+  return results
+}
+
+function addDays(date, days) {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
+}
+
+function addMonths(date, months) {
+  const d = new Date(date.getTime())
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d
+}
+
+async function fetchBillingMigratableOrganizations(batchSize) {
+  const queries = [
+    { billing_status: _.exists(false) },
+    { billing_status: '' },
+    { billing_status: null },
+    { billing_status: 'not_enabled' }
+  ]
+
+  for (const where of queries) {
+    const res = await db.collection('Organizations').where(where).limit(batchSize).get()
+    const list = (res.data || []).filter(org => org && org._id !== DEFAULT_PLATFORM_ORG_ID)
+    if (list.length > 0) return list
+  }
+
+  return []
+}
+
+async function countBillingMigratableOrganizations() {
+  let total = 0
+  const queries = [
+    { billing_status: _.exists(false) },
+    { billing_status: '' },
+    { billing_status: null },
+    { billing_status: 'not_enabled' }
+  ]
+
+  for (const where of queries) {
+    const res = await db.collection('Organizations').where(where).count()
+    total += res.total || 0
+  }
+
+  return total
+}
+
+function getBillingPlan(planId) {
+  return DEFAULT_BILLING_PLANS.find(plan => plan.plan_id === planId) || DEFAULT_BILLING_PLANS.find(plan => plan.plan_id === 'standard_year')
+}
+
+async function migrateOneOrganizationBilling(org, event) {
+  const now = new Date()
+  const graceDays = Math.max(0, Math.min(parseInt(event.grace_days || 7, 10) || 7, 90))
+  const isHome = org._id === DEFAULT_HOME_ORG_ID || org.factory_code === DEFAULT_HOME_FACTORY_CODE
+  const planId = isHome ? 'standard_year' : 'trial'
+  const plan = getBillingPlan(planId)
+  const trialDays = Math.max(1, Math.min(parseInt(event.trial_days || plan.trial_days || 7, 10) || 7, 30))
+  const endAt = isHome ? '' : addDays(now, trialDays)
+  const graceUntil = isHome ? '' : addDays(endAt, graceDays)
+  const subscriptionId = isHome ? `sub_${org._id}_permanent` : `sub_${org._id}_billing_v1`
+
+  await db.collection('Subscriptions').doc(subscriptionId).set({
+    data: {
+      org_id: org._id,
+      plan_id: plan.plan_id,
+      plan_name: plan.plan_name,
+      status: isHome ? 'permanent' : 'trial',
+      start_at: now,
+      end_at: endAt,
+      grace_until: isHome ? '' : graceUntil,
+      source: isHome ? 'owner_factory_grant' : 'trial_migration',
+      opened_by: 'system',
+      opened_by_name: '系统',
+      remark: isHome ? '飞盛自家工厂 A001 永久免费' : '已有工厂默认7天试用期',
+      created_at: db.serverDate(),
+      updated_at: db.serverDate()
+    }
+  })
+
+  const updateData = {
+    billing_status: isHome ? 'permanent' : 'trial',
+    plan_id: plan.plan_id,
+    subscription_id: subscriptionId,
+    current_period_start: now,
+    current_period_end: endAt,
+    grace_until: isHome ? '' : graceUntil,
+    billing_owner_user_id: '',
+    billing_updated_at: db.serverDate(),
+    updated_at: db.serverDate()
+  }
+  if (!isHome) updateData.trial_end = endAt
+  if (isHome) updateData.trial_end = ''
+
+  await db.collection('Organizations').doc(org._id).update({ data: updateData })
+
+  return {
+    org_id: org._id,
+    org_name: org.org_name || '',
+    factory_code: org.factory_code || '',
+    plan_id: plan.plan_id,
+    billing_status: updateData.billing_status,
+    subscription_id: subscriptionId
+  }
+}
+
+async function ensurePermanentHomeBilling(event) {
+  try {
+    const homeRes = await db.collection('Organizations').doc(DEFAULT_HOME_ORG_ID).get()
+    if (homeRes.data && homeRes.data.status === 'active') {
+      if (homeRes.data.factory_code === DEFAULT_HOME_FACTORY_CODE || homeRes.data.org_name === '飞盛') {
+        return await migrateOneOrganizationBilling(homeRes.data, event || {})
+      }
+    }
+  } catch (err) {}
+
+  try {
+    const codeRes = await db.collection('Organizations')
+      .where({ factory_code: DEFAULT_HOME_FACTORY_CODE, status: 'active' })
+      .limit(1)
+      .get()
+    if (codeRes.data && codeRes.data.length) {
+      return await migrateOneOrganizationBilling(codeRes.data[0], event || {})
+    }
+  } catch (err) {}
+
+  return null
+}
+
+async function migrateBillingV1(event) {
+  const batchSize = Math.max(1, Math.min(parseInt(event.batch_size || 20, 10) || 20, 30))
+  await ensureBillingCollections()
+  const planResults = await seedBillingPlans()
+  const permanentHome = await ensurePermanentHomeBilling(event || {})
+
+  try {
+    await db.collection('Organizations').doc(DEFAULT_PLATFORM_ORG_ID).update({
+      data: {
+        billing_status: 'disabled',
+        plan_id: '',
+        subscription_id: '',
+        billing_updated_at: db.serverDate(),
+        updated_at: db.serverDate()
+      }
+    })
+  } catch (err) {}
+
+  const organizations = await fetchBillingMigratableOrganizations(batchSize)
+  const migrated = []
+  for (const org of organizations) {
+    try {
+      migrated.push(await migrateOneOrganizationBilling(org, event || {}))
+    } catch (err) {
+      migrated.push({
+        org_id: org._id,
+        org_name: org.org_name || '',
+        status: '失败: ' + err.message
+      })
+    }
+  }
+
+  const remaining = await countBillingMigratableOrganizations()
+
+  return {
+    code: 0,
+    msg: `订阅迁移完成，本批处理 ${migrated.length} 家，剩余约 ${remaining} 家`,
+    data: {
+      plans: planResults,
+      permanent_home: permanentHome,
+      organizations: migrated,
+      remaining,
+      has_more: remaining > 0
+    }
+  }
 }
 
 // V2 迁移：为所有已有用户添加密码管理字段、更新设置字段

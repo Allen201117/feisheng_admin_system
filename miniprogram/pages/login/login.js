@@ -13,6 +13,28 @@ var getStoredUser = auth.getStoredUser
 var privacy = require('../../utils/privacy')
 var markConsentAccepted = privacy.markConsentAccepted
 var app = getApp()
+var LAST_LOGIN_INFO_KEY = 'factory_last_login_info'
+
+function getLastLoginInfo() {
+  try {
+    var raw = wx.getStorageSync(LAST_LOGIN_INFO_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    return null
+  }
+}
+
+function storeLastLoginInfo(info) {
+  try {
+    wx.setStorageSync(LAST_LOGIN_INFO_KEY, JSON.stringify({
+      factoryCode: info.factoryCode || '',
+      name: info.name || '',
+      phone: info.phone || ''
+    }))
+  } catch (e) {
+    // ignore
+  }
+}
 
 Page({
   data: {
@@ -36,13 +58,21 @@ Page({
     hasCurrentConsent: false,
     needConsentDialog: false,
     existingUser: null,
+    hasRememberedLoginInfo: false,
     // 临时存储登录返回的用户信息
     _pendingUser: null
   },
 
   onLoad: function(options) {
     var existingUser = getStoredUser()
-    this.setData({ existingUser: existingUser || null })
+    var lastLoginInfo = getLastLoginInfo()
+    this.setData({
+      existingUser: existingUser || null,
+      factoryCode: lastLoginInfo && lastLoginInfo.factoryCode ? lastLoginInfo.factoryCode : '',
+      name: lastLoginInfo && lastLoginInfo.name ? lastLoginInfo.name : '',
+      phone: lastLoginInfo && lastLoginInfo.phone ? lastLoginInfo.phone : '',
+      hasRememberedLoginInfo: !!(lastLoginInfo && (lastLoginInfo.factoryCode || lastLoginInfo.name || lastLoginInfo.phone))
+    })
     this.loadConsentStatus()
 
     var qrId = ''
@@ -217,6 +247,7 @@ Page({
       password: password
     }).then(function(res) {
       hideLoading()
+      storeLastLoginInfo({ factoryCode: factoryCode, name: name, phone: phone })
       if (res.data) {
         // 检查是否需要强制改密
         if (res.data.need_change_password) {
@@ -238,6 +269,11 @@ Page({
   },
 
   _finishLogin: function(userData) {
+    storeLastLoginInfo({
+      factoryCode: userData.factory_code || this.data.factoryCode,
+      name: userData.name || this.data.name,
+      phone: userData.phone || this.data.phone
+    })
     storeUser(userData)
     markConsentAccepted()
     app.globalData.userInfo = userData

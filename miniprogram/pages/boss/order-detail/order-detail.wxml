@@ -113,7 +113,7 @@
       <text class="empty-text">{{processFilter === 'all' ? '暂无工序，请添加' : (processFilter === 'unassigned' ? '没有未分配的工序 👍' : '没有已分配的工序')}}</text>
     </view>
 
-    <view wx:for="{{filteredProcesses}}" wx:key="_id" class="process-card {{item.assigned_user_ids.length === 0 ? 'process-card-unassigned' : ''}}">
+    <view wx:for="{{displayedProcesses}}" wx:key="_id" class="process-card {{item.assigned_user_ids.length === 0 ? 'process-card-unassigned' : ''}}">
       <view class="process-header">
         <view class="process-title-area">
           <text class="process-name">{{item.process_name}}</text>
@@ -136,15 +136,19 @@
         </view>
         <view wx:else class="unassigned-row">
           <text class="assign-count-badge badge-warn">未分配</text>
-          <button class="btn-go-assign" bindtap="showAssignPanel" wx:if="{{order.status === 'active'}}">去分配 →</button>
+          <button class="btn-go-assign" bindtap="showAssignPanel" data-id="{{item._id}}" data-process-id="{{item._id}}" wx:if="{{order.status === 'active'}}">去分配 →</button>
         </view>
       </view>
 
       <view class="process-actions" wx:if="{{order.status === 'active'}}">
-        <button class="btn-sm btn-assign" bindtap="showAssignPanel">批量分配</button>
+        <button class="btn-sm btn-assign" bindtap="showAssignPanel" data-id="{{item._id}}" data-process-id="{{item._id}}">批量分配</button>
         <button class="btn-sm btn-edit" bindtap="onEditProcess" data-process="{{item}}">编辑工序</button>
         <button class="btn-sm btn-del" bindtap="onDeleteProcess" data-process="{{item}}">删除</button>
       </view>
+    </view>
+
+    <view wx:if="{{hasMoreProcesses}}" class="load-more-row" bindtap="loadMoreProcesses">
+      <text>已显示 {{displayedProcesses.length}} / {{filteredProcesses.length}} 道工序，点击加载更多</text>
     </view>
   </view>
 </view>
@@ -161,11 +165,13 @@
   <!-- 上方：工序卡片横向滚动 -->
   <view class="assign-process-area">
     <text class="assign-section-label">选择工序（点击切换）</text>
-    <scroll-view scroll-x class="assign-process-scroll">
+    <scroll-view scroll-x class="assign-process-scroll" scroll-into-view="{{activeAssignProcessIntoView}}">
       <view class="assign-process-chips">
-        <view wx:for="{{processes}}" wx:key="_id"
+        <view wx:for="{{displayedAssignProcesses}}" wx:key="_id" wx:for-index="pindex"
+              id="assignProcess{{pindex}}"
               class="assign-process-chip {{activeAssignProcessId === item._id ? 'assign-process-chip-active' : ''}}"
-              bindtap="onSelectAssignProcess" data-id="{{item._id}}">
+              bindtap="onSelectAssignProcess" data-id="{{item._id}}" data-process-id="{{item._id}}" data-index="{{pindex}}">
+          <text wx:if="{{activeAssignProcessId === item._id}}" class="apc-selected-mark">当前</text>
           <text class="apc-name">{{item.process_name}}</text>
           <text class="apc-count">{{item._assignedCount}} 人</text>
           <view class="apc-tags" wx:if="{{item._assignedCount > 0}}">
@@ -173,13 +179,20 @@
             <text wx:if="{{item._assignedCount > 5}}" class="apc-tag apc-tag-more">+{{item._assignedCount - 5}}</text>
           </view>
         </view>
+        <view wx:if="{{hasMoreAssignProcesses}}" class="assign-process-chip assign-process-chip-more" bindtap="loadMoreAssignProcesses">
+          <text class="apc-name">加载更多</text>
+          <text class="apc-count">{{displayedAssignProcesses.length}}/{{processes.length}} 道</text>
+        </view>
       </view>
     </scroll-view>
   </view>
 
   <!-- 当前工序已选预览 -->
   <view class="assign-current-header" wx:if="{{activeAssignProcessId}}">
-    <text class="assign-current-label">已选 {{assignMap[activeAssignProcessId].length}} 人</text>
+    <view class="assign-current-copy">
+      <text class="assign-current-process">当前工序：{{activeAssignProcessName}}</text>
+      <text class="assign-current-label">已选 {{assignMap[activeAssignProcessId].length}} 人</text>
+    </view>
     <text class="assign-clear-btn" bindtap="clearAssignment">清空</text>
   </view>
 

@@ -65,6 +65,32 @@ function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
+async function ensureWritableEntitlement(caller) {
+  const orgId = getOrgId(caller)
+  if (!orgId || caller.platform_role === 'platform_admin') return { ok: true }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    if (!org || org.status !== 'active') return { ok: false, msg: '工厂已停用，请联系平台管理员' }
+    const billingStatus = org.billing_status || 'not_enabled'
+    if (billingStatus === 'not_enabled') return { ok: true }
+    if (billingStatus === 'disabled' || billingStatus === 'expired') {
+      return { ok: false, msg: '工厂服务已到期，请联系老板处理' }
+    }
+
+    const now = Date.now()
+    const endTs = toTimestamp(org.current_period_end || org.trial_end)
+    const graceTs = toTimestamp(org.grace_until)
+    if (endTs && now > endTs && (!graceTs || now > graceTs)) {
+      return { ok: false, msg: '工厂服务已到期，请联系老板处理' }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, msg: '服务状态校验失败，请稍后重试' }
+  }
+}
+
 // 检查某用户某月是否已发薪锁定
 async function isPeriodLocked(userId, dateStr, orgId) {
   const month = dateStr.substring(0, 7) // YYYY-MM
@@ -253,7 +279,8 @@ async function submitWorkLogWithQuotaGuard(payload) {
     quantity,
     snapshot_price,
     date,
-    org_id
+    org_id,
+    note
   } = payload
 
   let retry = 0
@@ -318,6 +345,7 @@ async function submitWorkLogWithQuotaGuard(payload) {
           inspected_by: null,
           inspected_at: null,
           date,
+          note: note || '',
           period_key: date ? date.substring(0, 7) : '',
           created_at: db.serverDate()
         }
@@ -483,7 +511,7 @@ async function getManageLogs(event, wxContext) {
     return { code: -1, msg: '权限不足' }
   }
 
-  const { view_type, date, month, order_id } = event
+  const { view_type, date, month, order_id, process_id } = event
   const where = { org_id: getOrgId(caller) }
 
   if (view_type === 'day') {
@@ -498,10 +526,27 @@ async function getManageLogs(event, wxContext) {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权查看该订单报工' }
     where.order_id = order_id
+    if (process_id) {
+      const processRes = await db.collection('Processes').doc(process_id).get()
+      if (!ensureSameOrg(processRes.data, caller) || processRes.data.order_id !== order_id) {
+        return { code: -1, msg: '无权查看该工序报工' }
+      }
+      where.process_id = process_id
+    }
     if (month) {
       const range = getMonthRange(month)
       where.date = _.gte(range.start).and(_.lt(range.end))
     }
+  } else if (view_type === 'process') {
+    if (!order_id || !process_id) return { code: -1, msg: '请选择订单和工序' }
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权查看该订单报工' }
+    const processRes = await db.collection('Processes').doc(process_id).get()
+    if (!ensureSameOrg(processRes.data, caller) || processRes.data.order_id !== order_id) {
+      return { code: -1, msg: '无权查看该工序报工' }
+    }
+    where.order_id = order_id
+    where.process_id = process_id
   } else {
     const defaultMonth = bjTime.getBeijingMonth()
     const range = getMonthRange(defaultMonth)
@@ -602,7 +647,11 @@ async function submitWorkLog(event, wxContext) {
     return { code: -1, msg: '登录状态失效，请重新登录后再试' }
   }
 
-  const { user_id, user_name, process_id, order_id, quantity } = event
+  const entitlement = await ensureWritableEntitlement(caller)
+  if (!entitlement.ok) return { code: -1, msg: entitlement.msg }
+
+  const { user_id, process_id, order_id, quantity, note } = event
+  let { user_name } = event
   if (!user_id || !process_id || !quantity || quantity <= 0) {
     return { code: -1, msg: '参数不完整' }
   }
@@ -616,6 +665,7 @@ async function submitWorkLog(event, wxContext) {
     if (!ensureSameOrg(targetUserRes.data, caller)) {
       return { code: -1, msg: '无权为其他工厂员工提交报工' }
     }
+    user_name = targetUserRes.data.name || user_name || ''
   }
 
   try {
@@ -659,6 +709,7 @@ async function submitWorkLog(event, wxContext) {
       quantity: toInt(quantity),
       snapshot_price: snapshotPrice,
       date: dateStr,
+      note: note || '',
       org_id: getOrgId(caller)
     })
   } catch (err) {

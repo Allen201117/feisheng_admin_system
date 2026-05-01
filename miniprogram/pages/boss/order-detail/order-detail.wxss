@@ -332,6 +332,26 @@
 .btn-edit { background: #FFF7E6; color: #FA8C16; }
 .btn-del { background: #FFF1F0; color: #FF4D4F; }
 
+.load-more-row {
+  min-height: 88rpx;
+  margin-top: 8rpx;
+  border-radius: 16rpx;
+  border: 2rpx solid #d8e4f3;
+  background: #f7faff;
+  color: #175bb0;
+  font-size: 30rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 24rpx;
+}
+
+.load-more-row:active {
+  background: #e8f4ff;
+}
+
 /* ===== 分配全屏面板 ===== */
 .assign-panel {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -371,6 +391,7 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
   min-width: 180rpx;
   max-width: 240rpx;
   padding: 16rpx 20rpx;
@@ -380,9 +401,26 @@
   white-space: normal;
 }
 .assign-process-chip-active {
-  border-color: #1890ff;
-  background: #e8f4ff;
-  box-shadow: 0 4rpx 16rpx rgba(24, 144, 255, 0.18);
+  border-color: #0b62b4;
+  background: #dff0ff;
+  box-shadow: 0 6rpx 20rpx rgba(24, 144, 255, 0.24);
+}
+.assign-process-chip-more {
+  justify-content: center;
+  border-style: dashed;
+  background: #f7faff;
+}
+.apc-selected-mark {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  padding: 2rpx 10rpx;
+  border-radius: 999rpx;
+  background: #0b62b4;
+  color: #fff;
+  font-size: 20rpx;
+  line-height: 1.35;
+  font-weight: 700;
 }
 .apc-name {
   font-size: 30rpx;
@@ -423,25 +461,46 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16rpx;
   padding: 16rpx 30rpx;
   background: #fff;
   border-bottom: 1rpx solid #e8e8e8;
 }
+.assign-current-copy {
+  flex: 1;
+  min-width: 0;
+}
+.assign-current-process {
+  display: block;
+  max-width: 100%;
+  font-size: 30rpx;
+  line-height: 1.45;
+  color: #1f3554;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .assign-current-label {
+  display: block;
+  margin-top: 2rpx;
   font-size: 30rpx;
   color: #333;
   font-weight: bold;
 }
-.assign-clear-btn { font-size: 28rpx; color: #FF4D4F; padding: 8rpx 16rpx; }
+.assign-clear-btn { flex-shrink: 0; font-size: 28rpx; color: #FF4D4F; padding: 8rpx 16rpx; }
 
 /* 员工双栏卡片网格 */
 .assign-list-scroll { flex: 1; overflow-y: auto; }
 .assign-card-grid {
-  display: flex; flex-wrap: wrap; padding: 20rpx 24rpx; gap: 20rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 18rpx 20rpx;
+  gap: 16rpx;
 }
 .assign-emp-card {
-  width: calc(50% - 10rpx); background: #fff; border-radius: 20rpx;
-  padding: 28rpx 20rpx; display: flex; flex-direction: column;
+  width: 100%; background: #fff; border-radius: 18rpx;
+  padding: 24rpx 12rpx; display: flex; flex-direction: column;
   align-items: center; position: relative;
   border: 3rpx solid #E8E8E8;
   box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.04);
