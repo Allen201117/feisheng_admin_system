@@ -52,6 +52,32 @@ function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
 }
 
+async function ensureWritableEntitlement(caller) {
+  const orgId = getOrgId(caller)
+  if (!orgId || caller.platform_role === 'platform_admin') return { ok: true }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    if (!org || org.status !== 'active') return { ok: false, msg: '工厂已停用，请联系平台管理员' }
+    const billingStatus = org.billing_status || 'not_enabled'
+    if (billingStatus === 'not_enabled') return { ok: true }
+    if (billingStatus === 'disabled' || billingStatus === 'expired') {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+
+    const now = Date.now()
+    const endTs = toTimestamp(org.current_period_end || org.trial_end)
+    const graceTs = toTimestamp(org.grace_until)
+    if (endTs && now > endTs && (!graceTs || now > graceTs)) {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, msg: '服务状态校验失败，请稍后重试' }
+  }
+}
+
 function toTimestamp(input) {
   if (!input) return 0
   if (input instanceof Date) return input.getTime()
@@ -93,10 +119,15 @@ exports.main = async (event, context) => {
   }
 
   // 写操作需要boss权限
-  if (['list', 'getDetail', 'getPriceChangeLogs', 'create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'togglePriceHidden', 'clearOrderPrices'].includes(action)) {
+  if (['list', 'getDetail', 'getPriceChangeLogs', 'create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'batchAssignProcesses', 'togglePriceHidden', 'clearOrderPrices'].includes(action)) {
     if (!caller || caller.role !== 'boss') {
       return { code: -1, msg: '权限不足，仅管理员可操作' }
     }
+  }
+
+  if (['create', 'copyOrder', 'addProcess'].includes(action)) {
+    const entitlement = await ensureWritableEntitlement(caller)
+    if (!entitlement.ok) return { code: -1, msg: entitlement.msg }
   }
 
   switch (action) {
@@ -112,6 +143,7 @@ exports.main = async (event, context) => {
     case 'updateProcess': return await updateProcess(event, caller)
     case 'deleteProcess': return await deleteProcess(event, caller)
     case 'assignProcess': return await assignProcess(event, caller)
+    case 'batchAssignProcesses': return await batchAssignProcesses(event, caller)
     case 'getAssignedProcesses': return await getAssignedProcesses(event, caller)
     case 'togglePriceHidden': return await togglePriceHidden(event, caller)
     case 'clearOrderPrices': return await clearOrderPrices(event, caller)
@@ -714,6 +746,90 @@ async function assignProcess(event, caller) {
     return { code: 0, msg: '分配成功' }
   } catch (err) {
     return { code: -1, msg: '分配失败' }
+  }
+}
+
+async function batchAssignProcesses(event, caller) {
+  const rawChanges = Array.isArray(event.changes) ? event.changes : []
+  if (rawChanges.length === 0) return { code: -1, msg: '没有需要保存的分配变更' }
+  if (rawChanges.length > 250) return { code: -1, msg: '单次最多保存250道工序分配，请分批操作' }
+
+  try {
+    const changeMap = new Map()
+    rawChanges.forEach(change => {
+      if (!change || !change.process_id) return
+      const nextUserIds = Array.isArray(change.user_ids)
+        ? Array.from(new Set(change.user_ids.filter(Boolean).map(id => String(id))))
+        : []
+      changeMap.set(String(change.process_id), {
+        process_id: String(change.process_id),
+        user_ids: nextUserIds
+      })
+    })
+
+    const changes = Array.from(changeMap.values())
+    if (changes.length === 0) return { code: -1, msg: '没有有效的工序分配变更' }
+
+    const orgId = getOrgId(caller)
+    const processIds = changes.map(change => change.process_id)
+    let processes = []
+    for (const chunk of chunkArray(processIds, 50)) {
+      const part = await fetchAllDocs('Processes', {
+        org_id: orgId,
+        _id: _.in(chunk)
+      }, { field: { _id: true, org_id: true } })
+      processes = processes.concat(part)
+    }
+    const foundProcessIds = new Set(processes.map(proc => String(proc._id)))
+    if (processIds.some(id => !foundProcessIds.has(id))) {
+      return { code: -1, msg: '存在不存在或不属于当前工厂的工序' }
+    }
+
+    const userIdSet = new Set()
+    changes.forEach(change => change.user_ids.forEach(id => userIdSet.add(id)))
+    const userIds = Array.from(userIdSet)
+    if (userIds.length > 0) {
+      let users = []
+      for (const chunk of chunkArray(userIds, 50)) {
+        const part = await fetchAllDocs('Users', {
+          org_id: orgId,
+          status: 'active',
+          _id: _.in(chunk)
+        }, { field: { _id: true } })
+        users = users.concat(part)
+      }
+      const validUserIds = new Set(users.map(user => String(user._id)))
+      if (userIds.some(id => !validUserIds.has(id))) {
+        return { code: -1, msg: '不能分配其他工厂员工或停用员工' }
+      }
+    }
+
+    let updated = 0
+    for (const chunk of chunkArray(changes, 10)) {
+      await Promise.all(chunk.map(async change => {
+        await db.collection('Processes').doc(change.process_id).update({
+          data: {
+            assigned_user_ids: change.user_ids,
+            updated_at: db.serverDate()
+          }
+        })
+        updated += 1
+      }))
+    }
+
+    await db.collection('audit_logs').add({
+      data: {
+        org_id: orgId,
+        action: 'process_assign_batch',
+        target_id: processIds[0],
+        details: `批量保存 ${updated} 道工序分配`,
+        created_at: db.serverDate()
+      }
+    })
+
+    return { code: 0, msg: '批量分配成功', data: { updated } }
+  } catch (err) {
+    return { code: -1, msg: '批量分配失败' }
   }
 }
 

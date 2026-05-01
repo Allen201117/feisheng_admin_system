@@ -14,6 +14,8 @@ Page({
       pendingQC: 0,
       monthSalary: '0.00'
     },
+    subscription: null,
+    subscriptionStatusClass: 'subscription-normal',
     // 修改密码
     showChangePwd: false,
     changePwdData: { oldPassword: '', newPassword: '', confirmPassword: '' },
@@ -36,10 +38,26 @@ Page({
 
   onShow() {
     this.loadDashboard()
+    this.loadSubscription()
   },
 
   onPullDownRefresh() {
     this.loadDashboard().finally(() => wx.stopPullDownRefresh())
+  },
+
+  async loadSubscription() {
+    try {
+      const res = await callCloud('billing', { action: 'getMySubscription' })
+      const subscription = res.data ? res.data.subscription : null
+      if (!subscription) return
+      const status = subscription.billing_status || 'not_enabled'
+      this.setData({
+        subscription,
+        subscriptionStatusClass: status === 'expired' ? 'subscription-expired' : status === 'grace' ? 'subscription-grace' : status === 'trial' ? 'subscription-trial' : 'subscription-normal'
+      })
+    } catch (err) {
+      this.setData({ subscription: null })
+    }
   },
 
   async loadDashboard() {
@@ -95,6 +113,10 @@ Page({
 
   goToQC() {
     wx.navigateTo({ url: '/pages/qc/home/home' })
+  },
+
+  goSubscription() {
+    wx.navigateTo({ url: '/pages/boss/subscription/subscription' })
   },
 
   onLogout() {

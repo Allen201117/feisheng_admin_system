@@ -42,6 +42,50 @@ function getOrgId(user) {
   return user && user.org_id ? user.org_id : ''
 }
 
+function toTimestamp(input) {
+  if (!input) return 0
+  if (input instanceof Date) return input.getTime()
+  if (typeof input === 'number') return input
+  if (typeof input === 'string') {
+    const t = new Date(input).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.$date) {
+    const t = new Date(input.$date).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  if (input.seconds) {
+    return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
+  }
+  return 0
+}
+
+async function ensureWritableEntitlement(caller) {
+  const orgId = getOrgId(caller)
+  if (!orgId || caller.platform_role === 'platform_admin') return { ok: true }
+
+  try {
+    const orgRes = await db.collection('Organizations').doc(orgId).get()
+    const org = orgRes.data
+    if (!org || org.status !== 'active') return { ok: false, msg: '工厂已停用，请联系平台管理员' }
+    const billingStatus = org.billing_status || 'not_enabled'
+    if (billingStatus === 'not_enabled') return { ok: true }
+    if (billingStatus === 'disabled' || billingStatus === 'expired') {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+
+    const now = Date.now()
+    const endTs = toTimestamp(org.current_period_end || org.trial_end)
+    const graceTs = toTimestamp(org.grace_until)
+    if (endTs && now > endTs && (!graceTs || now > graceTs)) {
+      return { ok: false, msg: '工厂服务已到期，请联系平台管理员开通' }
+    }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, msg: '服务状态校验失败，请稍后重试' }
+  }
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext()
   const { action } = event
@@ -236,6 +280,9 @@ async function generateQRCode(event, wxContext) {
   if (!caller || caller.role !== 'boss') {
     return { code: -1, msg: '权限不足，仅管理员可生成' }
   }
+
+  const entitlement = await ensureWritableEntitlement(caller)
+  if (!entitlement.ok) return { code: -1, msg: entitlement.msg }
 
   try {
     // 获取过期时间配置（天）

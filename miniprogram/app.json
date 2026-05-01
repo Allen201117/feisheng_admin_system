@@ -9,6 +9,7 @@
     "pages/qc/inspect/inspect",
     "pages/platform/home/home",
     "pages/boss/home/home",
+    "pages/boss/subscription/subscription",
     "pages/boss/employees/employees",
     "pages/boss/employee-edit/employee-edit",
     "pages/boss/orders/orders",

@@ -60,12 +60,19 @@ function getOrderStatusClass(status) {
   return status === 'active' ? 'tag-success' : (status === 'completed' ? 'tag-info' : 'tag-danger')
 }
 
+const PROCESS_PAGE_SIZE = 30
+const ASSIGN_PROCESS_PAGE_SIZE = 40
+
 Page({
   data: {
     orderId: '',
     order: null,
     processes: [],
     filteredProcesses: [],
+    displayedProcesses: [],
+    processPage: 1,
+    processPageSize: PROCESS_PAGE_SIZE,
+    hasMoreProcesses: false,
     allEmployees: [],
     employeeMap: {},  // id → name
     assignedCount: 0,
@@ -86,8 +93,14 @@ Page({
     // 分配面板（双栏模式）
     showAssign: false,
     activeAssignProcessId: '',
+    activeAssignProcessName: '',
+    activeAssignProcessIntoView: '',
     assignMap: {},           // processId -> userId[]
     originalAssignMap: {},   // 原始快照用于 diff
+    assignProcessPage: 1,
+    assignProcessPageSize: ASSIGN_PROCESS_PAGE_SIZE,
+    displayedAssignProcesses: [],
+    hasMoreAssignProcesses: false,
     showEmpProcesses: false,
     empProcessesName: '',
     empProcessesList: [],
@@ -203,7 +216,24 @@ Page({
     } else {
       filtered = processes
     }
-    this.setData({ filteredProcesses: filtered })
+    const displayed = filtered.slice(0, this.data.processPageSize)
+    this.setData({
+      filteredProcesses: filtered,
+      displayedProcesses: displayed,
+      processPage: 1,
+      hasMoreProcesses: filtered.length > displayed.length
+    })
+  },
+
+  loadMoreProcesses() {
+    const nextPage = this.data.processPage + 1
+    const end = nextPage * this.data.processPageSize
+    const displayed = this.data.filteredProcesses.slice(0, end)
+    this.setData({
+      displayedProcesses: displayed,
+      processPage: nextPage,
+      hasMoreProcesses: this.data.filteredProcesses.length > displayed.length
+    })
   },
 
   // ===== 添加工序 =====
@@ -288,8 +318,10 @@ Page({
   },
 
   // ===== 双栏分配面板 =====
-  showAssignPanel() {
+  showAssignPanel(e) {
     const { processes } = this.data
+    const dataset = e && e.currentTarget && e.currentTarget.dataset ? e.currentTarget.dataset : {}
+    const targetProcessId = dataset.processId || dataset.id || ''
     const assignMap = {}
     const processesWithCounts = processes.map(p => {
       const ids = [...(p.assigned_user_ids || [])]
@@ -304,15 +336,22 @@ Page({
     processes.forEach(p => {
       originalAssignMap[p._id] = [...(p.assigned_user_ids || [])]
     })
-    const activeProcessId = processes.length > 0 ? processes[0]._id : ''
+    const targetExists = targetProcessId && processesWithCounts.some(p => p._id === targetProcessId)
+    const activeProcessId = targetExists ? targetProcessId : (processes.length > 0 ? processes[0]._id : '')
+    const activeIndex = Math.max(0, processesWithCounts.findIndex(p => p._id === activeProcessId))
+    const activeProcess = processesWithCounts[activeIndex] || null
+    const assignProcessPage = Math.max(1, Math.ceil((activeIndex + 1) / this.data.assignProcessPageSize))
     this.setData({
       showAssign: true,
       assignMap,
       originalAssignMap,
       processes: processesWithCounts,
       activeAssignProcessId: activeProcessId,
+      activeAssignProcessName: activeProcess ? activeProcess.process_name : '',
+      activeAssignProcessIntoView: `assignProcess${activeIndex}`,
       _currentProcessUserIds: assignMap[activeProcessId] || []
     })
+    this.refreshDisplayedAssignProcesses(assignProcessPage)
   },
 
   hideAssign() {
@@ -322,11 +361,37 @@ Page({
   stopBubble() {},
 
   onSelectAssignProcess(e) {
-    const processId = e.currentTarget.dataset.id
+    const dataset = e.currentTarget.dataset || {}
+    const processId = dataset.processId || dataset.id
+    const process = (this.data.processes || []).find(p => p._id === processId)
+    const index = Number(dataset.index)
     this.setData({
       activeAssignProcessId: processId,
+      activeAssignProcessName: process ? process.process_name : '',
+      activeAssignProcessIntoView: Number.isFinite(index) ? `assignProcess${index}` : this.data.activeAssignProcessIntoView,
       _currentProcessUserIds: this.data.assignMap[processId] || []
     })
+  },
+
+  refreshDisplayedAssignProcesses(page) {
+    const nextPage = page || this.data.assignProcessPage || 1
+    const end = nextPage * this.data.assignProcessPageSize
+    const processes = this.data.processes || []
+    const displayed = processes.slice(0, end)
+    const activeIndex = processes.findIndex(p => p._id === this.data.activeAssignProcessId)
+    const nextData = {
+      assignProcessPage: nextPage,
+      displayedAssignProcesses: displayed,
+      hasMoreAssignProcesses: processes.length > displayed.length
+    }
+    if (activeIndex >= 0 && activeIndex < displayed.length) {
+      nextData.activeAssignProcessIntoView = `assignProcess${activeIndex}`
+    }
+    this.setData(nextData)
+  },
+
+  loadMoreAssignProcesses() {
+    this.refreshDisplayedAssignProcesses(this.data.assignProcessPage + 1)
   },
 
   toggleAssignUser(e) {
@@ -357,6 +422,7 @@ Page({
     })
 
     this.setData({ assignMap, processes, _currentProcessUserIds: ids })
+    this.refreshDisplayedAssignProcesses(this.data.assignProcessPage)
   },
 
   clearAssignment() {
@@ -377,6 +443,7 @@ Page({
     })
 
     this.setData({ assignMap, processes, _currentProcessUserIds: [] })
+    this.refreshDisplayedAssignProcesses(this.data.assignProcessPage)
   },
 
   _arraysChanged(a, b) {
@@ -450,13 +517,13 @@ Page({
 
     showLoading('保存中...')
     try {
-      for (const change of changes) {
-        await callCloud('order', {
-          action: 'assignProcess',
+      await callCloud('order', {
+        action: 'batchAssignProcesses',
+        changes: changes.map(change => ({
           process_id: change.process_id,
           user_ids: change.user_ids
-        })
-      }
+        }))
+      })
       hideLoading()
       showSuccess('分配成功')
       this.setData({ showAssign: false })

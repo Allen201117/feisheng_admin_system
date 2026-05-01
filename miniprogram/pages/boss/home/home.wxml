@@ -20,6 +20,14 @@
     </view>
   </view>
 
+  <view wx:if="{{subscription}}" class="subscription-strip {{subscriptionStatusClass}}" bindtap="goSubscription">
+    <view class="subscription-main">
+      <text class="subscription-title">服务状态：{{subscription.billing_status_label}}</text>
+      <text class="subscription-note">{{subscription.plan_name}}｜到期 {{subscription.current_period_end_text}}</text>
+    </view>
+    <text class="subscription-action">查看</text>
+  </view>
+
   <view class="stats-panel card">
     <view class="panel-title-row">
       <text class="section-title">经营概览</text>
@@ -140,6 +148,10 @@
         <view class="menu-grid-item" bindtap="openChangePwd">
           <view class="menu-icon-box menu-icon-sand">🔒</view>
           <text class="menu-label">修改密码</text>
+        </view>
+        <view class="menu-grid-item" bindtap="goSubscription">
+          <view class="menu-icon-box menu-icon-sky">🧾</view>
+          <text class="menu-label">服务续费</text>
         </view>
       </view>
     </view>

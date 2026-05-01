@@ -1,7 +1,7 @@
 <view class="container">
   <view class="card">
     <view class="section-title">隐私政策</view>
-    <view class="text-sm text-gray">版本：2026-03-05-v1，生效日期：{{updatedAt}}</view>
+    <view class="text-sm text-gray">版本：2026-05-01-v2，生效日期：{{updatedAt}}</view>
   </view>
 
   <view class="card">
@@ -10,6 +10,9 @@
 
     <view class="policy-title">2. 使用目的与方式</view>
     <view class="policy-text">手机号用于账号绑定、身份识别、发薪通知与安全校验；不会用于营销推送。仅在业务必须范围内处理，不做超范围采集。</view>
+
+    <view class="policy-title">2.1 授权方式</view>
+    <view class="policy-text">我们不会默认视为你已同意本政策。首次使用登录、手机号识别等涉及个人信息的功能前，你需要自主阅读本政策和《用户服务协议》，并通过未预先勾选的确认框主动选择是否同意。</view>
 
     <view class="policy-title">3. 存储期限与安全</view>
     <view class="policy-text">用户信息在账号有效期间保存，账号停用或你提出删除申请后，我们将在合理期限内删除或匿名化处理。数据存储在微信云开发服务，采用访问控制与审计日志。</view>

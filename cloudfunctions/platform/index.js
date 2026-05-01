@@ -3,6 +3,8 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const crypto = require('crypto')
+const PERMANENT_HOME_ORG_ID = 'org_home'
+const PERMANENT_HOME_FACTORY_CODE = 'A001'
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -57,6 +59,72 @@ async function writePlatformLog(caller, actionType, targetOrgId, payloadSummary)
         timestamp: db.serverDate()
       }
     })
+  } catch (err) {}
+}
+
+async function ensurePermanentHomeFactory() {
+  async function applyPermanent(org) {
+    const subscriptionId = `sub_${org._id}_permanent`
+    const now = new Date()
+    if (
+      org.billing_status === 'permanent' &&
+      org.plan_id === 'standard_year' &&
+      org.subscription_id === subscriptionId &&
+      !org.current_period_end
+    ) return
+
+    try {
+      await db.collection('Subscriptions').doc(subscriptionId).set({
+        data: {
+          org_id: org._id,
+          plan_id: 'standard_year',
+          plan_name: '标准版年付',
+          status: 'permanent',
+          start_at: org.current_period_start || now,
+          end_at: '',
+          grace_until: '',
+          source: 'owner_factory_grant',
+          opened_by: 'system',
+          opened_by_name: '系统',
+          remark: '飞盛自家工厂 A001 永久免费',
+          created_at: org.current_period_start || db.serverDate(),
+          updated_at: db.serverDate()
+        }
+      })
+    } catch (err) {}
+
+    await db.collection('Organizations').doc(org._id).update({
+      data: {
+        billing_status: 'permanent',
+        plan_id: 'standard_year',
+        subscription_id: subscriptionId,
+        trial_end: '',
+        current_period_start: org.current_period_start || now,
+        current_period_end: '',
+        grace_until: '',
+        billing_owner_user_id: '',
+        billing_updated_at: db.serverDate(),
+        updated_at: db.serverDate()
+      }
+    })
+  }
+
+  try {
+    const homeRes = await db.collection('Organizations').doc(PERMANENT_HOME_ORG_ID).get()
+    if (homeRes.data && homeRes.data.status === 'active') {
+      if (homeRes.data.factory_code === PERMANENT_HOME_FACTORY_CODE || homeRes.data.org_name === '飞盛') {
+        await applyPermanent(homeRes.data)
+        return
+      }
+    }
+  } catch (err) {}
+
+  try {
+    const codeRes = await db.collection('Organizations')
+      .where({ factory_code: PERMANENT_HOME_FACTORY_CODE, status: 'active' })
+      .limit(1)
+      .get()
+    if (codeRes.data && codeRes.data.length) await applyPermanent(codeRes.data[0])
   } catch (err) {}
 }
 
@@ -141,6 +209,8 @@ async function listOrganizations(event) {
   if (!auth.ok) return auth.response
 
   try {
+    await ensurePermanentHomeFactory()
+
     const list = []
     let batchLen = 0
     do {

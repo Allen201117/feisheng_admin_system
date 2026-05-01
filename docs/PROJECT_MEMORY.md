@@ -39,6 +39,7 @@ cloudfunctions/
   settings/                         工厂设置
   qrcode/                           打卡二维码
   export/                           报表预览与 Excel 导出
+  billing/                          订阅状态、人工收款开通、套餐管理
   init/                             数据库初始化与迁移
   common/                           通用工具
 
@@ -64,16 +65,19 @@ docs/                               项目文档、验收报告、审计报告
 ## 已实现功能模块
 
 - 登录与会话：手机号/密码登录、token 校验、强制改密、隐私授权记录。
+- 登录体验：首次登录需输入工厂码、姓名、手机号和密码；登录成功后本地仅记住工厂码、姓名、手机号与会话 token，不保存密码，后续 token 有效时自动进入。
 - 员工管理：员工创建、编辑、启停、重置密码、入厂日期维护。
 - 考勤：定位签到/签退、二维码打卡、地理围栏、多点位兼容、异常记录、补卡、月工时。
 - 订单与工序：订单创建/编辑/状态变更/复制/删除，工序添加/编辑/改价/分配员工，订单工价隐藏，价格变更审计。
-- 报工：员工按分配工序报工，快照单价，订单总量防超，员工当日撤销/修改，老板报工管理。
+- 大工序订单承载：老板端订单详情首屏分批渲染工序，分配面板分批显示工序，分配保存使用 `order.batchAssignProcesses` 批量提交，目标支持单订单 150-200 道工序时页面不明显卡顿。
+- 报工：员工按分配工序报工，快照单价，订单总量防超，员工当日撤销/修改，老板报工管理；老板可从进度总览进入单道工序报工明细，代员工新增报工，或修改已有报工数量/备注帮助员工修正，所有变化写回同一条 `WorkLogs` 数据源。
 - 质检：待检/已检列表，记录合格数量、质检人、质检时间。
 - 工资：计件工资、奖惩、员工端脱敏、老板端工资明细、发薪标记、已发薪奖惩冲正。
 - 数据中心：老板端 KPI 与订单/统计视图。
 - 排行榜：按月、按年、按订单等维度统计排行，受公开设置控制。
 - 导出：按月/按年/按订单，汇总/明细报表预览与 Excel 文件导出。
 - 设置：工厂坐标、围栏半径、质检阈值、二维码有效期、排行榜可见、SMTP、审核模式等。
+- 订阅一期：先试行试用版和标准版；试用版 7 天、最多 10 名员工，标准版开放全部功能；平台后台手动开通/延期，老板端查看服务状态与复制开通信息；到期后温和限制新增订单、工序、员工、报工和考勤码生成；飞盛 `A001/org_home` 默认为永久免费。
 
 ## 页面/路由清单
 
@@ -86,7 +90,9 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/employee/leaderboard/leaderboard`：员工排行榜。
 - `pages/qc/home/home`：质检首页，待检/已检列表。
 - `pages/qc/inspect/inspect`：质检详情与提交。
+- `pages/platform/home/home`：平台管理，工厂列表、工厂资料、工厂管理员、订阅开通。
 - `pages/boss/home/home`：老板工作台。
+- `pages/boss/subscription/subscription`：老板端服务状态与续费说明。
 - `pages/boss/employees/employees`：员工列表。
 - `pages/boss/employee-edit/employee-edit`：员工新增/编辑。
 - `pages/boss/orders/orders`：订单列表。
@@ -106,17 +112,23 @@ docs/                               项目文档、验收报告、审计报告
 - `login`：`login`、`changePassword`、`verifyToken`、`getConsentStatus`、`recordConsent`。
 - `user`：`list`、`listEmployees`、`get`、`create`、`update`、`updateStatus`、`resetPassword`、`updateJoinDate`。
 - `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`。
-- `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`getPriceChangeLogs`。
+- `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`getPriceChangeLogs`。
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
 - `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getAvailableMonths`。
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
 - `settings`：`getAll`、`getPublic`、`save`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
 - `export`：`salary`、`worklog`、`getTableData`、`getTableDataV2`、`exportToFile`、`exportToFileV2`、`getHistory`、`getOrderList`、`exportProcessSummary`。
-- `init`：默认初始化、`migrate_v2`、`migrate_location`、`migrate_timezone`。
+- `billing`：`getMySubscription`、`getOpenRequestInfo`、`listPlans`、`openSubscription`、`extendSubscription`、`changePlan`、`listBillingOrders`、`markManualPaymentPaid`。
+- `init`：默认初始化、`migrate_v2`、`migrate_multi_tenant`、`migrate_missing_org_batch`、`migrate_billing_v1`、`migrate_location`、`migrate_timezone`。
 
 ## 数据库集合与核心字段
 
+- `Organizations`：`org_name`、`factory_code`、`contact_name`、`contact_phone`、`status`、`billing_status`、`plan_id`、`subscription_id`、`trial_end`、`current_period_start`、`current_period_end`、`grace_until`、`billing_owner_user_id`、`billing_updated_at`。`billing_status=permanent` 表示永久免费。
+- `Plans`：`plan_id`、`plan_name`、`status`、`price_cents`、`billing_period`、`period_months`、`trial_days`、`employee_limit`、`order_limit_per_month`、`features`、`created_at`、`updated_at`。
+- `Subscriptions`：`org_id`、`plan_id`、`plan_name`、`status`、`start_at`、`end_at`、`grace_until`、`source`、`opened_by`、`opened_by_name`、`remark`、`created_at`、`updated_at`。
+- `BillingOrders`：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`、`payment_status`、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`。
+- `UsageMonthly`：`org_id`、`month`、`active_users`、`orders_created`、`worklogs_count`、`attendances_count`、`export_count`、`updated_at`。
 - `Users`：`name`、`phone`、`role`、`password_hash`、`salt`、`status`、`openid`、`session_token`、`monthly_hours`、`join_date`、`created_at`、`updated_at`。
 - `Orders`：`order_name`、`start_date`、`end_date`、`total_quantity`、`status`、`price_hidden`、`created_at`、`updated_at`。
 - `Processes`：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`status`、`created_at`、`updated_at`。
@@ -138,6 +150,7 @@ docs/                               项目文档、验收报告、审计报告
 - 报工 -> 质检 -> 工资：报工初始为待检，QC 写入 `passed_qty` 和质检状态。当前工资计算主要按 `quantity * snapshot_price`，`passed_qty` 目前用于质量统计，不直接影响工资。
 - 工资 -> 发薪锁定：`SalaryPayments.paid = true` 后，部分报工修改被锁定；奖惩修改/删除对已发薪月份走冲正记录。
 - 统计 -> 导出：`salary`、`worklog`、`export` 等云函数按日期、月份、年份、订单维度聚合数据，并生成 Excel 报表。
+- 订阅 -> 写操作限制：`billing` 维护 `Organizations` 上的订阅快照；到期且超过宽限期后，新增订单、复制订单、新增工序、创建员工、提交报工、生成考勤码会被拦截；历史查看和导出暂不拦。
 
 ## 当前 P0/P1/P2 风险清单
 
@@ -167,6 +180,9 @@ docs/                               项目文档、验收报告、审计报告
 - 每次开发前先读本文件、`docs/ARCHITECTURE.md` 和 `docs/VERSION_HISTORY.md`。
 - 每次代码、云函数、数据库迁移或页面改动后，必须同步更新 `docs/VERSION_HISTORY.md`；涉及架构、字段、权限、业务口径时同步更新本文件和 `docs/ARCHITECTURE.md`。
 - 多工厂、租户隔离、平台管理、历史数据迁移相关开发，必须同时参考 `一期多工厂隔离重构方案_Codex.md`。
+- 订阅收费、到期限制、人工开通相关开发，必须同时参考 `docs/一期订阅收费迭代方案.md`。
+- 登录、隐私协议、手机号采集相关开发，不得使用“登录即同意”等默认同意文案；必须由用户自主阅读并手动勾选确认。
+- 大数据量页面优先做分批加载、分页渲染和批量云函数提交；避免一次性渲染 100+ 大卡片或在前端循环发起大量云函数调用。
 - 工资、权限、时间、统计、导出、数据库字段属于高风险区，修改前必须先输出 Plan 并确认口径。
 - 不确定字段或业务规则时，不要猜；先标注“不确定”并向业务确认。
 - 不复制第二套工资、考勤、统计逻辑。
@@ -176,6 +192,11 @@ docs/                               项目文档、验收报告、审计报告
 
 ## 近期迭代摘要
 
+- 2026-05-01：巩固单订单 150-200 道工序承载，订单详情与分配面板改为分批渲染，分配保存改为批量云函数提交。
+- 2026-05-01：报工管理进度总览支持点击工序进入该工序报工明细，老板可直接新增或编辑报工记录帮助员工修正。
+- 2026-05-01：订阅套餐收敛为试用版/标准版；试用版 7 天 10 人上限，标准版全功能，飞盛 `A001` 默认永久免费。
+- 2026-05-01：修复小程序审核指出的隐私默认同意问题，登录页改为自主阅读后手动勾选，并新增上次账号信息记忆。
+- 2026-04-30：订阅收费一期开始落地，新增 `billing` 云函数、`migrate_billing_v1`、老板端服务状态页、平台端订阅开通模块，并接入温和到期拦截。
 - 2026-04-30：纳入一期多工厂隔离原始方案与小程序审核素材目录，并在项目记忆中登记为长期上下文资料。
 - 2026-04-30：形成一期订阅收费方案，方向为人工收款或一次性微信支付 + 平台后台手动开通；计划新增老板端服务状态页、平台端订阅管理、订阅字段和分批迁移。
 - 2026-04-29：一期多工厂隔离基础完成，新增 `Organizations`、平台管理员、工厂码登录、核心集合 `org_id` 隔离。

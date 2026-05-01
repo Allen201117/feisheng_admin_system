@@ -8,10 +8,12 @@
   -> 微信云函数
   -> CloudBase 云数据库集合
   -> 统计聚合 / Excel 导出 / 临时文件 URL
+  -> 订阅状态 / 人工开通 / 到期写操作限制
 ```
 
 - 前端页面负责交互、展示、表单校验和调用云函数。
 - `miniprogram/utils/util.js` 的 `callCloud` 会读取本地登录态，并向云函数 payload 注入 `auth_user_id` 与 `auth_session_token`。
+- 登录页会本地记住上次工厂码、姓名、手机号和会话 token，不保存密码；隐私协议版本变化时保留 token，但要求用户重新手动确认协议后再恢复登录态。
 - 云函数负责核心业务校验、权限检查、数据读写、审计日志、统计聚合和导出。
 - 云数据库保存业务主数据、流水数据、配置、日志和导出历史。
 - `export` 云函数使用 `xlsx` 生成 Excel，上传到云存储后返回临时下载链接。
@@ -38,12 +40,14 @@
 ### 报工 -> 质检 -> 工资
 
 1. 老板在订单详情中创建工序并分配员工，写入 `Processes.assigned_user_ids`。
-2. 员工在 `pages/employee/worklog/worklog` 获取已分配工序，选择订单/工序并提交数量。
-3. `worklog.submit` 校验登录态、本人或老板代报、工序归属、订单状态、工价、订单总量额度。
-4. 报工写入 `WorkLogs`，保存 `quantity`、`snapshot_price`、`amount`、`date`、`status=pending`、`passed_qty=0`。
-5. QC 在 `pages/qc/home/home` 与 `pages/qc/inspect/inspect` 获取待检记录并提交 `passed_qty`。
-6. `worklog.inspect` 更新 `WorkLogs.passed_qty`、`status=inspected`、`qc_status=inspected`、质检人和质检时间。
-7. 当前工资计算主要使用 `quantity * snapshot_price`，`passed_qty` 暂未直接影响工资金额。该口径是高风险业务点，改动前必须确认。
+2. 订单详情页对工序列表和分配面板做分批渲染；批量分配通过 `order.batchAssignProcesses` 一次提交，降低 150-200 道工序订单的页面节点压力和云函数调用次数。
+3. 员工在 `pages/employee/worklog/worklog` 获取已分配工序，选择订单/工序并提交数量。
+4. `worklog.submit` 校验登录态、本人或老板代报、工序归属、订单状态、工价、订单总量额度。
+5. 报工写入 `WorkLogs`，保存 `quantity`、`snapshot_price`、`amount`、`date`、`status=pending`、`passed_qty=0`。
+6. 老板可在 `pages/boss/worklog-manage/worklog-manage` 从订单工序进度进入单道工序明细，调用 `worklog.submit` 代员工新增报工，或调用 `worklog.updateWorkLog` 修改数量/备注帮助员工修正；新增和修改都写回同一套 `WorkLogs` 数据源，修改会写审计。
+7. QC 在 `pages/qc/home/home` 与 `pages/qc/inspect/inspect` 获取待检记录并提交 `passed_qty`。
+8. `worklog.inspect` 更新 `WorkLogs.passed_qty`、`status=inspected`、`qc_status=inspected`、质检人和质检时间。
+9. 当前工资计算主要使用 `quantity * snapshot_price`，`passed_qty` 暂未直接影响工资金额。该口径是高风险业务点，改动前必须确认。
 
 ### 订单 -> 工序 -> 报工 -> 统计
 
@@ -69,7 +73,56 @@
 4. 云函数生成汇总/明细数据，使用 `xlsx` 构建 Excel。
 5. 文件上传到云存储，导出记录写入 `export_history`。
 
+### 订阅 -> 人工开通 -> 到期限制
+
+1. 平台管理员在 `pages/platform/home/home` 选择工厂。
+2. 前端调用 `billing.listPlans` 获取套餐，调用 `billing.openSubscription` 手动开通或延期。
+3. `billing` 云函数写入 `Subscriptions` 和 `BillingOrders`，同时更新 `Organizations` 上的订阅快照字段。
+4. 老板在 `pages/boss/subscription/subscription` 调用 `billing.getMySubscription` 查看服务状态，并复制开通信息发给平台管理员。
+5. 到期且超过宽限期后，`order/user/worklog/qrcode` 中的新增类写操作会读取 `Organizations` 订阅快照并拦截；历史查看和导出暂不拦。
+
 ## 数据模型说明
+
+### Organizations
+
+工厂/租户主数据，也是订阅快照承载处。
+
+- 核心字段：`org_name`、`factory_code`、`contact_name`、`contact_phone`、`status`、`billing_status`、`plan_id`、`subscription_id`、`trial_end`、`current_period_start`、`current_period_end`、`grace_until`、`billing_owner_user_id`、`billing_updated_at`。
+- 主要写入：`init`、`platform`、`billing`。
+- 主要读取：`login`、核心业务云函数、`platform`、`billing`。
+- 兼容规则：`billing_status` 缺失或为 `not_enabled` 时不拦截写操作，避免未执行订阅迁移前误停工厂；`permanent` 表示永久免费，当前用于飞盛 `A001/org_home`。
+
+### Plans
+
+套餐配置表，由平台统一维护。
+
+- 核心字段：`plan_id`、`plan_name`、`status`、`price_cents`、`billing_period`、`period_months`、`trial_days`、`employee_limit`、`order_limit_per_month`、`features`、`created_at`、`updated_at`。
+- 主要写入：`init.migrate_billing_v1`、`billing.listPlans` 的默认套餐种子逻辑。
+- 主要读取：`billing`、平台管理页。
+- 当前试行套餐：`trial` 为 7 天试用、最多 10 名员工；`standard_year` 为标准版年付，开放全部功能；基础版/专业版种子会被置为 `disabled`。
+
+### Subscriptions
+
+工厂订阅周期记录。
+
+- 核心字段：`org_id`、`plan_id`、`plan_name`、`status`、`start_at`、`end_at`、`grace_until`、`source`、`opened_by`、`opened_by_name`、`remark`、`created_at`、`updated_at`。
+- 主要写入：`init.migrate_billing_v1`、`billing.openSubscription`。
+- 主要读取：后续订阅审计和开通历史；当前运行态主要读 `Organizations` 快照。
+
+### BillingOrders
+
+人工收款和未来线上支付订单记录。
+
+- 核心字段：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`、`payment_status`、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`。
+- 主要写入：`billing.openSubscription`、`billing.markManualPaymentPaid`。
+- 主要读取：平台管理页展示最近开通记录。
+
+### UsageMonthly
+
+月度用量统计预留集合。
+
+- 核心字段：`org_id`、`month`、`active_users`、`orders_created`、`worklogs_count`、`attendances_count`、`export_count`、`updated_at`。
+- 当前状态：集合由迁移创建，统计回填留到后续阶段。
 
 ### Users
 
@@ -94,6 +147,7 @@
 - 核心字段：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`status`、`created_at`、`updated_at`。
 - 主要写入：`order`。
 - 主要读取：`order`、`worklog`。
+- 性能规则：订单详情页和分配面板不得一次性渲染全部大工序卡片；单订单 150-200 道工序场景应使用分批显示和批量保存。
 
 ### WorkLogs
 
@@ -195,3 +249,5 @@
 - 统计口径漂移：工资、排行榜、数据中心、导出存在多套聚合逻辑，需要避免继续复制。
 - 时间口径风险：虽然已有北京时间工具，但 `db.serverDate()` 与 `toISOString()` 的边界必须持续审计。
 - 吞错风险：空 `catch` 会掩盖权限、网络、数据库和审计写入问题。
+- 订阅风险：到期拦截必须保持温和，新增类写操作可拦截，但历史查看、导出和数据交接不应突然被阻断。
+- 隐私审核风险：登录、手机号采集和协议确认页面不得出现默认同意、自动同意或“登录即同意”文案；确认框必须由用户手动勾选。
