@@ -142,7 +142,8 @@ Page({
         icon: 'success'
       })
     } catch (e) {
-      showError('操作失败')
+      console.error('标记发薪失败', e)
+      showError(e.message || '操作失败')
     }
   },
 

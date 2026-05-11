@@ -122,14 +122,14 @@ function callCloud(name, data, _retryCount) {
       }
     }).catch(function(err) {
       console.error('云函数 ' + name + ' 调用失败 (attempt ' + (retries + 1) + '):', err)
-      if (retries < maxRetries) {
+      if (retries < maxRetries && shouldRetryCloudCallError(err)) {
         // 网络错误自动重试，指数退避
         var delay = Math.pow(2, retries) * 500
         setTimeout(function() {
           callCloud(name, data, retries + 1).then(resolve).catch(reject)
         }, delay)
       } else {
-        reject(new Error('网络错误，请检查网络后重试'))
+        reject(new Error(buildCloudCallFailureMessage(err)))
       }
     })
   })
@@ -141,6 +141,46 @@ function resolveCloudCallResult(result) {
   }
   var errMsg = (result && result.msg) || '操作失败，请重试'
   throw new Error(errMsg)
+}
+
+function getCloudCallErrorText(err) {
+  if (!err) return ''
+  if (typeof err === 'string') return err
+  return err.message || err.errMsg || (err.errCode ? String(err.errCode) : '') || ''
+}
+
+function isCloudFunctionTimeout(text) {
+  return /cloud function execution timeout|errCode:\s*-504002|函数执行超时|云函数.*超时/i.test(text || '')
+}
+
+function isCloudFunctionFailure(text) {
+  return /cloud\.callFunction:fail/i.test(text || '') &&
+    !/request:fail|network|ENOTFOUND|ECONN|ETIMEDOUT/i.test(text || '')
+}
+
+function isTransportFailure(text) {
+  return /request:fail|network|ENOTFOUND|ECONN|ETIMEDOUT/i.test(text || '')
+}
+
+function shouldRetryCloudCallError(err) {
+  var text = getCloudCallErrorText(err)
+  if (!text) return true
+  if (isCloudFunctionTimeout(text) || isCloudFunctionFailure(text)) return false
+  if (isTransportFailure(text)) return true
+  return true
+}
+
+function buildCloudCallFailureMessage(err) {
+  var text = getCloudCallErrorText(err)
+  if (!text) return '网络错误，请检查网络后重试'
+  if (isCloudFunctionTimeout(text)) return '服务处理超时，请稍后重试'
+  if (isTransportFailure(text)) return '网络错误，请检查网络后重试'
+
+  var cleaned = text
+    .replace(/^cloud\.callFunction:fail\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .trim()
+  return cleaned || '网络错误，请检查网络后重试'
 }
 
 /**
@@ -215,6 +255,8 @@ module.exports = {
   showConfirm,
   callCloud,
   resolveCloudCallResult,
+  shouldRetryCloudCallError,
+  buildCloudCallFailureMessage,
   formatMoney,
   formatQty,
   getToday,

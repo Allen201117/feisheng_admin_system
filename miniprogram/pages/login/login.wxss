@@ -134,6 +134,38 @@
   white-space: nowrap;
 }
 
+.privacy-consent-card {
+  margin-top: 8rpx;
+  margin-bottom: 18rpx;
+  padding: 22rpx 20rpx;
+  border-radius: 18rpx;
+  border: 2rpx solid #d9e8f7;
+  background: #f6fbff;
+}
+
+.privacy-checkbox-group {
+  width: 100%;
+}
+
+.privacy-checkbox-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+}
+
+.privacy-copy {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #30465f;
+}
+
+.privacy-link {
+  margin: 0 4rpx;
+  font-weight: bold;
+}
+
 .login-btn {
   margin-top: 18rpx;
   height: 98rpx;

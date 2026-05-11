@@ -68,6 +68,21 @@
         </view>
       </view>
 
+      <view class="privacy-consent-card">
+        <checkbox-group bindchange="onConsentCheck" class="privacy-checkbox-group">
+          <label class="privacy-checkbox-line">
+            <checkbox value="agree" checked="{{consentChecked}}" color="#1890FF" />
+            <view class="privacy-copy">
+              <text>我已阅读并同意</text>
+              <text class="text-primary privacy-link" catchtap="openPrivacyPolicy">《隐私政策》</text>
+              <text>和</text>
+              <text class="text-primary privacy-link" catchtap="openUserAgreement">《用户服务协议》</text>
+              <text wx:if="{{consentVersion}}">（版本 {{consentVersion}}）</text>
+            </view>
+          </label>
+        </checkbox-group>
+      </view>
+
       <button
         class="btn-primary btn-block btn-lg login-btn"
         bindtap="onLogin"
@@ -87,40 +102,12 @@
       <view class="login-notice-panel">
         <text class="login-notice-title">登录提示</text>
         <text class="login-tip text-sm text-gray">首次登录请联系管理员开通账号；登录成功后会记住登录态，下次可自动进入。</text>
-        <text class="login-tip text-sm text-gray">请先自主阅读以下协议，再在弹窗中手动选择是否同意。</text>
+        <text class="login-tip text-sm text-gray">未勾选同意前不会登录，也不会采集手机号用于账号绑定。</text>
         <view class="agreement-row">
           <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策》</text>
           <text class="agreement-divider">/</text>
           <text class="text-primary" bindtap="openUserAgreement">《用户服务协议》</text>
         </view>
-      </view>
-    </view>
-  </view>
-
-  <view wx:if="{{needConsentDialog}}" class="modal-mask">
-    <view class="modal-dialog">
-      <view class="modal-header">
-        <text class="modal-title">隐私保护与服务协议确认</text>
-        <text class="modal-desc text-sm text-gray">在收集手机号前，请先阅读并同意协议</text>
-      </view>
-      <view class="modal-body">
-        <view class="text-sm text-gray">
-          请先阅读《隐私政策》和《用户服务协议》。你可以选择同意或暂不同意；未同意前，我们不会进行登录，也不会收集手机号用于账号绑定。
-        </view>
-        <view class="consent-link-row mt-20">
-          <text class="text-primary" bindtap="openPrivacyPolicy">《隐私政策》</text>
-          <text class="text-primary" bindtap="openUserAgreement">《用户服务协议》</text>
-        </view>
-        <label class="consent-check mt-20">
-          <checkbox-group bindchange="onConsentCheck">
-            <checkbox value="agree" checked="{{consentChecked}}" color="#1890FF" />
-          </checkbox-group>
-          <text class="text-sm">我已自主阅读并同意《隐私政策》和《用户服务协议》（版本 {{consentVersion || '最新'}}）</text>
-        </label>
-      </view>
-      <view class="modal-footer">
-        <button class="btn-default modal-btn" bindtap="onContinueWithoutConsent">暂不同意</button>
-        <button class="btn-primary modal-btn" bindtap="onConfirmConsent" disabled="{{!consentChecked}}">同意并继续</button>
       </view>
     </view>
   </view>
