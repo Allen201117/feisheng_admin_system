@@ -5,6 +5,7 @@ const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
+const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData } = require('./payment-record.logic')
 
 async function fetchAllByWhere(collectionName, where, options = {}) {
   const orderBy = options.orderBy || null
@@ -863,7 +864,11 @@ async function markPaid(event, wxContext) {
     const targetUserRes = await db.collection('Users').doc(user_id).get()
     if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '无权操作其他工厂员工工资' }
     // 使用确定性ID防止并发重复创建
-    const docId = `${getOrgId(caller)}_${user_id}_${currentMonth}`
+    const docId = buildSalaryPaymentDocId({
+      orgId: getOrgId(caller),
+      userId: user_id,
+      month: currentMonth
+    })
     const existing = await db.collection('SalaryPayments').where({
       org_id: getOrgId(caller),
       user_id,
@@ -884,18 +889,14 @@ async function markPaid(event, wxContext) {
         })
       } else {
         await db.collection('SalaryPayments').doc(docId).set({
-          data: {
-            _id: docId,
-            org_id: getOrgId(caller),
-            user_id,
-            user_name: user_name || '',
+          data: buildSalaryPaymentCreateData({
+            orgId: getOrgId(caller),
+            userId: user_id,
+            userName: user_name,
             month: currentMonth,
-            paid: true,
-            paid_at: db.serverDate(),
-            operator_id: caller._id,
-            operator_name: caller.name,
-            created_at: db.serverDate()
-          }
+            caller,
+            serverDate: () => db.serverDate()
+          })
         })
       }
     } else {

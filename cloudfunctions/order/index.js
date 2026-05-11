@@ -10,6 +10,7 @@ const {
   attachAssignedNamesToProcesses,
   findInvalidAssignedUserIdProcesses
 } = require('./detail.logic')
+const { copyProcessDocsInChunks } = require('./copy-order.logic')
 
 async function getCallerUser(wxContext) {
   const res = await db.collection('Users').where({
@@ -333,21 +334,13 @@ async function copyOrder(event, caller) {
 
     // 复制所有工序及分配
     const processes = await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id: source_order_id })
-    for (const proc of processes) {
-      await db.collection('Processes').add({
-        data: {
-          org_id: getOrgId(caller),
-          order_id: newOrderId,
-          process_name: proc.process_name,
-          current_price: proc.current_price,
-          note: proc.note || '',
-          assigned_user_ids: proc.assigned_user_ids || [],
-          is_active: true,
-          created_at: db.serverDate(),
-          updated_at: db.serverDate()
-        }
-      })
-    }
+    const copyResult = await copyProcessDocsInChunks(processes, {
+      orgId: getOrgId(caller),
+      newOrderId,
+      serverDate: () => db.serverDate(),
+      chunkSize: 10,
+      addProcess: (data) => db.collection('Processes').add({ data })
+    })
 
     // 审计日志
     await db.collection('audit_logs').add({
@@ -357,7 +350,7 @@ async function copyOrder(event, caller) {
         operator_name: caller ? caller.name : '',
         action: 'copy_order',
         target_id: newOrderId,
-        details: `复制订单"${source.order_name}"，共${processes.length}道工序，新总数量${qty}件`,
+        details: `复制订单"${source.order_name}"，共${copyResult.copiedCount}道工序，新总数量${qty}件`,
         created_at: db.serverDate()
       }
     })

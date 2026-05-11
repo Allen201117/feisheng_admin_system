@@ -9,7 +9,7 @@
 - [x] 审计日志：`qrcode_generate_fallback/qrcode_verify/qrcode_revoke/clock_in_success/...`。
 
 ## B. 隐私合规（3.4）
-- [x] 首次弹窗协议确认：`pages/login/login.wxml` 协议确认弹窗。
+- [x] 登录页行内协议确认：`pages/login/login.wxml` 协议确认勾选框默认未勾选。
 - [x] 协议页面：`pages/privacy-policy/*`、`pages/user-agreement/*`。
 - [x] 同意记录落库：`privacy_consents`（openid、user_id、consent_version、policy_hash、channel、agreed_at）。
 - [x] 先同意后收集手机号：
@@ -24,7 +24,7 @@
 - [x] 提审说明文档：`docs/review/README.md`。
 
 ## 手工验证建议
-1. 登录页冷启动：未同意时无法登录，显示协议弹窗。
+1. 登录页冷启动：协议勾选框默认未勾选，未同意时无法登录。
 2. 同意后登录：手机号登录成功。
 3. 老板端生成二维码：体验版/正式版返回图片；开发工具无权限时返回文本联调信息。
 4. 员工扫码：扫码进入后上班打卡成功且来源标记 `source=qrcode`、`qr_id` 落库。

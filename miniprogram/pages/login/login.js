@@ -12,6 +12,7 @@ var storeUser = auth.storeUser
 var getStoredUser = auth.getStoredUser
 var privacy = require('../../utils/privacy')
 var markConsentAccepted = privacy.markConsentAccepted
+var hasLocalCurrentConsent = privacy.hasCurrentConsent
 var app = getApp()
 var LAST_LOGIN_INFO_KEY = 'factory_last_login_info'
 
@@ -56,7 +57,6 @@ Page({
     consentVersion: '',
     consentChecked: false,
     hasCurrentConsent: false,
-    needConsentDialog: false,
     existingUser: null,
     hasRememberedLoginInfo: false,
     // 临时存储登录返回的用户信息
@@ -136,11 +136,11 @@ Page({
     callCloud('login', { action: 'getConsentStatus' }).then(function(res) {
       var data = res.data || {}
       var hasConsent = !!data.has_consent
+      var localConsent = hasLocalCurrentConsent()
       that.setData({
         consentVersion: data.consent_version || '',
         hasCurrentConsent: hasConsent,
-        needConsentDialog: !hasConsent,
-        consentChecked: hasConsent
+        consentChecked: hasConsent || localConsent
       })
       if (hasConsent) {
         markConsentAccepted()
@@ -148,14 +148,17 @@ Page({
     }).catch(function() {
       that.setData({
         hasCurrentConsent: false,
-        needConsentDialog: true,
-        consentChecked: false
+        consentChecked: hasLocalCurrentConsent()
       })
     })
   },
 
   onConsentCheck: function(e) {
-    this.setData({ consentChecked: !!e.detail.value.length })
+    var checked = !!e.detail.value.length
+    this.setData({ consentChecked: checked })
+    if (checked && !this.data.hasCurrentConsent) {
+      this.persistConsentAgreement({ silent: true, force: true }).catch(function() {})
+    }
   },
 
   openPrivacyPolicy: function() {
@@ -166,35 +169,36 @@ Page({
     wx.navigateTo({ url: '/pages/user-agreement/user-agreement' })
   },
 
-  onConfirmConsent: function() {
+  persistConsentAgreement: function(options) {
     var that = this
-    if (!this.data.consentChecked) {
+    var silent = options && options.silent
+    var force = options && options.force
+    if (this.data.hasCurrentConsent) {
+      markConsentAccepted()
+      return Promise.resolve()
+    }
+    if (!force && !this.data.consentChecked) {
       showError('请勾选同意后继续')
-      return
+      return Promise.reject(new Error('请勾选同意后继续'))
     }
 
-    showLoading('提交中...')
-    callCloud('login', {
+    return callCloud('login', {
       action: 'recordConsent',
       agreed: true,
-      channel: 'login_popup',
+      channel: 'login_inline_checkbox',
       client_ts: Date.now()
     }).then(function() {
-      hideLoading()
       markConsentAccepted()
       that.setData({
         hasCurrentConsent: true,
-        needConsentDialog: false
+        consentChecked: true
       })
-      showSuccess('已完成协议确认')
+      if (!silent) showSuccess('已完成协议确认')
     }).catch(function(err) {
-      hideLoading()
+      that.setData({ consentChecked: false })
       showError(err.message || '提交失败')
+      throw err
     })
-  },
-
-  onContinueWithoutConsent: function() {
-    showError('未同意协议前无法使用登录和手机号相关功能')
   },
 
   onInputName: function(e) {
@@ -224,8 +228,7 @@ Page({
     var phone = trim(this.data.phone)
     var password = this.data.password
 
-    if (!this.data.hasCurrentConsent) {
-      this.setData({ needConsentDialog: true })
+    if (!this.data.consentChecked) {
       showError('请先同意隐私政策与用户协议')
       return
     }
@@ -239,12 +242,14 @@ Page({
     this.setData({ loading: true })
     showLoading('登录中...')
 
-    callCloud('login', {
-      action: 'login',
-      factory_code: factoryCode,
-      name: name,
-      phone: phone,
-      password: password
+    this.persistConsentAgreement({ silent: true }).then(function() {
+      return callCloud('login', {
+        action: 'login',
+        factory_code: factoryCode,
+        name: name,
+        phone: phone,
+        password: password
+      })
     }).then(function(res) {
       hideLoading()
       storeLastLoginInfo({ factoryCode: factoryCode, name: name, phone: phone })
@@ -287,13 +292,14 @@ Page({
       showError('暂无可用登录态')
       return
     }
-    if (!this.data.hasCurrentConsent) {
-      this.setData({ needConsentDialog: true })
+    if (!this.data.consentChecked) {
       showError('请先同意隐私政策与用户协议')
       return
     }
     showLoading('校验登录态...')
-    app.resumeSession(this.data.existingUser, false).then(function(valid) {
+    this.persistConsentAgreement({ silent: true }).then(function() {
+      return app.resumeSession(that.data.existingUser, false)
+    }).then(function(valid) {
       hideLoading()
       if (!valid) {
         that.setData({ existingUser: null })
