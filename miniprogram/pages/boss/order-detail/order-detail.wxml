@@ -53,6 +53,9 @@
     <view class="price-manage-row">
       <button class="btn-price-history" bindtap="onShowProcessSummary">📊 工序汇总预览</button>
     </view>
+    <view class="danger-manage-row">
+      <button class="btn-clear-worklogs" bindtap="onClearOrderWorklogs">一键清空报工记录</button>
+    </view>
   </view>
 
   <!-- ========== 区块2：工序分配总览卡 ========== -->

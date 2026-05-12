@@ -68,7 +68,7 @@ docs/                               项目文档、验收报告、审计报告
 - 登录体验：首次登录需输入工厂码、姓名、手机号和密码；隐私协议默认不勾选，用户手动勾选后会记住同意状态；登录成功后本地仅记住工厂码、姓名、手机号与会话 token，不保存密码，后续 token 有效时自动进入。
 - 员工管理：员工创建、编辑、启停、重置密码、入厂日期维护。
 - 考勤：定位签到/签退、二维码打卡、地理围栏、多点位兼容、异常记录、补卡、月工时。
-- 订单与工序：订单创建/编辑/状态变更/复制/删除，工序添加/编辑/改价/分配员工，订单工价隐藏，价格变更审计。
+- 订单与工序：订单创建/编辑/状态变更/复制/删除，工序添加/编辑/改价/分配员工，订单工价隐藏，价格变更审计，订单级报工清空。
 - 大工序订单承载：老板端订单详情首屏分批渲染工序，分配面板分批显示工序，分配保存使用 `order.batchAssignProcesses` 批量提交，目标支持单订单 150-200 道工序时页面不明显卡顿。
 - 报工：员工按分配工序报工，快照单价，订单总量防超，员工当日撤销/修改，老板报工管理；老板可从进度总览进入单道工序报工明细，代员工新增报工，或修改已有报工数量/备注帮助员工修正，所有变化写回同一条 `WorkLogs` 数据源。
 - 质检：待检/已检列表，记录合格数量、质检人、质检时间。
@@ -112,7 +112,7 @@ docs/                               项目文档、验收报告、审计报告
 - `login`：`login`、`changePassword`、`verifyToken`、`getConsentStatus`、`recordConsent`。
 - `user`：`list`、`listEmployees`、`get`、`create`、`update`、`updateStatus`、`resetPassword`、`updateJoinDate`。
 - `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`。
-- `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`getPriceChangeLogs`。
+- `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`clearOrderWorklogs`、`getPriceChangeLogs`。
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
 - `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getAvailableMonths`。
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
@@ -146,7 +146,7 @@ docs/                               项目文档、验收报告、审计报告
 ## 核心业务链路
 
 - 考勤 -> 工资：员工签到/签退写入 `Attendances`，签退后计算 `hours`，工资汇总读取出勤天数和总工时。
-- 订单 -> 工序 -> 报工：老板创建订单和工序，分配员工，员工只能对可用工序报工；报工写入 `WorkLogs`，包含 `snapshot_price`。
+- 订单 -> 工序 -> 报工：老板创建订单和工序，分配员工，员工只能对可用工序报工；报工写入 `WorkLogs`，包含 `snapshot_price`；订单详情可清空该订单未发薪月份的全部报工。
 - 报工 -> 质检 -> 工资：报工初始为待检，QC 写入 `passed_qty` 和质检状态。当前工资计算主要按 `quantity * snapshot_price`，`passed_qty` 目前用于质量统计，不直接影响工资。
 - 工资 -> 发薪锁定：`SalaryPayments.paid = true` 后，部分报工修改被锁定；奖惩修改/删除对已发薪月份走冲正记录。
 - 统计 -> 导出：`salary`、`worklog`、`export` 等云函数按日期、月份、年份、订单维度聚合数据，并生成 Excel 报表。
@@ -157,7 +157,7 @@ docs/                               项目文档、验收报告、审计报告
 ### P0
 
 - 部分订单/工序读接口权限边界可能不足，存在订单、工价、分配信息泄漏风险。
-- `deleteOrder` 会删除订单关联的工序、报工、奖惩，需要确认已发薪或已统计数据是否允许删除。
+- `deleteOrder` 会删除订单关联的工序、报工、奖惩，需要确认已发薪或已统计数据是否允许删除；`clearOrderWorklogs` 会删除订单关联报工，但遇到已发薪月份会拒绝。
 - 业务目标包含“报工 -> 质检 -> 工资”，但当前工资计算主要按报工数量 `quantity`，不是合格数量 `passed_qty`，工资口径必须由业务确认。
 
 ### P1

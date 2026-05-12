@@ -36,6 +36,10 @@
   margin-top: 20rpx;
   flex-wrap: wrap;
 }
+.danger-manage-row {
+  display: flex;
+  margin-top: 16rpx;
+}
 .btn-clear-prices {
   flex: 1;
   font-size: 28rpx;
@@ -60,6 +64,18 @@
   line-height: 1.6;
 }
 .btn-price-history::after { border: none; }
+.btn-clear-worklogs {
+  flex: 1;
+  font-size: 28rpx;
+  padding: 18rpx 0;
+  border-radius: 12rpx;
+  background: #fff2e8;
+  color: #d4380d;
+  border: 2rpx solid #ffbb96;
+  min-height: 0;
+  line-height: 1.6;
+}
+.btn-clear-worklogs::after { border: none; }
 
 /* 未设置工价 */
 .process-price-empty {

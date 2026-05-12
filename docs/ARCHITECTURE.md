@@ -55,7 +55,8 @@
 2. `order.addProcess` 创建 `Processes`，包含工序名、当前单价、备注、分配员工。
 3. `order.getAssignedProcesses` 给员工端返回可报工工序，并根据订单状态和工价隐藏策略处理展示。
 4. `worklog.submit` 写入 `WorkLogs`，并按订单总量做防超校验。
-5. `worklog.getOrderProgress`、`salary.getDashboard`、`export.getTableDataV2` 等按订单、工序、日期聚合统计。
+5. 老板可在订单详情调用 `order.clearOrderWorklogs` 清空该订单关联的未发薪报工；如果命中 `SalaryPayments.paid=true` 的员工月份，后端拒绝清空。
+6. `worklog.getOrderProgress`、`salary.getDashboard`、`export.getTableDataV2` 等按订单、工序、日期聚合统计。
 
 ### 工资 -> 发薪锁定
 
@@ -154,7 +155,7 @@
 员工报工流水，也是计件工资和质检的关键数据。
 
 - 核心字段：`user_id`、`user_name`、`order_id`、`order_name`、`process_id`、`process_name`、`quantity`、`snapshot_price`、`amount`、`date`、`status`、`qc_status`、`passed_qty`、`inspected_by`、`inspected_by_name`、`inspected_at`、`note`、`created_at`、`updated_at`。
-- 主要写入：`worklog`；部分工价同步由 `order` 更新历史零价报工。
+- 主要写入：`worklog`；部分工价同步由 `order` 更新历史零价报工；订单详情清空报工由 `order.clearOrderWorklogs` 删除该订单关联记录。
 - 主要读取：`worklog`、`salary`、`leaderboard`、`export`、`order`。
 - 高风险口径：工资目前按 `quantity * snapshot_price` 计算，而不是按 `passed_qty`。
 
@@ -245,7 +246,7 @@
 
 - 权限风险：部分读接口仍需确认是否必须要求登录态或老板权限，尤其是订单、工序、工价、员工分配信息。
 - 工资口径风险：当前计件工资主要按报工数量 `quantity` 计算，质检合格数 `passed_qty` 不直接影响工资。若业务要求按合格数计薪，需要一次性梳理所有工资、统计、导出口径。
-- 删除规则风险：订单删除会影响关联工序、报工、奖惩；若已发薪或已导出，应考虑禁止删除或改为软删除。
+- 删除规则风险：订单删除会影响关联工序、报工、奖惩；订单级清空报工会影响工资、统计、排行榜和导出，当前仅允许未发薪月份报工被清空；若已导出，应考虑额外留痕或软删除。
 - 统计口径漂移：工资、排行榜、数据中心、导出存在多套聚合逻辑，需要避免继续复制。
 - 时间口径风险：虽然已有北京时间工具，但 `db.serverDate()` 与 `toISOString()` 的边界必须持续审计。
 - 吞错风险：空 `catch` 会掩盖权限、网络、数据库和审计写入问题。
