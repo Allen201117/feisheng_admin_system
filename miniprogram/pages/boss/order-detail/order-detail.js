@@ -690,6 +690,31 @@ Page({
     }
   },
 
+  async onClearOrderWorklogs() {
+    const order = this.data.order
+    if (!order || !order._id) return
+
+    const confirmed = await showConfirm(
+      '确认清空报工记录',
+      `将删除订单"${order.order_name}"下所有报工记录。\n\n删除后工资、统计、排行榜和导出都会按剩余报工重新计算。已发薪月份会被后端拦截，不能清空。`
+    )
+    if (!confirmed) return
+
+    showLoading('清空报工中...')
+    try {
+      const res = await callCloud('order', {
+        action: 'clearOrderWorklogs',
+        order_id: order._id
+      })
+      hideLoading()
+      showSuccess(res.msg || '报工记录已清空')
+      this.loadOrderDetail()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '清空报工失败')
+    }
+  },
+
   // ===== 工价变更记录 =====
   async onShowPriceHistory() {
     this.setData({ showPriceHistory: true, priceChangeLogs: [] })

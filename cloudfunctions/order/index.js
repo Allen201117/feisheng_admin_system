@@ -11,6 +11,16 @@ const {
   findInvalidAssignedUserIdProcesses
 } = require('./detail.logic')
 const { copyProcessDocsInChunks } = require('./copy-order.logic')
+const {
+  normalizeOrderQuantity,
+  shouldCheckProcessQuantityLimit,
+  buildExceededProcessQuantities
+} = require('./update-order.logic')
+const {
+  collectClearableWorklogIds,
+  findPaidWorklogConflicts,
+  buildClearOrderWorklogsDetails
+} = require('./clear-worklogs.logic')
 
 async function getCallerUser(wxContext) {
   const res = await db.collection('Users').where({
@@ -120,7 +130,7 @@ exports.main = async (event, context) => {
   }
 
   // 写操作需要boss权限
-  if (['list', 'getDetail', 'getPriceChangeLogs', 'create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'batchAssignProcesses', 'togglePriceHidden', 'clearOrderPrices'].includes(action)) {
+  if (['list', 'getDetail', 'getPriceChangeLogs', 'create', 'updateOrder', 'copyOrder', 'updateStatus', 'deleteOrder', 'addProcess', 'updateProcessPrice', 'updateProcess', 'deleteProcess', 'assignProcess', 'batchAssignProcesses', 'togglePriceHidden', 'clearOrderPrices', 'clearOrderWorklogs'].includes(action)) {
     if (!caller || caller.role !== 'boss') {
       return { code: -1, msg: '权限不足，仅管理员可操作' }
     }
@@ -148,6 +158,7 @@ exports.main = async (event, context) => {
     case 'getAssignedProcesses': return await getAssignedProcesses(event, caller)
     case 'togglePriceHidden': return await togglePriceHidden(event, caller)
     case 'clearOrderPrices': return await clearOrderPrices(event, caller)
+    case 'clearOrderWorklogs': return await clearOrderWorklogs(event, caller)
     case 'getPriceChangeLogs': return await getPriceChangeLogs(event, caller)
     default: return { code: -1, msg: '未知操作' }
   }
@@ -256,20 +267,21 @@ async function updateOrder(event, caller) {
     if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权修改该订单' }
     if (order.status !== 'active') return { code: -1, msg: '仅进行中的订单可编辑' }
 
-    const newQty = parseInt(total_quantity)
+    const oldQty = normalizeOrderQuantity(order)
+    const newQty = parseInt(total_quantity, 10)
     if (!newQty || newQty <= 0) return { code: -1, msg: '总数量必须大于0' }
 
     // 检查各工序已报工数量是否超出新总量
-    if (newQty !== order.total_quantity) {
-      const processes = await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id })
-      const exceeded = []
-      for (const proc of processes) {
-        const worklogs = await fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id, process_id: proc._id }, { field: { quantity: true } })
-        const sum = worklogs.reduce((s, w) => s + (Number(w.quantity) || 0), 0)
-        if (sum > newQty) {
-          exceeded.push({ process_name: proc.process_name, current_sum: sum })
-        }
-      }
+    if (shouldCheckProcessQuantityLimit(oldQty, newQty)) {
+      const [processes, worklogs] = await Promise.all([
+        fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id }, { field: { _id: true, process_name: true } }),
+        fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id }, { field: { process_id: true, quantity: true } })
+      ])
+      const exceeded = buildExceededProcessQuantities({
+        processes,
+        worklogs,
+        nextTotalQuantity: newQty
+      })
       if (exceeded.length > 0) {
         const detail = exceeded.map(e => `"${e.process_name}"已报工${e.current_sum}件`).join('；')
         return { code: -1, msg: `修改失败：${detail}，超出新总数量${newQty}件` }
@@ -292,7 +304,7 @@ async function updateOrder(event, caller) {
         operator_name: caller ? caller.name : '',
         action: 'update_order',
         target_id: order_id,
-        details: `修改订单"${order.order_name}"：总数量 ${order.total_quantity} → ${newQty}` +
+        details: `修改订单"${order.order_name}"：总数量 ${oldQty} → ${newQty}` +
           (order_name && order_name !== order.order_name ? `，名称 → ${order_name}` : ''),
         created_at: db.serverDate()
       }
@@ -998,6 +1010,79 @@ async function clearOrderPrices(event, caller) {
     return { code: 0, msg: `已清空 ${processesToClear.length} 个工序的工价` }
   } catch (err) {
     return { code: -1, msg: '清空工价失败: ' + err.message }
+  }
+}
+
+// 一键清空订单关联报工
+async function clearOrderWorklogs(event, caller) {
+  const { order_id } = event
+  if (!order_id) return { code: -1, msg: '参数不完整' }
+
+  try {
+    const orderRes = await db.collection('Orders').doc(order_id).get()
+    const order = orderRes.data
+    if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权操作该订单' }
+
+    const worklogs = await fetchAllDocs('WorkLogs', {
+      org_id: getOrgId(caller),
+      order_id
+    }, {
+      field: { _id: true, user_id: true, user_name: true, date: true }
+    })
+
+    const worklogIds = collectClearableWorklogIds(worklogs)
+    if (worklogIds.length === 0) {
+      return { code: 0, msg: '该订单暂无报工记录', data: { removedCount: 0 } }
+    }
+
+    const userIds = Array.from(new Set(worklogs.map(log => log.user_id).filter(Boolean)))
+    const payments = userIds.length > 0
+      ? await fetchAllDocs('SalaryPayments', {
+        org_id: getOrgId(caller),
+        user_id: _.in(userIds),
+        paid: true
+      }, {
+        field: { user_id: true, month: true, paid: true }
+      })
+      : []
+
+    const paidMonthSet = buildPaidMonthSet(payments)
+    const conflicts = findPaidWorklogConflicts({ worklogs, paidMonthSet })
+    if (conflicts.length > 0) {
+      const preview = conflicts.slice(0, 3)
+        .map(item => `${item.user_name || item.user_id} ${item.month}`)
+        .join('、')
+      const suffix = conflicts.length > 3 ? `等 ${conflicts.length} 个已发薪员工月份` : ''
+      return {
+        code: -1,
+        msg: `存在已发薪月份报工，不能清空：${preview}${suffix}。请先取消对应月份发薪标记。`,
+        data: { lockedCount: conflicts.length }
+      }
+    }
+
+    const removedCount = await removeDocsByIds('WorkLogs', worklogIds)
+    await db.collection('audit_logs').add({
+      data: {
+        org_id: getOrgId(caller),
+        operator_id: caller ? caller._id : '',
+        operator_name: caller ? caller.name : '',
+        action: 'clear_order_worklogs',
+        target_id: order_id,
+        details: buildClearOrderWorklogsDetails({
+          orderName: order.order_name,
+          removedCount
+        }),
+        created_at: db.serverDate()
+      }
+    })
+
+    return {
+      code: 0,
+      msg: `已删除 ${removedCount} 条报工记录`,
+      data: { removedCount }
+    }
+  } catch (err) {
+    return { code: -1, msg: '清空报工失败: ' + err.message }
   }
 }
 
