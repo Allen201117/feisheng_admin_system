@@ -1,130 +1,129 @@
-﻿<!--pages/boss/settings/settings.wxml-->
 <view class="container">
-  <view class="card">
-    <view class="section-title">服务与续费</view>
-    <view class="location-tip">查看当前版本、到期时间，并复制开通信息发给平台管理员。</view>
-    <button class="btn-default btn-block" bindtap="goSubscription">服务状态与续费</button>
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">设置</text>
+      <text class="page-header-subtitle">工厂、考勤与账号配置</text>
+    </view>
+  </view>
+
+  <!-- 服务与续费 -->
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">服务与续费</text>
+    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-1);display:block;">查看当前版本、到期时间，并复制开通信息发给平台管理员。</text>
+    <button class="btn btn-outline btn-block" bindtap="goSubscription" hover-class="tap-button-hover">服务状态与续费</button>
   </view>
 
   <!-- 打卡点管理 -->
-  <view class="card">
-    <view class="section-title">打卡点管理</view>
-    <view class="location-tip">到工厂各入口/区域，点击下方按钮采样后一键添加打卡点。员工在任意打卡点附近即可打卡。</view>
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">打卡点管理</text>
+    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-1);display:block;">到工厂各入口/区域，点击下方按钮采样后一键添加打卡点。员工在任意打卡点附近即可打卡。</text>
 
-    <!-- 采样按钮 -->
-    <button class="btn-primary btn-block" bindtap="getLocation" disabled="{{locating}}">
-      {{locating ? '正在采样定位...' : '📍 采样当前位置'}}
-    </button>
+    <button class="btn-primary btn-block" bindtap="getLocation" disabled="{{locating}}" hover-class="tap-button-hover">{{locating ? '正在采样定位...' : '采样当前位置'}}</button>
 
-    <!-- 采样结果（简洁版） -->
-    <view wx:if="{{locationResult}}" class="location-result">
-      <view class="result-summary">
-        ✅ 采样成功（精度{{locationResult.accuracy}}）
-      </view>
-      <view wx:if="{{sampledLocation}}" class="sample-actions">
-        <button class="btn-default sample-btn" bindtap="applySampleToMain">{{factory_latitude ? '更新主打卡点' : '设为主打卡点'}}</button>
-        <button class="btn-default sample-btn" bindtap="quickAddCheckpoint">添加为附加打卡点</button>
-      </view>
+    <view wx:if="{{locationResult}}" class="notice notice-green" style="margin-top:var(--sp-1);">
+      <text class="text-green text-sm font-medium">采样成功（精度{{locationResult.accuracy}}）</text>
+    </view>
+    <view wx:if="{{sampledLocation}}" class="flex-row gap-1" style="margin-top:var(--sp-1);">
+      <button class="flex-1 btn-sm btn-sm-ghost" style="border:1rpx solid var(--border);color:var(--text-secondary);" bindtap="applySampleToMain" hover-class="tap-button-hover">{{factory_latitude ? '更新主打卡点' : '设为主打卡点'}}</button>
+      <button class="flex-1 btn-sm btn-sm-ghost" style="border:1rpx solid var(--border);color:var(--text-secondary);" bindtap="quickAddCheckpoint" hover-class="tap-button-hover">添加为附加打卡点</button>
     </view>
 
-    <!-- 打卡点列表 -->
-    <view class="checkpoint-list">
-      <!-- 主打卡点 -->
-      <view wx:if="{{factory_latitude}}" class="checkpoint-item main-checkpoint">
-        <view class="checkpoint-item-left">
-          <text class="checkpoint-icon">📍</text>
-          <view class="checkpoint-info">
-            <text class="checkpoint-name">主打卡点</text>
-            <text class="checkpoint-coord">{{factory_latitude}}, {{factory_longitude}}</text>
-          </view>
+    <view class="card" style="margin:var(--sp-1) 0;">
+      <view wx:if="{{factory_latitude}}" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">主打卡点</text>
+          <text class="list-row-subtitle">{{factory_latitude}}, {{factory_longitude}}</text>
         </view>
       </view>
-      <view wx:else class="empty-checkpoint">
-        <text>未设置主打卡点，请采样当前位置</text>
+      <view wx:else class="list-row">
+        <text class="list-row-subtitle">未设置主打卡点，请采样当前位置</text>
       </view>
 
-      <!-- 附加打卡点 -->
-      <view wx:for="{{checkpoints}}" wx:key="index" class="checkpoint-item">
-        <view class="checkpoint-item-left">
-          <text class="checkpoint-icon">🏷</text>
-          <view class="checkpoint-info">
-            <text class="checkpoint-name">{{item.name || '附加打卡点 ' + (index + 1)}}</text>
-            <text class="checkpoint-coord">{{item.latitude}}, {{item.longitude}}</text>
-          </view>
+      <view wx:for="{{checkpoints}}" wx:for-item="item" wx:key="index" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.name || '附加打卡点 ' + (index + 1)}}</text>
+          <text class="list-row-subtitle">{{item.latitude}}, {{item.longitude}}</text>
         </view>
-        <text class="checkpoint-remove" data-index="{{index}}" bindtap="removeCheckpoint">删除</text>
+        <text class="text-red text-xs" style="flex-shrink:0;padding:8rpx 16rpx;" data-index="{{index}}" bindtap="removeCheckpoint" hover-class="tap-chip-hover">删除</text>
       </view>
     </view>
 
-    <!-- 高级选项折叠 -->
-    <view class="advanced-toggle" bindtap="toggleAdvancedInput">
-      <text class="text-sm text-gray">{{showAdvancedInput ? '收起高级选项 ▲' : '高级选项 ▼'}}</text>
+    <view class="text-center" style="padding:var(--sp-1) 0;" bindtap="toggleAdvancedInput" hover-class="tap-row-hover">
+      <text class="text-tertiary text-xs">{{showAdvancedInput ? '收起高级选项 ▲' : '高级选项 ▼'}}</text>
     </view>
-    <view wx:if="{{showAdvancedInput}}" class="advanced-section">
-      <view class="advanced-warn">
-        ⚠️ 手动输入请使用 GCJ-02 坐标（微信/高德/腾讯地图），不要用百度地图坐标。
+
+    <view wx:if="{{showAdvancedInput}}">
+      <view class="notice notice-amber">手动输入请使用 GCJ-02 坐标（微信/高德/腾讯地图），不要用百度地图坐标。</view>
+      <view class="field-group">
+        <text class="field-label">主打卡点纬度</text>
+        <input class="field-input" type="digit" placeholder="自动采样获取" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" />
       </view>
-      <view class="input-group">
-        <text class="input-label">主打卡点纬度</text>
-        <input class="input-field" type="digit" placeholder="自动采样获取" value="{{factory_latitude}}" data-field="factory_latitude" bindinput="onInput" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">主打卡点经度</text>
-        <input class="input-field" type="digit" placeholder="自动采样获取" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" />
+      <view class="field-group">
+        <text class="field-label">主打卡点经度</text>
+        <input class="field-input" type="digit" placeholder="自动采样获取" value="{{factory_longitude}}" data-field="factory_longitude" bindinput="onInput" />
       </view>
     </view>
   </view>
 
   <!-- 参数配置 -->
-  <view class="card">
-    <view class="section-title">参数配置</view>
-    <view class="input-group">
-      <text class="input-label">打卡范围半径（米）</text>
-      <input class="input-field" type="number" placeholder="默认100" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
-      <text class="input-hint">所有打卡点共用此半径。GPS精度差时会自动补偿容差。</text>
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">参数配置</text>
+    <view class="list-row flex-wrap">
+      <view class="flex-1">
+        <text class="list-row-title">打卡范围半径（米）</text>
+        <text class="list-row-subtitle">所有打卡点共用此半径。GPS精度差时会自动补偿容差。</text>
+      </view>
+      <input class="field-input" type="number" placeholder="默认100" style="width:200rpx;flex-shrink:0;" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
     </view>
-    <view class="input-group">
-      <text class="input-label">合格率阈值（%）— 排行榜用</text>
-      <input class="input-field" type="number" placeholder="默认95" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
+    <view class="list-row flex-wrap">
+      <text class="list-row-title flex-1">合格率阈值（%）— 排行榜用</text>
+      <input class="field-input" type="number" placeholder="默认95" style="width:200rpx;flex-shrink:0;" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
     </view>
-    <view class="input-group">
-      <text class="input-label">二维码有效期（天）</text>
-      <input class="input-field" type="number" placeholder="默认1" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
+    <view class="list-row flex-wrap">
+      <text class="list-row-title flex-1">二维码有效期（天）</text>
+      <input class="field-input" type="number" placeholder="默认1" style="width:200rpx;flex-shrink:0;" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
     </view>
   </view>
 
   <!-- 打卡方式 -->
-  <view class="card">
-    <view class="section-title">打卡方式</view>
-    <view class="switch-row">
-      <view class="switch-info">
-        <text class="switch-label">允许居家打卡</text>
-        <text class="switch-desc text-sm text-gray">开启后员工可在非围栏范围内打卡，标记为居家打卡</text>
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">打卡方式</text>
+    <view class="list-row">
+      <view class="flex-1">
+        <text class="list-row-title">允许居家打卡</text>
+        <text class="list-row-subtitle">开启后员工可在非围栏范围内打卡，标记为居家打卡</text>
       </view>
-      <switch checked="{{allow_home_checkin}}" data-field="allow_home_checkin" bindchange="onSwitchChange" color="#1890FF" />
+      <switch checked="{{allow_home_checkin}}" data-field="allow_home_checkin" bindchange="onSwitchChange" color="#2563EB" />
     </view>
   </view>
 
   <!-- 排行榜设置 -->
-  <view class="card">
-    <view class="section-title">排行榜设置</view>
-    <view class="switch-row">
-      <view class="switch-info">
-        <text class="switch-label">员工可见排行榜</text>
-        <text class="switch-desc text-sm text-gray">开启后员工可在首页查看排行榜，关闭则仅老板可见</text>
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">排行榜设置</text>
+    <view class="list-row">
+      <view class="flex-1">
+        <text class="list-row-title">员工可见排行榜</text>
+        <text class="list-row-subtitle">开启后员工可在首页查看排行榜，关闭则仅老板可见</text>
       </view>
-      <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onSwitchChange" color="#1890FF" />
+      <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onSwitchChange" color="#2563EB" />
     </view>
   </view>
 
-  <button class="btn-primary btn-block btn-lg mt-30" bindtap="onSave" disabled="{{loading}}">
-    {{loading ? '保存中...' : '保存设置'}}
-  </button>
+  <view class="bottom-action-bar">
+    <button class="btn-primary btn-block btn-lg" bindtap="onSave" disabled="{{loading}}" hover-class="tap-button-hover">{{loading ? '保存中...' : '保存设置'}}</button>
+  </view>
 
-  <view class="card">
-    <view class="section-title">协议与隐私</view>
-    <button class="btn-default btn-block" bindtap="goPrivacyPolicy">查看隐私政策</button>
-    <button class="btn-default btn-block mt-20" bindtap="goUserAgreement">查看用户服务协议</button>
+  <!-- 协议与隐私 -->
+  <view class="card-bento" style="margin-top:var(--sp-2);">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">协议与隐私</text>
+    <view class="list-row tappable" bindtap="goPrivacyPolicy" hover-class="tap-row-hover">
+      <text class="flex-1 list-row-title">查看隐私政策</text>
+      <text class="text-tertiary text-base">→</text>
+    </view>
+    <view class="list-row tappable" bindtap="goUserAgreement" hover-class="tap-row-hover">
+      <text class="flex-1 list-row-title">查看用户服务协议</text>
+      <text class="text-tertiary text-base">→</text>
+    </view>
   </view>
 
   <view class="safe-bottom"></view>

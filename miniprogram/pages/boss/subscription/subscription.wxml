@@ -1,47 +1,54 @@
 <view class="container">
-  <view wx:if="{{subscription}}" class="status-panel {{statusClass}}">
-    <text class="status-label">当前服务</text>
-    <text class="factory-name">{{subscription.org_name}}</text>
-    <text class="status-main">{{subscription.billing_status_label}}</text>
-    <text class="status-line">当前版本：{{subscription.plan_name}}</text>
-    <text class="status-line">服务到期：{{subscription.current_period_end_text}}</text>
-    <text class="status-line">宽限到期：{{subscription.grace_until_text}}</text>
-  </view>
+  <view wx:if="{{subscription}}">
 
-  <view wx:if="{{subscription}}" class="card info-card">
-    <view class="section-title">开通方式</view>
-    <text class="body-text">需要开通或续费时，请联系平台管理员确认。付款完成后，由管理员为工厂开通服务。</text>
-    <view class="button-stack">
-      <button class="btn-primary btn-block" bindtap="copyOpenInfo">复制开通信息</button>
-      <button class="btn-default btn-block" bindtap="showContactTip">联系管理员</button>
+    <!-- 状态面板 -->
+    <view class="card-bento subscription-status-card status-{{subscription.billing_status}}">
+      <text class="text-tertiary text-xs font-semibold" style="display:block;">当前服务</text>
+      <text class="font-bold" style="font-size:var(--fs-lg);color:var(--text-primary);display:block;margin-top:14rpx;">{{subscription.org_name}}</text>
+      <text class="font-bold text-primary" style="font-size:var(--fs-xl);display:block;margin-top:18rpx;">{{subscription.billing_status_label}}</text>
+      <text class="text-secondary text-base" style="display:block;margin-top:var(--sp-1);">当前版本：{{subscription.plan_name}}</text>
+      <text class="text-secondary text-base" style="display:block;margin-top:var(--sp-1);">服务到期：{{subscription.current_period_end_text}}</text>
+      <text class="text-secondary text-base" style="display:block;margin-top:var(--sp-1);">宽限到期：{{subscription.grace_until_text}}</text>
+    </view>
+
+    <view class="card-bento">
+      <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">开通方式</text>
+      <text class="text-secondary text-sm" style="line-height:1.65;">需要开通或续费时，请联系平台管理员确认。付款完成后，由管理员为工厂开通服务。</text>
+      <view style="margin-top:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2);">
+        <button class="btn-primary btn-block" bindtap="copyOpenInfo">复制开通信息</button>
+        <button class="btn-secondary btn-block" bindtap="showContactTip">联系管理员</button>
+      </view>
+    </view>
+
+    <view class="card-bento">
+      <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">发送给管理员</text>
+      <view class="card" style="margin-bottom:0;">
+        <text class="text-secondary text-xs" style="white-space:pre-wrap;line-height:1.65;">{{requestInfoText}}</text>
+      </view>
     </view>
   </view>
 
-  <view wx:if="{{subscription}}" class="card info-card">
-    <view class="section-title">发送给管理员</view>
-    <view class="copy-box">
-      <text class="copy-text">{{requestInfoText}}</text>
+  <view wx:if="{{!subscription && !loading}}" class="empty">
+    <view class="empty-icon">
+      <image src="/images/icons/profile.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
     </view>
-  </view>
-
-  <view wx:if="{{!subscription && !loading}}" class="card empty-card">
     <text class="empty-title">暂未获取到服务状态</text>
     <button class="btn-primary btn-block" bindtap="loadSubscription">重新加载</button>
   </view>
 </view>
 
-<view wx:if="{{showContactQr}}" class="contact-mask" bindtap="hideContactQr">
-  <view class="contact-dialog" catchtap="stopBubble">
-    <view class="contact-header">
-      <text class="contact-title">添加管理员微信</text>
-      <text class="contact-close" bindtap="hideContactQr">×</text>
+<view wx:if="{{showContactQr}}" class="modal-overlay" bindtap="hideContactQr">
+  <view class="card-bento" style="width:82%;max-height:80vh;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1001;overflow-y:auto;" catchtap="stopBubble">
+    <view class="flex-between" style="margin-bottom:var(--sp-2);">
+      <text class="font-bold text-md">添加管理员微信</text>
+      <text class="text-tertiary tappable text-md" bindtap="hideContactQr">×</text>
     </view>
-    <text class="contact-desc">请用微信扫码添加管理员，发送工厂开通信息后确认订阅。</text>
-    <image class="contact-qr" src="{{adminWechatQr}}" mode="widthFix" bindtap="previewContactQr" show-menu-by-longpress="{{true}}" />
-    <text class="contact-hint">点击二维码可放大，长按可识别或保存</text>
-    <view class="contact-actions">
-      <button class="btn-default contact-btn" bindtap="copyOpenInfo">复制开通信息</button>
-      <button class="btn-primary contact-btn" bindtap="hideContactQr">我知道了</button>
+    <text class="text-secondary text-sm" style="line-height:1.55;margin-bottom:var(--sp-2);display:block;">请用微信扫码添加管理员，发送工厂开通信息后确认订阅。</text>
+    <image class="" src="{{adminWechatQr}}" mode="widthFix" bindtap="previewContactQr" show-menu-by-longpress="{{true}}" style="width:100%;border-radius:var(--r-sm);background:var(--bg-elevated);" />
+    <text class="text-tertiary text-xs" style="display:block;text-align:center;margin-top:14rpx;">点击二维码可放大，长按可识别或保存</text>
+    <view class="flex-row gap-2" style="margin-top:var(--sp-2);">
+      <button class="btn-outline flex-1" style="min-height:88rpx;" bindtap="copyOpenInfo">复制开通信息</button>
+      <button class="btn-primary flex-1" style="min-height:88rpx;" bindtap="hideContactQr">我知道了</button>
     </view>
   </view>
 </view>

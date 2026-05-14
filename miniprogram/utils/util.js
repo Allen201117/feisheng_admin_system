@@ -73,6 +73,63 @@ function hideLoading() {
 }
 
 /**
+ * 将技术错误信息翻译为用户能理解的语言
+ */
+function translateError(msg) {
+  if (!msg) return '操作失败，请重试'
+
+  var text = typeof msg === 'string' ? msg : (msg.message || msg.errMsg || '')
+
+  // 超时
+  if (/504003|504002|执行超时|execution timeout|timeout/i.test(text)) {
+    return '操作超时，请稍后重试'
+  }
+
+  // 网络
+  if (/request:fail|network|ENOTFOUND|ECONN|ETIMEDOUT|网络|超时|timeout/i.test(text)) {
+    return '网络不稳定，请检查手机网络后重试'
+  }
+
+  // 权限
+  if (/权限不足|permission denied|unauthorized/i.test(text)) {
+    return '登录已过期，请退出重新登录'
+  }
+
+  // 发薪锁定
+  if (/已发薪|已发放|paid|locked/i.test(text)) {
+    return '该月工资已发放，无法修改记录'
+  }
+
+  // 未找到
+  if (/未找到|not found|does not exist|不存在/i.test(text)) {
+    return '数据不存在或已被删除'
+  }
+
+  // 工厂范围
+  if (/不在工厂范围内|超出范围|围栏/i.test(text)) {
+    return text // 这个信息已经比较具体，保留
+  }
+
+  // 重复操作
+  if (/已签到|已签退|已存在|already exist/i.test(text)) {
+    return text // 这些已经足够清晰
+  }
+
+  // 集合已存在（内部错误，不应暴露给用户）
+  if (/DATABASE_COLLECTION_ALREADY_EXIST|ResourceExist|Table exist|集合已存在|collection already exist/i.test(text)) {
+    return '请稍后重试'
+  }
+
+  // 清理常见前缀
+  var cleaned = text
+    .replace(/^cloud\.callFunction:fail\s*/i, '')
+    .replace(/^Error:\s*/i, '')
+    .trim()
+
+  return cleaned || '操作失败，请重试'
+}
+
+/**
  * 确认对话框
  */
 function showConfirm(title, content) {
@@ -250,6 +307,7 @@ module.exports = {
   calcHours,
   showSuccess,
   showError,
+  translateError,
   showLoading,
   hideLoading,
   showConfirm,

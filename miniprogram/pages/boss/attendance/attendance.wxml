@@ -1,95 +1,111 @@
-<!--pages/boss/attendance/attendance.wxml-->
 <view class="container">
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">考勤</text>
+      <text class="page-header-subtitle">查看每日出勤和异常补签</text>
+    </view>
+  </view>
+
   <!-- 选项卡 -->
-  <view class="tabs">
-    <view class="tab {{activeTab === 'today' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="today">
-      每日考勤
-    </view>
-    <view class="tab {{activeTab === 'abnormal' ? 'tab-active' : ''}}" bindtap="switchTab" data-tab="abnormal">
-      异常记录 ({{abnormalRecords.length}})
-    </view>
+  <view class="tab-bar">
+    <view class="tab-item {{activeTab === 'today' ? 'tab-item-active' : ''}}" bindtap="switchTab" data-tab="today" hover-class="tap-chip-hover">每日考勤</view>
+    <view class="tab-item {{activeTab === 'abnormal' ? 'tab-item-active' : ''}}" bindtap="switchTab" data-tab="abnormal" hover-class="tap-chip-hover">异常记录 ({{abnormalRecords.length}})</view>
   </view>
 
   <!-- 每日考勤 -->
   <view wx:if="{{activeTab === 'today'}}">
-    <view class="card">
-      <view class="att-header-row mb-20">
-        <text class="section-title" style="margin-bottom:0;">考勤记录</text>
+    <view class="card-bento">
+      <view class="flex-between" style="margin-bottom:var(--sp-1);">
+        <text class="menu-group-title">考勤记录</text>
         <picker mode="date" value="{{selectedDate}}" bindchange="onDateChange">
-          <view class="date-picker">{{selectedDate}} ▼</view>
+          <view class="month-pill" style="display:inline-flex;" hover-class="tap-chip-hover">{{selectedDate}} ▼</view>
         </picker>
       </view>
 
-      <view wx:if="{{records.length === 0}}" class="empty-state">
-        <text class="empty-text">当日暂无考勤记录</text>
+      <view wx:if="{{records.length === 0}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/attendance.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+        </view>
+        <text class="empty-title">当日暂无考勤记录</text>
+        <text class="empty-desc">可切换日期，或刷新当前日期的考勤数据。</text>
+        <view class="empty-action secondary" bindtap="loadTodayRecords" hover-class="tap-button-hover">刷新考勤</view>
       </view>
 
-      <view wx:for="{{records}}" wx:key="_id" class="att-row">
-        <view class="att-name">{{item.user_name}}</view>
-        <view class="att-times">
-          <text class="text-sm">签到: {{item.clock_in_display || '--'}}</text>
-          <text class="text-sm">签退: {{item.clock_out_display || '--'}}</text>
+      <view wx:for="{{records}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap" hover-class="tap-row-hover" hover-stay-time="80">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.user_name}}</text>
+          <view class="flex-col" style="margin-top:4rpx;">
+            <text class="list-row-subtitle">签到: {{item.clock_in_display || '--'}}</text>
+            <text class="list-row-subtitle">签退: {{item.clock_out_display || '--'}}</text>
+          </view>
         </view>
-        <view class="att-hours">{{item.hours || 0}}h</view>
-        <text class="tag {{item.status === 'normal' ? 'tag-success' : (item.status === 'abnormal' ? 'tag-danger' : 'tag-info')}}">
-          {{item.status === 'normal' ? '正常' : (item.status === 'abnormal' ? '异常' : '已补签')}}
-        </text>
-        <button 
-          wx:if="{{item.status === 'abnormal'}}" 
-          class="btn-xs btn-supplement" 
-          bindtap="showSupplementForm" 
-          data-record="{{item}}"
-        >补签</button>
+        <view class="flex-col" style="align-items:flex-end;">
+          <text class="font-bold text-accent text-md">{{item.hours || 0}}h</text>
+          <text class="badge {{item.status === 'normal' ? 'badge-green' : (item.status === 'abnormal' ? 'badge-red' : 'badge-blue')}}" style="margin-top:4rpx;">{{item.status === 'normal' ? '正常' : (item.status === 'abnormal' ? '异常' : '已补签')}}</text>
+        </view>
+        <button wx:if="{{item.status === 'abnormal'}}" class="btn-sm btn-sm-ghost" style="border:1rpx solid var(--amber-600);color:var(--amber-600);flex-shrink:0;" bindtap="showSupplementForm" data-record="{{item}}" hover-class="tap-button-hover">补签</button>
       </view>
     </view>
   </view>
 
   <!-- 异常记录 -->
   <view wx:if="{{activeTab === 'abnormal'}}">
-    <view class="card">
-      <view class="section-title">待处理异常</view>
-      <view wx:if="{{abnormalRecords.length === 0}}" class="empty-state">
-        <text class="empty-text">暂无异常记录 ✓</text>
-      </view>
-      <view wx:for="{{abnormalRecords}}" wx:key="_id" class="att-row">
-        <view class="att-name">{{item.user_name}}</view>
-        <view class="att-date">{{item.date}}</view>
-        <view class="att-times">
-          <text class="text-sm">签到: {{item.clock_in_display || '--'}}</text>
-          <text class="text-sm text-danger">未签退</text>
-        </view>
-        <button class="btn-xs btn-supplement" bindtap="showSupplementForm" data-record="{{item}}">补签</button>
-      </view>
-    </view>
-  </view>
-</view>
+    <view class="card-bento">
+      <text class="menu-group-title" style="margin-bottom:var(--sp-1);display:block;">待处理异常</text>
 
-<!-- 补签弹窗 -->
-<view wx:if="{{showSupplement}}" class="modal-mask" bindtap="hideSupplementForm">
-  <view class="modal-content" catchtap>
-    <view class="modal-header">
-      <text class="section-title" style="margin-bottom:0;">手动补签</text>
-      <text class="modal-close" bindtap="hideSupplementForm">✕</text>
-    </view>
-    <view class="modal-body">
-      <view class="info-row">
-        <text class="info-label">员工:</text>
-        <text>{{supplementData.user_name}}</text>
+      <view wx:if="{{abnormalRecords.length === 0}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/attendance.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+        </view>
+        <text class="empty-title">暂无异常记录</text>
+        <text class="empty-desc">当前没有待处理补签，刷新可再次同步最新记录。</text>
+        <view class="empty-action secondary" bindtap="loadAbnormalRecords" hover-class="tap-button-hover">刷新异常</view>
       </view>
-      <view class="info-row">
-        <text class="info-label">日期:</text>
-        <text>{{supplementData.date}}</text>
-      </view>
-      <view class="input-group mt-20">
-        <text class="input-label">下班时间</text>
-        <picker mode="time" value="{{supplementData.clock_out_time}}" bindchange="onSupplementTimeChange">
-          <view class="picker-field">
-            <text>{{supplementData.clock_out_time || '请选择时间'}}</text>
-            <text class="picker-arrow">▼</text>
+
+      <view wx:for="{{abnormalRecords}}" wx:for-item="item" wx:key="_id" class="list-row" hover-class="tap-row-hover" hover-stay-time="80">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.user_name}}</text>
+          <text class="list-row-subtitle" style="display:block;margin:4rpx 0;">{{item.date}}</text>
+          <view class="flex-col">
+            <text class="list-row-subtitle">签到: {{item.clock_in_display || '--'}}</text>
+            <text class="text-red text-xs">未签退</text>
           </view>
-        </picker>
+        </view>
+        <button class="btn-sm btn-sm-ghost" style="border:1rpx solid var(--amber-600);color:var(--amber-600);flex-shrink:0;" bindtap="showSupplementForm" data-record="{{item}}" hover-class="tap-button-hover">补签</button>
       </view>
     </view>
-    <button class="btn-primary btn-block mt-20" bindtap="onSubmitSupplement">确认补签</button>
   </view>
+
+  <!-- 补签弹窗 -->
+  <view wx:if="{{showSupplement}}">
+    <view class="modal-overlay" bindtap="hideSupplementForm">
+      <view class="modal-sheet" catchtap>
+        <view class="flex-between" style="padding:var(--sp-2) var(--sp-2) 0;">
+          <text class="modal-sheet-title" style="padding:0;text-align:left;flex:1;">手动补签</text>
+          <text class="btn-sm btn-ghost" bindtap="hideSupplementForm" hover-class="tap-chip-hover">关闭</text>
+        </view>
+        <view class="modal-sheet-body" style="text-align:left;">
+          <view class="list-row" style="padding:var(--sp-1) 0;">
+            <text class="list-row-subtitle">员工:</text>
+            <text class="list-row-title">{{supplementData.user_name}}</text>
+          </view>
+          <view class="list-row" style="padding:var(--sp-1) 0;">
+            <text class="list-row-subtitle">日期:</text>
+            <text class="list-row-title">{{supplementData.date}}</text>
+          </view>
+          <view class="field-group" style="margin-top:var(--sp-1);">
+            <text class="field-label">下班时间</text>
+            <picker mode="time" value="{{supplementData.clock_out_time}}" bindchange="onSupplementTimeChange">
+              <view class="picker-field" hover-class="tap-row-hover">
+                <text>{{supplementData.clock_out_time || '请选择时间'}}</text>
+                <text class="picker-arrow">▼</text>
+              </view>
+            </picker>
+          </view>
+        </view>
+        <button class="btn-primary btn-block" style="margin:0 var(--sp-2) var(--sp-2);width:auto;" bindtap="onSubmitSupplement" hover-class="tap-button-hover">确认补签</button>
+      </view>
+    </view>
+  </view>
+
 </view>

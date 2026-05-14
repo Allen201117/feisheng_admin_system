@@ -1,33 +1,23 @@
-<!--pages/boss/export/export.wxml-->
 <view class="container">
 
   <!-- ===== 第一层：统计维度选择 ===== -->
-  <view class="card">
-    <view class="section-title">📊 导出报表</view>
-    <view class="dim-tabs">
-      <view class="dim-tab {{dimension === 'month' ? 'dim-tab-active' : ''}}"
-        bindtap="switchDimension" data-dim="month">
-        <text class="dim-tab-icon">📅</text>
-        <text class="dim-tab-text">按月</text>
-      </view>
-      <view class="dim-tab {{dimension === 'year' ? 'dim-tab-active' : ''}}"
-        bindtap="switchDimension" data-dim="year">
-        <text class="dim-tab-icon">📆</text>
-        <text class="dim-tab-text">按年</text>
-      </view>
-      <view class="dim-tab {{dimension === 'order' ? 'dim-tab-active' : ''}}"
-        bindtap="switchDimension" data-dim="order">
-        <text class="dim-tab-icon">📋</text>
-        <text class="dim-tab-text">按订单</text>
-      </view>
+  <view class="card-bento">
+    <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">导出报表</text>
+    <view class="tab-bar">
+      <view class="tab-item {{dimension === 'month' ? 'tab-item-active' : ''}}"
+        bindtap="switchDimension" data-dim="month">按月</view>
+      <view class="tab-item {{dimension === 'year' ? 'tab-item-active' : ''}}"
+        bindtap="switchDimension" data-dim="year">按年</view>
+      <view class="tab-item {{dimension === 'order' ? 'tab-item-active' : ''}}"
+        bindtap="switchDimension" data-dim="order">按订单</view>
     </view>
   </view>
 
   <!-- ===== 筛选条件区 ===== -->
-  <view class="card filter-card">
+  <view class="card-bento">
     <!-- 按月筛选 -->
-    <view wx:if="{{dimension === 'month'}}" class="input-group">
-      <text class="input-label">选择月份</text>
+    <view wx:if="{{dimension === 'month'}}" class="field-group">
+      <text class="field-label">选择月份</text>
       <picker mode="date" fields="month" value="{{month}}" bindchange="onMonthChange">
         <view class="picker-field">
           <text>{{month || '请选择月份'}}</text>
@@ -37,8 +27,8 @@
     </view>
 
     <!-- 按年筛选 -->
-    <view wx:if="{{dimension === 'year'}}" class="input-group">
-      <text class="input-label">选择年份</text>
+    <view wx:if="{{dimension === 'year'}}" class="field-group">
+      <text class="field-label">选择年份</text>
       <picker mode="date" fields="year" value="{{year}}" bindchange="onYearChange">
         <view class="picker-field">
           <text>{{year || '请选择年份'}}</text>
@@ -48,8 +38,8 @@
     </view>
 
     <!-- 按订单筛选 -->
-    <view wx:if="{{dimension === 'order'}}" class="input-group">
-      <text class="input-label">选择订单</text>
+    <view wx:if="{{dimension === 'order'}}" class="field-group">
+      <text class="field-label">选择订单</text>
       <picker mode="selector" range="{{orderList}}" range-key="order_name"
         value="{{selectedOrderIdx}}" bindchange="onOrderChange">
         <view class="picker-field">
@@ -60,30 +50,26 @@
     </view>
 
     <!-- 第二层：报表类型 -->
-    <view class="report-type-row">
-      <view class="report-type-btn {{reportType === 'summary' ? 'report-type-active' : ''}}"
-        bindtap="switchReportType" data-type="summary">
-        <text>📊 汇总表</text>
-      </view>
-      <view class="report-type-btn {{reportType === 'detail' ? 'report-type-active' : ''}}"
-        bindtap="switchReportType" data-type="detail">
-        <text>📝 明细表</text>
-      </view>
+    <view class="filter-chips" style="margin-bottom:var(--sp-2);">
+      <view class="filter-chip {{reportType === 'summary' ? 'filter-chip-active' : ''}}"
+        bindtap="switchReportType" data-type="summary">汇总表</view>
+      <view class="filter-chip {{reportType === 'detail' ? 'filter-chip-active' : ''}}"
+        bindtap="switchReportType" data-type="detail">明细表</view>
     </view>
 
     <!-- 当前选择路径提示 -->
-    <view class="path-hint">
-      <text class="path-hint-text">{{pathHint}}</text>
+    <view class="notice notice-blue">
+      <text class="text-primary text-xs">{{pathHint}}</text>
     </view>
   </view>
 
   <!-- ===== 操作按钮区 ===== -->
-  <view class="card action-card">
-    <view class="btn-row">
-      <button class="btn-primary" style="flex:1;" bindtap="onLoadTable" disabled="{{loading}}">
+  <view class="card-bento">
+    <view class="flex-row gap-2">
+      <button class="btn-primary flex-1" bindtap="onLoadTable" disabled="{{loading}}">
         {{loading ? '加载中...' : '预览报表'}}
       </button>
-      <button class="btn-success" style="flex:1;" bindtap="onExport"
+      <button class="btn-success flex-1" bindtap="onExport"
         disabled="{{exporting || !tableLoaded}}">
         {{exporting ? '导出中...' : '导出Excel'}}
       </button>
@@ -91,65 +77,66 @@
   </view>
 
   <!-- ===== 数据统计概要 ===== -->
-  <view wx:if="{{tableLoaded && tableRows.length > 0}}" class="card summary-card">
-    <view class="summary-row">
-      <view class="summary-item">
-        <text class="summary-num">{{tableRows.length}}</text>
-        <text class="summary-label">数据行数</text>
+  <view wx:if="{{tableLoaded && tableRows.length > 0}}" class="card-bento">
+    <view class="stats-grid">
+      <view class="stats-card blue">
+        <text class="stats-card-value">{{tableRows.length}}</text>
+        <text class="stats-card-label">数据行数</text>
       </view>
-      <view class="summary-item">
-        <text class="summary-num">{{tableHeaders.length}}</text>
-        <text class="summary-label">字段数</text>
+      <view class="stats-card blue">
+        <text class="stats-card-value">{{tableHeaders.length}}</text>
+        <text class="stats-card-label">字段数</text>
       </view>
     </view>
   </view>
 
   <!-- ===== 数据预览表格 ===== -->
-  <view wx:if="{{tableLoaded}}" class="card table-card">
-    <view class="table-title-row">
-      <view class="section-title" style="margin-bottom:0;">{{tableTitle}}</view>
-      <view class="tag tag-info" style="margin-left:16rpx;">预览</view>
+  <view wx:if="{{tableLoaded}}" class="card-bento">
+    <view class="flex-row gap-1" style="margin-bottom:var(--sp-2);">
+      <text class="menu-group-title">{{tableTitle}}</text>
+      <text class="badge badge-blue">预览</text>
     </view>
 
-    <scroll-view scroll-x="true" class="table-scroll" wx:if="{{tableRows.length > 0}}">
-      <view class="table">
+    <scroll-view scroll-x="true" style="width:100%;" wx:if="{{tableRows.length > 0}}">
+      <view style="display:inline-flex;flex-direction:column;min-width:100%;">
         <!-- 表头 -->
-        <view class="table-row table-header-row">
+        <view style="display:flex;">
           <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header"
-            class="table-cell table-header-cell">
-            <text class="cell-text">{{header}}</text>
+            style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;background:var(--text-primary);color:#fff;font-weight:var(--fw-bold);">
+            <text style="width:100%;word-break:break-all;line-height:1.3;">{{header}}</text>
           </view>
         </view>
 
         <!-- 数据行 -->
-        <view wx:for="{{tableRows}}" wx:key="rowIdx" wx:for-item="row" wx:for-index="rowIdx"
-          class="table-row {{rowIdx % 2 === 1 ? 'table-row-alt' : ''}}">
-          <view wx:for="{{row}}" wx:key="colIdx" wx:for-item="cell" wx:for-index="colIdx"
-            class="table-cell">
-            <text class="cell-text">{{cell}}</text>
+        <view wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="rowIdx"
+          style="display:flex;">
+          <view wx:for="{{row}}" wx:for-item="cell" wx:for-index="colIdx"
+            style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;{{rowIdx % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
+            <text style="width:100%;word-break:break-all;line-height:1.3;">{{cell}}</text>
           </view>
         </view>
       </view>
     </scroll-view>
 
-    <view wx:if="{{tableRows.length === 0}}" class="empty-state">
-      <text class="empty-icon">📭</text>
-      <text class="empty-text">该条件下暂无数据</text>
+    <view wx:if="{{tableRows.length === 0}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/export.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">暂无数据</text>
+      <text class="empty-desc">该条件下暂无数据</text>
     </view>
   </view>
 
   <!-- ===== 导出历史 ===== -->
-  <view class="card" wx:if="{{historyList.length > 0}}">
-    <view class="section-title">📁 最近导出记录</view>
-    <view class="history-list">
-      <view wx:for="{{historyList}}" wx:key="_id" class="history-item">
-        <view class="history-info">
-          <text class="history-title">{{item.title || item.filename}}</text>
-          <text class="history-meta">{{item.operator_name}} · {{item.row_count || '-'}}条</text>
-        </view>
-        <view class="history-action" bindtap="onRedownload" data-fileid="{{item.file_id}}">
-          <text class="history-dl-btn">下载</text>
-        </view>
+  <view class="card-bento" wx:if="{{historyList.length > 0}}">
+    <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-1);">最近导出记录</text>
+    <view wx:for="{{historyList}}" wx:for-item="item" wx:key="_id" class="list-row">
+      <view class="flex-1">
+        <text class="list-row-title">{{item.title || item.filename}}</text>
+        <text class="list-row-subtitle">{{item.operator_name}} · {{item.row_count || '-'}}条</text>
+      </view>
+      <view class="list-row-extra" bindtap="onRedownload" data-fileid="{{item.file_id}}">
+        <text class="btn-sm btn-sm-ghost" style="display:inline-flex;">下载</text>
       </view>
     </view>
   </view>

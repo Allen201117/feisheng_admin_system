@@ -1,223 +1,226 @@
 <view class="container">
-  <view class="platform-hero">
-    <view class="hero-copy">
-      <text class="hero-title">平台管理</text>
-      <text class="hero-subtitle">多工厂统一维护</text>
-      <text class="hero-user">{{userInfo.name}}</text>
-    </view>
-    <button class="hero-logout" bindtap="onLogout">退出</button>
-  </view>
 
-  <view class="overview-panel">
-    <view class="overview-item">
-      <text class="overview-label">工厂总数</text>
-      <text class="overview-value">{{organizations.length}}</text>
-    </view>
-    <view class="overview-item">
-      <text class="overview-label">当前工厂</text>
-      <text class="overview-value overview-code">{{selectedOrg ? selectedOrg.factory_code : '--'}}</text>
+  <!-- Hero -->
+  <view class="hero hero-boss">
+    <view class="hero-top">
+      <view class="hero-left">
+        <text class="hero-title">平台管理</text>
+        <text class="hero-subtitle">多工厂统一维护</text>
+        <text class="hero-meta">{{userInfo.name}}</text>
+      </view>
+      <view class="hero-action" bindtap="onLogout">退出</view>
     </view>
   </view>
 
-  <view wx:if="{{selectedOrg}}" class="current-panel">
-    <view class="current-header">
-      <text class="current-label">当前选中</text>
-      <text class="status-chip {{selectedOrg.status === 'active' ? 'status-active' : 'status-disabled'}}">{{selectedOrg.status === 'active' ? '启用中' : '已停用'}}</text>
+  <!-- Overview Stats -->
+  <view class="stats-grid">
+    <view class="stats-card blue">
+      <text class="stats-card-label">工厂总数</text>
+      <text class="stats-card-value">{{organizations.length}}</text>
     </view>
-    <text class="current-name">{{selectedOrg.org_name}}</text>
-    <text class="current-line">工厂码：{{selectedOrg.factory_code}}</text>
-    <text class="current-line" wx:if="{{selectedOrg.contact_name || selectedOrg.contact_phone}}">联系人：{{selectedOrg.contact_name}} {{selectedOrg.contact_phone}}</text>
-    <text class="current-line">服务：{{selectedOrg.plan_name_view}}｜{{selectedOrg.billing_status_label}}</text>
-    <text class="current-line">到期：{{selectedOrg.current_period_end_text}}</text>
+    <view class="stats-card blue">
+      <text class="stats-card-label">当前工厂</text>
+      <text class="stats-card-value">{{selectedOrg ? selectedOrg.factory_code : '--'}}</text>
+    </view>
   </view>
 
-  <view class="card section-card">
-    <view class="section-heading">
-      <text class="section-number">1</text>
-      <view class="section-copy">
-        <text class="section-title">选择工厂</text>
-        <text class="section-note">共 {{organizations.length}} 家</text>
+  <!-- Current Selected Org -->
+  <view wx:if="{{selectedOrg}}" class="stat-card accent-blue">
+    <view class="flex-between">
+      <text class="stat-card-label">{{selectedOrg.status === 'active' ? '启用中' : '已停用'}}</text>
+      <text class="badge {{selectedOrg.status === 'active' ? 'badge-green' : 'badge-red'}}">{{selectedOrg.status === 'active' ? '启用中' : '已停用'}}</text>
+    </view>
+    <text class="hero-value-sm mt-1">{{selectedOrg.org_name}}</text>
+    <text class="stat-card-footer">工厂码：{{selectedOrg.factory_code}}</text>
+    <text class="stat-card-footer" wx:if="{{selectedOrg.contact_name || selectedOrg.contact_phone}}">联系人：{{selectedOrg.contact_name}} {{selectedOrg.contact_phone}}</text>
+    <text class="stat-card-footer">服务：{{selectedOrg.plan_name_view}} | {{selectedOrg.billing_status_label}}</text>
+    <text class="stat-card-footer">到期：{{selectedOrg.current_period_end_text}}</text>
+  </view>
+
+  <!-- Section 1: Select Factory -->
+  <view class="card-bento">
+    <view class="page-header">
+      <view class="page-header-left">
+        <text class="page-header-title">1. 选择工厂</text>
+        <text class="page-header-subtitle">共 {{organizations.length}} 家</text>
       </view>
     </view>
 
-    <view wx:if="{{organizations.length === 0 && !loading}}" class="empty-state">
-      <text class="empty-text">暂无工厂，请先创建</text>
+    <view wx:if="{{organizations.length === 0 && !loading}}" class="empty">
+      <text class="empty-desc">暂无工厂，请先创建</text>
     </view>
 
     <view wx:for="{{organizations}}" wx:key="_id" class="org-card {{selectedOrgId === item._id ? 'org-card-selected' : ''}}" data-index="{{index}}" bindtap="selectOrganization">
-      <view class="org-title-row">
-        <text class="org-name">{{item.org_name}}</text>
-        <text class="status-chip {{item.status === 'active' ? 'status-active' : 'status-disabled'}}">{{item.status === 'active' ? '启用中' : '已停用'}}</text>
+      <view class="flex-between">
+        <text class="font-semibold">{{item.org_name}}</text>
+        <text class="badge {{item.status === 'active' ? 'badge-green' : 'badge-red'}}">{{item.status === 'active' ? '启用中' : '已停用'}}</text>
       </view>
-      <text class="org-meta">工厂码：{{item.factory_code}}</text>
-      <text class="org-meta" wx:if="{{item.contact_name || item.contact_phone}}">联系人：{{item.contact_name}} {{item.contact_phone}}</text>
-      <view class="billing-line">
-        <text class="billing-chip {{item.billing_status_class}}">{{item.billing_status_label}}</text>
-        <text class="billing-summary">{{item.plan_name_view}}｜到期 {{item.current_period_end_text}}</text>
+      <text class="text-tertiary text-xs d-block mt-8">工厂码：{{item.factory_code}}</text>
+      <text class="text-tertiary text-xs d-block" wx:if="{{item.contact_name || item.contact_phone}}">联系人：{{item.contact_name}} {{item.contact_phone}}</text>
+      <view class="flex-row gap-1 mt-1">
+        <text class="badge {{item.billing_status_class === 'active' ? 'badge-green' : item.billing_status_class === 'trial' ? 'badge-blue' : item.billing_status_class === 'grace' ? 'badge-amber' : 'badge-red'}}">{{item.billing_status_label}}</text>
+        <text class="text-tertiary text-xs">{{item.plan_name_view}} | 到期 {{item.current_period_end_text}}</text>
       </view>
-      <view class="selected-mark" wx:if="{{selectedOrgId === item._id}}">
-        <text>当前编辑</text>
-      </view>
+      <view wx:if="{{selectedOrgId === item._id}}" class="badge badge-blue d-block text-center mt-12">当前编辑</view>
     </view>
   </view>
 
-  <view class="card section-card" wx:if="{{selectedOrg}}">
-    <view class="section-heading">
-      <text class="section-number">2</text>
-      <view class="section-copy">
-        <text class="section-title">编辑工厂资料</text>
-        <text class="section-note">{{selectedOrg.org_name}}</text>
+  <!-- Section 2: Edit Org -->
+  <view class="card-bento" wx:if="{{selectedOrg}}">
+    <view class="page-header">
+      <view class="page-header-left">
+        <text class="page-header-title">2. 编辑工厂资料</text>
+        <text class="page-header-subtitle">{{selectedOrg.org_name}}</text>
       </view>
     </view>
 
-    <view class="form-list">
-      <view class="input-group">
-        <text class="input-label">工厂名称</text>
-        <input class="input-field" value="{{editForm.org_name}}" data-field="org_name" bindinput="onEditInput" placeholder="工厂名称" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">工厂码</text>
-        <input class="input-field code-input" value="{{editForm.factory_code}}" data-field="factory_code" bindinput="onEditInput" placeholder="例如 A001" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">联系人</text>
-        <input class="input-field" value="{{editForm.contact_name}}" data-field="contact_name" bindinput="onEditInput" placeholder="可选" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">联系电话</text>
-        <input class="input-field" value="{{editForm.contact_phone}}" data-field="contact_phone" bindinput="onEditInput" placeholder="可选" />
-      </view>
+    <view class="field-group">
+      <text class="field-label">工厂名称</text>
+      <input class="field-input" value="{{editForm.org_name}}" data-field="org_name" bindinput="onEditInput" placeholder="工厂名称" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">工厂码</text>
+      <input class="field-input font-bold" value="{{editForm.factory_code}}" data-field="factory_code" bindinput="onEditInput" placeholder="例如 A001" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">联系人</text>
+      <input class="field-input" value="{{editForm.contact_name}}" data-field="contact_name" bindinput="onEditInput" placeholder="可选" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">联系电话</text>
+      <input class="field-input" value="{{editForm.contact_phone}}" data-field="contact_phone" bindinput="onEditInput" placeholder="可选" />
     </view>
 
-    <view class="button-stack">
-      <button class="btn-primary full-button" bindtap="saveSelectedOrganization">保存工厂资料</button>
-      <button class="status-button {{selectedOrg.status === 'active' ? 'danger-btn' : 'enable-btn'}}" bindtap="toggleSelectedOrganization">
-        {{selectedOrg.status === 'active' ? '停用工厂' : '启用工厂'}}
-      </button>
-    </view>
+    <button class="btn btn-primary btn-block mt-2" bindtap="saveSelectedOrganization">保存工厂资料</button>
+    <button class="btn {{selectedOrg.status === 'active' ? 'btn-danger' : 'btn-success'}} btn-block mt-1" bindtap="toggleSelectedOrganization">
+      {{selectedOrg.status === 'active' ? '停用工厂' : '启用工厂'}}
+    </button>
   </view>
 
-  <view class="card section-card" wx:if="{{selectedOrg}}">
-    <view class="section-heading">
-      <text class="section-number">3</text>
-      <view class="section-copy">
-        <text class="section-title">订阅开通</text>
-        <text class="section-note">{{selectedOrg.billing_status_label}}，到期 {{selectedOrg.current_period_end_text}}</text>
+  <!-- Section 3: Subscription -->
+  <view class="card-bento" wx:if="{{selectedOrg}}">
+    <view class="page-header">
+      <view class="page-header-left">
+        <text class="page-header-title">3. 订阅开通</text>
+        <text class="page-header-subtitle">{{selectedOrg.billing_status_label}}，到期 {{selectedOrg.current_period_end_text}}</text>
       </view>
     </view>
 
-    <view class="billing-status-box">
-      <text class="billing-status-title">{{selectedOrg.plan_name_view}}</text>
-      <text class="billing-status-text">当前状态：{{selectedOrg.billing_status_label}}</text>
-      <text class="billing-status-text">服务到期：{{selectedOrg.current_period_end_text}}</text>
-      <text class="billing-status-text">宽限到期：{{selectedOrg.grace_until_text}}</text>
+    <view class="sub-current-plan">
+      <text class="font-semibold d-block mb-6">{{selectedOrg.plan_name_view}}</text>
+      <text class="text-tertiary text-xs d-block">当前状态：{{selectedOrg.billing_status_label}}</text>
+      <text class="text-tertiary text-xs d-block">服务到期：{{selectedOrg.current_period_end_text}}</text>
+      <text class="text-tertiary text-xs d-block">宽限到期：{{selectedOrg.grace_until_text}}</text>
     </view>
 
-    <view class="form-list">
-      <view class="input-group">
-        <text class="input-label">开通套餐</text>
-        <picker mode="selector" range="{{plans}}" range-key="plan_name" value="{{selectedPlanIndex}}" bindchange="onPlanPickerChange">
-          <view class="picker-field">{{plans[selectedPlanIndex] ? plans[selectedPlanIndex].plan_name : '请选择套餐'}}</view>
-        </picker>
-      </view>
-      <view class="input-group" wx:if="{{plans[selectedPlanIndex] && plans[selectedPlanIndex].billing_period === 'trial'}}">
-        <text class="input-label">试用天数</text>
-        <input class="input-field" value="{{billingForm.trial_days}}" data-field="trial_days" bindinput="onBillingInput" placeholder="例如 7" type="number" />
-      </view>
-      <view class="input-group" wx:else>
-        <text class="input-label">开通月数</text>
-        <input class="input-field" value="{{billingForm.period_months}}" data-field="period_months" bindinput="onBillingInput" placeholder="例如 12" type="number" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">收款金额（元）</text>
-        <input class="input-field" value="{{billingForm.amount_yuan}}" data-field="amount_yuan" bindinput="onBillingInput" placeholder="例如 1999" type="digit" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">备注</text>
-        <input class="input-field" value="{{billingForm.remark}}" data-field="remark" bindinput="onBillingInput" placeholder="例如 微信已收款" />
-      </view>
+    <view class="field-group">
+      <text class="field-label">开通套餐</text>
+      <picker mode="selector" range="{{plans}}" range-key="plan_name" value="{{selectedPlanIndex}}" bindchange="onPlanPickerChange">
+        <view class="picker-field">{{plans[selectedPlanIndex] ? plans[selectedPlanIndex].plan_name : '请选择套餐'}}</view>
+      </picker>
+    </view>
+    <view class="field-group" wx:if="{{plans[selectedPlanIndex] && plans[selectedPlanIndex].billing_period === 'trial'}}">
+      <text class="field-label">试用天数</text>
+      <input class="field-input" value="{{billingForm.trial_days}}" data-field="trial_days" bindinput="onBillingInput" placeholder="例如 7" type="number" />
+    </view>
+    <view class="field-group" wx:else>
+      <text class="field-label">开通月数</text>
+      <input class="field-input" value="{{billingForm.period_months}}" data-field="period_months" bindinput="onBillingInput" placeholder="例如 12" type="number" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">收款金额（元）</text>
+      <input class="field-input" value="{{billingForm.amount_yuan}}" data-field="amount_yuan" bindinput="onBillingInput" placeholder="例如 1999" type="digit" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">备注</text>
+      <input class="field-input" value="{{billingForm.remark}}" data-field="remark" bindinput="onBillingInput" placeholder="例如 微信已收款" />
     </view>
 
-    <button class="btn-primary full-button" bindtap="openSubscription" disabled="{{selectedOrg.billing_status_view === 'permanent'}}">
+    <button class="btn btn-primary btn-block" bindtap="openSubscription" disabled="{{selectedOrg.billing_status_view === 'permanent'}}">
       {{selectedOrg.billing_status_view === 'permanent' ? '永久免费，无需开通' : '确认开通/延期'}}
     </button>
 
-    <view class="billing-history">
-      <text class="history-title">最近开通记录</text>
-      <view wx:if="{{billingOrders.length === 0}}" class="empty-row">暂无记录</view>
-      <view wx:for="{{billingOrders}}" wx:key="_id" class="history-row">
-        <text class="history-main">{{item.plan_name}}｜{{item.amount_yuan}}元</text>
-        <text class="history-sub">{{item.payment_channel}}｜{{item.payment_status}}｜{{item.paid_at_text}}</text>
+    <view class="sub-history">
+      <text class="menu-group-title d-block mb-1">最近开通记录</text>
+      <view wx:if="{{billingOrders.length === 0}}" class="empty">
+        <text class="empty-desc">暂无记录</text>
+      </view>
+      <view wx:for="{{billingOrders}}" wx:key="_id" class="billing-record">
+        <view class="flex-1">
+          <text class="font-semibold">{{item.plan_name}} | {{item.amount_yuan}}元</text>
+          <text class="text-tertiary text-xs d-block mt-4">{{item.payment_channel}} | {{item.payment_status}} | {{item.paid_at_text}}</text>
+        </view>
       </view>
     </view>
   </view>
 
-  <view class="card section-card" wx:if="{{selectedOrg}}">
-    <view class="section-heading">
-      <text class="section-number">4</text>
-      <view class="section-copy">
-        <text class="section-title">工厂管理员</text>
-        <text class="section-note">{{selectedOrg.org_name}}</text>
+  <!-- Section 4: Factory Admin -->
+  <view class="card-bento" wx:if="{{selectedOrg}}">
+    <view class="page-header">
+      <view class="page-header-left">
+        <text class="page-header-title">4. 工厂管理员</text>
+        <text class="page-header-subtitle">{{selectedOrg.org_name}}</text>
       </view>
     </view>
 
-    <view class="form-list">
-      <view class="input-group">
-        <text class="input-label">姓名</text>
-        <input class="input-field" value="{{adminForm.name}}" data-field="name" bindinput="onAdminInput" placeholder="管理员姓名" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">手机号</text>
-        <input class="input-field" value="{{adminForm.phone}}" data-field="phone" bindinput="onAdminInput" placeholder="管理员手机号" type="number" />
-      </view>
-      <view class="input-group full-width">
-        <text class="input-label">初始密码</text>
-        <input class="input-field" value="{{adminForm.password}}" data-field="password" bindinput="onAdminInput" placeholder="不填则默认为手机号" password="{{true}}" />
-      </view>
+    <view class="field-group">
+      <text class="field-label">姓名</text>
+      <input class="field-input" value="{{adminForm.name}}" data-field="name" bindinput="onAdminInput" placeholder="管理员姓名" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">手机号</text>
+      <input class="field-input" value="{{adminForm.phone}}" data-field="phone" bindinput="onAdminInput" placeholder="管理员手机号" type="number" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">初始密码</text>
+      <input class="field-input" value="{{adminForm.password}}" data-field="password" bindinput="onAdminInput" placeholder="不填则默认为手机号" password="{{true}}" />
     </view>
 
-    <button class="btn-primary full-button" bindtap="createFactoryAdmin">创建管理员</button>
+    <button class="btn btn-primary btn-block" bindtap="createFactoryAdmin">创建管理员</button>
 
     <view class="admin-list">
-      <view wx:if="{{factoryAdmins.length === 0}}" class="empty-row">暂无管理员</view>
-      <view wx:for="{{factoryAdmins}}" wx:key="_id" class="admin-row">
-        <view class="admin-info">
-          <text class="admin-name">{{item.name}}</text>
-          <text class="admin-phone">{{item.phone}}</text>
+      <view wx:if="{{factoryAdmins.length === 0}}" class="empty">
+        <text class="empty-desc">暂无管理员</text>
+      </view>
+      <view wx:for="{{factoryAdmins}}" wx:key="_id" class="admin-card">
+        <view class="flex-between">
+          <view>
+            <text class="font-semibold d-block">{{item.name}}</text>
+            <text class="text-tertiary text-xs d-block mt-4">{{item.phone}}</text>
+          </view>
+          <button class="btn-sm btn-sm-secondary" data-index="{{index}}" bindtap="resetFactoryAdminPassword">重置密码</button>
         </view>
-        <button class="reset-btn" data-index="{{index}}" bindtap="resetFactoryAdminPassword">重置密码</button>
       </view>
     </view>
   </view>
 
-  <view class="card section-card">
-    <view class="section-heading">
-      <text class="section-number">5</text>
-      <view class="section-copy">
-        <text class="section-title">新增工厂</text>
-        <text class="section-note">填写基础资料</text>
+  <!-- Section 5: Create Factory -->
+  <view class="card-bento">
+    <view class="page-header">
+      <view class="page-header-left">
+        <text class="page-header-title">5. 新增工厂</text>
+        <text class="page-header-subtitle">填写基础资料</text>
       </view>
     </view>
 
-    <view class="form-list">
-      <view class="input-group">
-        <text class="input-label">工厂名称</text>
-        <input class="input-field" value="{{orgForm.org_name}}" data-field="org_name" bindinput="onOrgInput" placeholder="例如 测试一厂" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">工厂码</text>
-        <input class="input-field code-input" value="{{orgForm.factory_code}}" data-field="factory_code" bindinput="onOrgInput" placeholder="例如 A001" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">联系人</text>
-        <input class="input-field" value="{{orgForm.contact_name}}" data-field="contact_name" bindinput="onOrgInput" placeholder="可选" />
-      </view>
-      <view class="input-group">
-        <text class="input-label">联系电话</text>
-        <input class="input-field" value="{{orgForm.contact_phone}}" data-field="contact_phone" bindinput="onOrgInput" placeholder="可选" />
-      </view>
+    <view class="field-group">
+      <text class="field-label">工厂名称</text>
+      <input class="field-input" value="{{orgForm.org_name}}" data-field="org_name" bindinput="onOrgInput" placeholder="例如 测试一厂" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">工厂码</text>
+      <input class="field-input font-bold" value="{{orgForm.factory_code}}" data-field="factory_code" bindinput="onOrgInput" placeholder="例如 A001" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">联系人</text>
+      <input class="field-input" value="{{orgForm.contact_name}}" data-field="contact_name" bindinput="onOrgInput" placeholder="可选" />
+    </view>
+    <view class="field-group">
+      <text class="field-label">联系电话</text>
+      <input class="field-input" value="{{orgForm.contact_phone}}" data-field="contact_phone" bindinput="onOrgInput" placeholder="可选" />
     </view>
 
-    <button class="btn-primary full-button" bindtap="createOrganization">创建工厂</button>
+    <button class="btn btn-primary btn-block" bindtap="createOrganization">创建工厂</button>
   </view>
+
 </view>
