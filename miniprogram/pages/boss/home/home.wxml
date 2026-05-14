@@ -1,193 +1,213 @@
-<!--pages/boss/home/home.wxml-->
-<view class="container">
-  <view class="boss-hero hero-panel">
-    <view class="hero-top-row">
+<import src="/templates/shared.wxml" />
+
+<view class="container boss-home-page">
+
+  <!-- 今日概览 -->
+  <view class="boss-overview">
+    <view class="boss-overview-head">
+      <view class="boss-overview-titlewrap">
+        <text class="boss-kicker">{{todayDate}}</text>
+        <text class="boss-title">{{userInfo.org_name || '飞盛'}}</text>
+        <text class="boss-subtitle">{{userInfo.name}} · 管理后台</text>
+      </view>
+      <view class="boss-logout" bindtap="onLogout" hover-class="tap-button-hover">退出</view>
+    </view>
+    <view class="boss-salary-panel tappable" bindtap="onStatTap" data-target="salary" hover-class="tap-card-hover" hover-stay-time="80">
       <view>
-        <text class="hero-title">管理后台</text>
-        <text class="hero-subtitle">{{todayDate}}</text>
-        <text class="hero-user" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
-        <text class="hero-user">{{userInfo.name}}</text>
+        <text class="boss-panel-label">本月薪资支出</text>
+        <text class="boss-panel-value">¥{{stats.monthSalary}}</text>
       </view>
-      <view class="hero-action-pill" bindtap="onLogout">退出</view>
-    </view>
-
-    <view class="hero-highlight-card is-clickable" bindtap="onStatTap" data-target="salary">
-      <view class="hero-highlight-main">
-        <text class="hero-highlight-label">本月薪资支出</text>
-        <text class="hero-highlight-value">¥{{stats.monthSalary}}</text>
-        <text class="hero-highlight-tip">点击查看本月薪酬明细与发放情况</text>
-      </view>
+      <view class="boss-panel-action">明细</view>
     </view>
   </view>
 
-  <view wx:if="{{subscription}}" class="subscription-strip {{subscriptionStatusClass}}" bindtap="goSubscription">
-    <view class="subscription-main">
-      <text class="subscription-title">服务状态：{{subscription.billing_status_label}}</text>
-      <text class="subscription-note">{{subscription.plan_name}}｜到期 {{subscription.current_period_end_text}}</text>
+  <!-- 订阅状态 -->
+  <view wx:if="{{subscription}}" class="subscription-bar {{subscriptionStatusClass}} tappable" bindtap="goSubscription" hover-class="tap-card-hover" hover-stay-time="80">
+    <view class="subscription-bar-main">
+      <text class="subscription-bar-title">服务状态：{{subscription.billing_status_label}}</text>
+      <text class="subscription-bar-meta">{{subscription.plan_name}} | 到期 {{subscription.current_period_end_text}}</text>
     </view>
-    <text class="subscription-action">查看</text>
+    <view class="subscription-bar-action">查看</view>
   </view>
 
-  <view class="stats-panel card">
-    <view class="panel-title-row">
-      <text class="section-title">经营概览</text>
-      <text class="panel-title-note">点击卡片直达对应页面</text>
+  <!-- 经营概览 -->
+  <view class="card-bento">
+    <view class="menu-group-head">
+      <text class="menu-group-title">经营概览</text>
+      <text class="menu-group-note">点击卡片直达</text>
     </view>
-
     <view class="stats-grid">
-      <view class="data-card data-card-blue is-clickable" bindtap="onStatTap" data-target="employees">
-        <text class="data-card-label">员工总数</text>
-        <text class="data-card-value">{{stats.totalEmployees}}</text>
-        <text class="data-card-note">查看员工管理</text>
+      <view class="stats-card blue tappable" bindtap="onStatTap" data-target="employees" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="stats-card-label">员工总数</text>
+        <text class="stats-card-value">{{stats.totalEmployees}}</text>
+        <text class="stats-card-note">员工管理</text>
       </view>
-      <view class="data-card data-card-green is-clickable" bindtap="onStatTap" data-target="attendance">
-        <text class="data-card-label">今日出勤</text>
-        <text class="data-card-value">{{stats.todayAttendance}}</text>
-        <text class="data-card-note">查看当日考勤</text>
+      <view class="stats-card green tappable" bindtap="onStatTap" data-target="attendance" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="stats-card-label">今日出勤</text>
+        <text class="stats-card-value">{{stats.todayAttendance}}</text>
+        <text class="stats-card-note">考勤管理</text>
       </view>
-      <view class="data-card data-card-orange is-clickable" bindtap="onStatTap" data-target="orders">
-        <text class="data-card-label">进行中订单</text>
-        <text class="data-card-value">{{stats.activeOrders}}</text>
-        <text class="data-card-note">进入订单管理</text>
+      <view class="stats-card amber tappable" bindtap="onStatTap" data-target="orders" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="stats-card-label">进行中订单</text>
+        <text class="stats-card-value">{{stats.activeOrders}}</text>
+        <text class="stats-card-note">订单管理</text>
       </view>
-      <view class="data-card data-card-ink is-clickable" bindtap="onStatTap" data-target="qc">
-        <text class="data-card-label">待质检</text>
-        <text class="data-card-value">{{stats.pendingQC}}</text>
-        <text class="data-card-note">进入质检工作台</text>
+      <view class="stats-card blue tappable" bindtap="onStatTap" data-target="qc" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="stats-card-label">待质检</text>
+        <text class="stats-card-value">{{stats.pendingQC}}</text>
+        <text class="stats-card-note">质检工作台</text>
       </view>
     </view>
   </view>
 
-  <view class="card menu-panel">
-    <view class="panel-title-row">
-      <text class="section-title">业务入口</text>
-      <text class="panel-title-note">按业务分组</text>
+  <!-- 人员管理 -->
+  <view class="card-bento">
+    <view class="menu-group-head">
+      <text class="menu-group-title">人员管理</text>
+      <text class="menu-group-note">员工、考勤与质检</text>
     </view>
-
-    <view class="menu-group">
-      <view class="menu-group-head">
-        <text class="menu-group-title">人员</text>
-        <text class="menu-group-note">员工、考勤与质检协同</text>
+    <view class="menu-grid">
+      <view class="menu-item tappable" bindtap="goTo" data-page="employees" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon blue">
+          <image src="/images/icons/employees.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">员工管理</text>
       </view>
-
-      <view class="menu-grid">
-        <view class="menu-grid-item" bindtap="goTo" data-page="employees">
-          <view class="menu-icon-box menu-icon-blue">👥</view>
-          <text class="menu-label">员工管理</text>
+      <view class="menu-item tappable" bindtap="goTo" data-page="attendance" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon green">
+          <image src="/images/icons/attendance.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="attendance">
-          <view class="menu-icon-box menu-icon-green">📅</view>
-          <text class="menu-label">考勤管理</text>
-        </view>
-        <view class="menu-grid-item" bindtap="goToQC">
-          <view class="menu-icon-box menu-icon-violet">🔍</view>
-          <text class="menu-label">质检管理</text>
-        </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="leaderboard">
-          <view class="menu-icon-box menu-icon-purple">🏆</view>
-          <text class="menu-label">排行榜</text>
-        </view>
+        <text class="menu-item-label">考勤管理</text>
       </view>
-    </view>
-
-    <view class="menu-group">
-      <view class="menu-group-head">
-        <text class="menu-group-title">生产</text>
-        <text class="menu-group-note">订单、报工与现场工具</text>
+      <view class="menu-item tappable" bindtap="goToQC" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon amber">
+          <image src="/images/icons/qc.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">质检管理</text>
       </view>
-
-      <view class="menu-grid">
-        <view class="menu-grid-item" bindtap="goTo" data-page="orders">
-          <view class="menu-icon-box menu-icon-orange">📋</view>
-          <text class="menu-label">订单管理</text>
+      <view class="menu-item tappable" bindtap="goTo" data-page="leaderboard" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon slate">
+          <image src="/images/icons/leaderboard.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="worklog-manage">
-          <view class="menu-icon-box menu-icon-amber">🧾</view>
-          <text class="menu-label">报工管理</text>
-        </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="qrcode">
-          <view class="menu-icon-box menu-icon-teal">📱</view>
-          <text class="menu-label">考勤码</text>
-        </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="data-center">
-          <view class="menu-icon-box menu-icon-sky">🗄️</view>
-          <text class="menu-label">数据中心</text>
-        </view>
+        <text class="menu-item-label">排行榜</text>
       </view>
     </view>
+  </view>
 
-    <view class="menu-group">
-      <view class="menu-group-head">
-        <text class="menu-group-title">财务</text>
-        <text class="menu-group-note">薪酬统计与报表输出</text>
+  <!-- 生产管理 -->
+  <view class="card-bento">
+    <view class="menu-group-head">
+      <text class="menu-group-title">生产管理</text>
+      <text class="menu-group-note">订单、报工与数据</text>
+    </view>
+    <view class="menu-grid">
+      <view class="menu-item tappable" bindtap="goTo" data-page="orders" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon blue">
+          <image src="/images/icons/orders.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">订单管理</text>
       </view>
-
-      <view class="menu-grid">
-        <view class="menu-grid-item" bindtap="goTo" data-page="salary">
-          <view class="menu-icon-box menu-icon-red">💰</view>
-          <text class="menu-label">薪酬管理</text>
+      <view class="menu-item tappable" bindtap="goTo" data-page="worklog-manage" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon green">
+          <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
-        <view class="menu-grid-item" bindtap="goTo" data-page="export">
-          <view class="menu-icon-box menu-icon-gold">📊</view>
-          <text class="menu-label">导出报表</text>
+        <text class="menu-item-label">报工管理</text>
+      </view>
+      <view class="menu-item tappable" bindtap="goTo" data-page="qrcode" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon amber">
+          <image src="/images/icons/qrcode-icon.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
+        <text class="menu-item-label">考勤码</text>
+      </view>
+      <view class="menu-item tappable" bindtap="goTo" data-page="data-center" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon slate">
+          <image src="/images/icons/database.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">数据中心</text>
       </view>
     </view>
+  </view>
 
-    <view class="menu-group menu-group-last">
-      <view class="menu-group-head">
-        <text class="menu-group-title">系统</text>
-        <text class="menu-group-note">基础配置与账号安全</text>
+  <!-- 薪酬与报表 -->
+  <view class="card-bento">
+    <view class="menu-group-head">
+      <text class="menu-group-title">薪酬与报表</text>
+      <text class="menu-group-note">工资发放与数据导出</text>
+    </view>
+    <view class="menu-grid">
+      <view class="menu-item tappable" bindtap="goTo" data-page="salary" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon red">
+          <image src="/images/icons/salary.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">薪酬管理</text>
       </view>
+      <view class="menu-item tappable" bindtap="goTo" data-page="export" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon amber">
+          <image src="/images/icons/export.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+        </view>
+        <text class="menu-item-label">导出报表</text>
+      </view>
+    </view>
+  </view>
 
-      <view class="menu-grid">
-        <view class="menu-grid-item" bindtap="goTo" data-page="settings">
-          <view class="menu-icon-box menu-icon-gray">⚙️</view>
-          <text class="menu-label">系统设置</text>
+  <!-- 系统工具 -->
+  <view class="card-bento">
+    <view class="menu-group-head">
+      <text class="menu-group-title">系统工具</text>
+    </view>
+    <view class="menu-grid">
+      <view class="menu-item tappable" bindtap="goTo" data-page="settings" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon slate">
+          <image src="/images/icons/settings.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
-        <view class="menu-grid-item" bindtap="openChangePwd">
-          <view class="menu-icon-box menu-icon-sand">🔒</view>
-          <text class="menu-label">修改密码</text>
+        <text class="menu-item-label">系统设置</text>
+      </view>
+      <view class="menu-item tappable" bindtap="openChangePwd" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon slate">
+          <image src="/images/icons/lock.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
-        <view class="menu-grid-item" bindtap="goSubscription">
-          <view class="menu-icon-box menu-icon-sky">🧾</view>
-          <text class="menu-label">服务续费</text>
+        <text class="menu-item-label">修改密码</text>
+      </view>
+      <view class="menu-item tappable" bindtap="goSubscription" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="menu-item-icon blue">
+          <image src="/images/icons/profile.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
         </view>
+        <text class="menu-item-label">服务续费</text>
       </view>
     </view>
   </view>
 
   <!-- 修改密码弹窗 -->
   <view wx:if="{{showChangePwd}}">
-    <view class="modal-mask" bindtap="closeChangePwd"></view>
-    <view class="modal-dialog">
-      <view class="modal-title">修改密码</view>
-      <view class="modal-body">
-        <view class="input-group">
-          <text class="input-label">旧密码</text>
-          <view class="pwd-input-wrap">
-            <input class="input-field" type="{{showOldPwd ? 'text' : 'password'}}" placeholder="请输入旧密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" />
-            <text class="pwd-toggle" bindtap="toggleOldPwd">{{showOldPwd ? '隐藏' : '显示'}}</text>
+    <view class="modal-overlay" bindtap="closeChangePwd">
+      <view class="modal-sheet" catchtap>
+        <text class="modal-sheet-title">修改密码</text>
+        <view class="modal-sheet-body">
+          <view class="field-group">
+            <text class="field-label">旧密码</text>
+            <view class="flex-row gap-1">
+              <input class="field-input flex-1" type="{{showOldPwd ? 'text' : 'password'}}" placeholder="请输入旧密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" />
+              <text class="btn-sm btn-ghost" bindtap="toggleOldPwd" hover-class="tap-chip-hover">{{showOldPwd ? '隐藏' : '显示'}}</text>
+            </view>
+          </view>
+          <view class="field-group">
+            <text class="field-label">新密码</text>
+            <view class="flex-row gap-1">
+              <input class="field-input flex-1" type="{{showNewPwd ? 'text' : 'password'}}" placeholder="至少8位，含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" />
+              <text class="btn-sm btn-ghost" bindtap="toggleNewPwd" hover-class="tap-chip-hover">{{showNewPwd ? '隐藏' : '显示'}}</text>
+            </view>
+          </view>
+          <view class="field-group">
+            <text class="field-label">确认新密码</text>
+            <input class="field-input" type="password" placeholder="再次输入新密码" value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" />
           </view>
         </view>
-        <view class="input-group">
-          <text class="input-label">新密码</text>
-          <view class="pwd-input-wrap">
-            <input class="input-field" type="{{showNewPwd ? 'text' : 'password'}}" placeholder="至少8位，含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" />
-            <text class="pwd-toggle" bindtap="toggleNewPwd">{{showNewPwd ? '隐藏' : '显示'}}</text>
-          </view>
+        <view class="modal-sheet-footer">
+          <view class="modal-sheet-btn" bindtap="closeChangePwd" hover-class="tap-row-hover">取消</view>
+          <view class="modal-sheet-btn {{changePwdLoading ? 'btn-disabled' : ''}}" bindtap="onSubmitChangePwd" hover-class="tap-row-hover">{{changePwdLoading ? '提交中...' : '确认修改'}}</view>
         </view>
-        <view class="input-group">
-          <text class="input-label">确认新密码</text>
-          <input class="input-field" type="password" placeholder="再次输入新密码" value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" />
-        </view>
-      </view>
-      <view class="modal-footer">
-        <button class="btn-default modal-btn" bindtap="closeChangePwd">取消</button>
-        <button class="btn-primary modal-btn" bindtap="onSubmitChangePwd" disabled="{{changePwdLoading}}">
-          {{changePwdLoading ? '提交中...' : '确认修改'}}
-        </button>
       </view>
     </view>
   </view>
+
 </view>

@@ -1,175 +1,195 @@
 <view class="container">
-  <view class="mode-switch">
-    <view class="mode-btn {{viewMode === 'month' ? 'mode-active' : ''}}" bindtap="switchMode" data-mode="month">按月查看</view>
-    <view class="mode-btn {{viewMode === 'order' ? 'mode-active' : ''}}" bindtap="switchMode" data-mode="order">按订单查看</view>
-    <view class="mode-btn {{viewMode === 'year' ? 'mode-active' : ''}}" bindtap="switchMode" data-mode="year">按年查看</view>
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">数据中心</text>
+      <text class="page-header-subtitle">查看工资、订单和生产数据</text>
+    </view>
+  </view>
+
+  <view class="tab-bar">
+    <view class="tab-item {{viewMode === 'month' ? 'tab-item-active' : ''}}" bindtap="switchMode" data-mode="month" hover-class="tap-chip-hover">按月查看</view>
+    <view class="tab-item {{viewMode === 'order' ? 'tab-item-active' : ''}}" bindtap="switchMode" data-mode="order" hover-class="tap-chip-hover">按订单查看</view>
+    <view class="tab-item {{viewMode === 'year' ? 'tab-item-active' : ''}}" bindtap="switchMode" data-mode="year" hover-class="tap-chip-hover">按年查看</view>
   </view>
 
   <block wx:if="{{viewMode !== 'order'}}">
-    <view class="card filter-card">
-      <view wx:if="{{viewMode === 'month'}}" class="input-group" style="margin-bottom:0;">
-        <text class="input-label">选择月份</text>
+    <view class="card-bento">
+      <view wx:if="{{viewMode === 'month'}}" class="field-group">
+        <text class="field-label">选择月份</text>
         <picker mode="date" fields="month" value="{{month}}" bindchange="onMonthChange">
-          <view class="picker-field">
+          <view class="picker-field" hover-class="tap-row-hover">
             <text>{{month}}</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
       </view>
 
-      <view wx:if="{{viewMode === 'year'}}" class="input-group" style="margin-bottom:0;">
-        <text class="input-label">选择年份</text>
+      <view wx:if="{{viewMode === 'year'}}" class="field-group">
+        <text class="field-label">选择年份</text>
         <picker mode="date" fields="year" value="{{year}}" bindchange="onYearChange">
-          <view class="picker-field">
+          <view class="picker-field" hover-class="tap-row-hover">
             <text>{{year}}</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
       </view>
 
-      <view class="report-type-row">
-        <view class="report-type-btn {{reportType === 'summary' ? 'report-type-active' : ''}}" bindtap="switchReportType" data-type="summary">
-          <text>汇总表</text>
-        </view>
-        <view class="report-type-btn {{reportType === 'detail' ? 'report-type-active' : ''}}" bindtap="switchReportType" data-type="detail">
-          <text>明细表</text>
-        </view>
+      <view class="filter-chips" style="margin-bottom:var(--sp-2);">
+        <view class="filter-chip {{reportType === 'summary' ? 'filter-chip-active' : ''}}" bindtap="switchReportType" data-type="summary" hover-class="tap-chip-hover">汇总表</view>
+        <view class="filter-chip {{reportType === 'detail' ? 'filter-chip-active' : ''}}" bindtap="switchReportType" data-type="detail" hover-class="tap-chip-hover">明细表</view>
       </view>
 
-      <view class="path-hint">
-        <text class="path-hint-text">{{pathHint}}</text>
+      <view class="notice notice-blue">
+        <text class="text-primary text-xs">{{pathHint}}</text>
       </view>
     </view>
 
-    <view class="month-header">
-      <text class="month-header-text">{{periodDisplayLabel}} 报表预览</text>
+    <view style="padding:var(--sp-1) 0;">
+      <text class="font-bold text-primary text-md">{{periodDisplayLabel}} 报表预览</text>
     </view>
 
-    <view wx:if="{{tableLoaded && tableRows.length > 0}}" class="card summary-card">
-      <view class="summary-row">
-        <view class="summary-item">
-          <text class="summary-num">{{tableRows.length}}</text>
-          <text class="summary-label">数据行数</text>
+    <view wx:if="{{tableLoaded && tableRows.length > 0}}" class="card-bento">
+      <view class="stats-grid">
+        <view class="stats-card blue">
+          <text class="stats-card-value">{{tableRows.length}}</text>
+          <text class="stats-card-label">数据行数</text>
         </view>
-        <view class="summary-item">
-          <text class="summary-num">{{tableHeaders.length}}</text>
-          <text class="summary-label">字段数量</text>
+        <view class="stats-card blue">
+          <text class="stats-card-value">{{tableHeaders.length}}</text>
+          <text class="stats-card-label">字段数量</text>
         </view>
       </view>
     </view>
 
-    <view wx:if="{{tableLoaded}}" class="card table-card">
-      <view class="table-title-row">
-        <view class="section-title" style="margin-bottom:0;">{{tableTitle}}</view>
-        <view class="tag tag-info">预览</view>
+    <view wx:if="{{tableLoaded}}" class="card-bento">
+      <view class="flex-row gap-1" style="margin-bottom:var(--sp-2);">
+        <text class="menu-group-title">{{tableTitle}}</text>
+        <text class="badge badge-blue">预览</text>
       </view>
 
-      <scroll-view scroll-x="true" class="table-scroll" wx:if="{{tableRows.length > 0}}">
-        <view class="table">
-          <view class="table-row table-header-row">
-            <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header" class="table-cell table-header-cell">
-              <text class="cell-text">{{header}}</text>
+      <scroll-view scroll-x="true" style="width:100%;" wx:if="{{tableRows.length > 0}}">
+        <view style="display:inline-flex;flex-direction:column;min-width:100%;">
+          <view style="display:flex;">
+            <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header" style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;background:var(--text-primary);color:#fff;font-weight:var(--fw-bold);">
+              <text style="width:100%;word-break:break-all;line-height:1.3;">{{header}}</text>
             </view>
           </view>
 
-          <view wx:for="{{tableRows}}" wx:key="rowIdx" wx:for-item="row" wx:for-index="rowIdx" class="table-row {{rowIdx % 2 === 1 ? 'table-row-alt' : ''}}">
-            <view wx:for="{{row}}" wx:key="colIdx" wx:for-item="cell" wx:for-index="colIdx" class="table-cell">
-              <text class="cell-text">{{cell}}</text>
+          <view wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="rowIdx" style="display:flex;">
+            <view wx:for="{{row}}" wx:for-item="cell" wx:for-index="colIdx" style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;{{rowIdx % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
+              <text style="width:100%;word-break:break-all;line-height:1.3;">{{cell}}</text>
             </view>
           </view>
         </view>
       </scroll-view>
 
-      <view wx:if="{{tableRows.length === 0}}" class="empty-state">
-        <text class="empty-text">当前条件下暂无数据</text>
+      <view wx:if="{{tableRows.length === 0}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/database.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+        </view>
+        <text class="empty-title">暂无数据</text>
+        <text class="empty-desc">当前筛选条件下暂无数据，可调整时间或重新加载。</text>
+        <view class="empty-action secondary" bindtap="loadPeriodTable" hover-class="tap-button-hover">重新加载</view>
       </view>
     </view>
   </block>
 
   <block wx:if="{{viewMode === 'order'}}">
     <block wx:if="{{selectedOrder}}">
-      <view class="card">
-        <view class="back-row" bindtap="onBackToOrders">
-          <text class="back-arrow">← 返回订单列表</text>
+      <view class="card-bento">
+        <view class="tappable" bindtap="onBackToOrders" style="padding-bottom:var(--sp-2);border-bottom:1rpx solid var(--border);margin-bottom:var(--sp-2);" hover-class="tap-row-hover">
+          <text class="text-accent font-semibold text-xs">← 返回订单列表</text>
         </view>
-        <view class="order-detail-header">
-          <text class="order-detail-name">{{selectedOrder.order_name}}</text>
-          <text class="tag {{selectedOrder.status === 'completed' ? 'tag-success' : selectedOrder.status === 'cancelled' ? 'tag-danger' : 'tag-primary'}}">{{selectedOrder.statusText}}</text>
-        </view>
-      </view>
-
-      <view class="card summary-card">
-        <view class="summary-row">
-          <view class="summary-item">
-            <text class="summary-val text-primary">{{orderSummary.logCount || 0}}</text>
-            <text class="summary-label">报工条数</text>
-          </view>
-          <view class="summary-item">
-            <text class="summary-val text-success">{{orderSummary.totalQty || 0}}</text>
-            <text class="summary-label">总数量</text>
-          </view>
-          <view class="summary-item">
-            <text class="summary-val text-danger">¥{{orderSummary.totalCost || '0.00'}}</text>
-            <text class="summary-label">总成本</text>
-          </view>
+        <view class="flex-between">
+          <text class="order-card-name">{{selectedOrder.order_name}}</text>
+          <text class="badge {{selectedOrder.status === 'completed' ? 'badge-green' : selectedOrder.status === 'cancelled' ? 'badge-red' : 'badge-blue'}}">{{selectedOrder.statusText}}</text>
         </view>
       </view>
 
-      <view wx:if="{{orderSummary.processes.length > 0}}" class="card">
-        <view class="section-title">工序进度</view>
-        <view wx:for="{{orderSummary.processes}}" wx:key="_id" class="process-row">
-          <view class="process-info">
-            <text class="process-name">{{item.process_name}}</text>
-            <text class="process-price">¥{{item.current_price}}/件</text>
+      <view class="card-bento">
+        <view class="stats-grid">
+          <view class="stats-card blue">
+            <text class="stats-card-value text-accent">{{orderSummary.logCount || 0}}</text>
+            <text class="stats-card-label">报工条数</text>
           </view>
-          <view class="progress-bar">
-            <view class="progress-fill" style="width: {{item.completion || 0}}%;"></view>
+          <view class="stats-card green">
+            <text class="stats-card-value text-green">{{orderSummary.totalQty || 0}}</text>
+            <text class="stats-card-label">总数量</text>
           </view>
-          <text class="process-percent">{{item.completion || 0}}%</text>
+          <view class="stats-card amber">
+            <text class="stats-card-value text-red">¥{{orderSummary.totalCost || '0.00'}}</text>
+            <text class="stats-card-label">总成本</text>
+          </view>
         </view>
       </view>
 
-      <view class="card">
-        <view class="section-title">报工明细</view>
-        <view wx:if="{{orderWorklogs.length === 0 && !loading}}" class="empty-card">
-          <text class="empty-text">暂无报工记录</text>
-        </view>
-        <view wx:for="{{orderWorklogs}}" wx:key="_id" class="data-row">
-          <view class="data-row-left">
-            <text class="data-row-name">{{item.user_name || '未知'}}</text>
-            <text class="data-row-sub">{{item.process_name}} · {{item.date}}</text>
+      <view wx:if="{{orderSummary.processes.length > 0}}" class="card-bento">
+        <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">工序进度</text>
+        <view wx:for="{{orderSummary.processes}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
+          <view class="flex-col gap-1" style="width:180rpx;flex-shrink:0;">
+            <text class="list-row-title text-xs">{{item.process_name}}</text>
+            <text class="list-row-subtitle">¥{{item.current_price}}/件</text>
           </view>
-          <view class="data-row-right">
-            <text class="data-row-qty">×{{item.quantity}}</text>
-            <text class="data-row-amount">¥{{item.amount}}</text>
+          <view class="progress-bar" style="flex:1;">
+            <view class="progress-bar-fill" style="width: {{item.completion || 0}}%;"></view>
+          </view>
+          <text class="text-accent font-semibold text-xs" style="width:80rpx;text-align:right;flex-shrink:0;">{{item.completion || 0}}%</text>
+        </view>
+      </view>
+
+      <view class="card-bento">
+        <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">报工明细</text>
+        <view wx:if="{{orderWorklogs.length === 0 && !loading}}" class="empty" style="padding:var(--sp-3) 0;">
+          <view class="empty-icon">
+            <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+          </view>
+          <text class="empty-title">此订单暂无报工</text>
+          <text class="empty-desc">返回订单列表查看其他订单。</text>
+          <view class="empty-action secondary" bindtap="onBackToOrders" hover-class="tap-button-hover">返回订单列表</view>
+        </view>
+        <view wx:for="{{orderWorklogs}}" wx:for-item="item" wx:key="_id" class="list-row">
+          <view class="flex-1">
+            <text class="list-row-title">{{item.user_name || '未知'}}</text>
+            <text class="list-row-subtitle">{{item.process_name}} · {{item.date}}</text>
+          </view>
+          <view style="text-align:right;">
+            <text class="list-row-subtitle">×{{item.quantity}}</text>
+            <text class="font-bold text-amber text-sm" style="display:block;">¥{{item.amount}}</text>
           </view>
         </view>
       </view>
     </block>
 
     <block wx:else>
-      <view class="month-header">
-        <text class="month-header-text">全部订单</text>
+      <view style="padding:var(--sp-1) 0;">
+        <text class="font-bold text-primary text-md">全部订单</text>
       </view>
 
-      <view wx:if="{{orderList.length === 0 && !loading}}" class="card empty-card">
-        <text class="empty-text">暂无订单数据</text>
-      </view>
-
-      <view wx:for="{{orderList}}" wx:key="_id" class="card order-card" bindtap="onOrderTap" data-order="{{item}}">
-        <view class="order-card-top">
-          <text class="order-card-name">{{item.order_name}}</text>
-          <text class="tag {{item.status === 'completed' ? 'tag-success' : item.status === 'cancelled' ? 'tag-danger' : 'tag-primary'}}">{{item.statusText}}</text>
+      <view wx:if="{{orderList.length === 0 && !loading}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/orders.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
         </view>
-        <view class="order-card-bottom">
-          <text class="order-card-info">金额: ¥{{item.displayAmount}}</text>
-          <text class="order-card-arrow">查看详情 ▼</text>
+        <text class="empty-title">暂无订单</text>
+        <text class="empty-desc">当前工厂还没有订单数据，刷新后可再次确认。</text>
+        <view class="empty-action secondary" bindtap="loadOrders" hover-class="tap-button-hover">刷新订单</view>
+      </view>
+
+      <view wx:for="{{orderList}}" wx:for-item="item" wx:key="_id" class="order-card" bindtap="onOrderTap" data-order="{{item}}" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="order-card-head">
+          <text class="order-card-name">{{item.order_name}}</text>
+          <text class="badge {{item.status === 'completed' ? 'badge-green' : item.status === 'cancelled' ? 'badge-red' : 'badge-blue'}}">{{item.statusText}}</text>
+        </view>
+        <view class="flex-between" style="margin-top:var(--sp-1);">
+          <text class="list-row-subtitle">金额: ¥{{item.displayAmount}}</text>
+          <text class="text-accent text-xs">查看详情 ▼</text>
         </view>
       </view>
     </block>
   </block>
 
-  <view wx:if="{{loading}}" class="loading-mask">
-    <text class="loading-text">加载中...</text>
+  <view wx:if="{{loading}}" class="card-bento">
+    <view class="skeleton skeleton-title"></view>
+    <view class="skeleton skeleton-card"></view>
+    <view class="skeleton skeleton-line"></view>
   </view>
 </view>

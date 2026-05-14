@@ -1,163 +1,150 @@
-<!--pages/employee/home/home.wxml-->
+<import src="/templates/shared.wxml" />
+
 <view class="container">
-  <view class="employee-hero hero-panel">
-    <view class="employee-top-row">
-      <view class="user-avatar">{{userInfo.name[0]}}</view>
-      <view class="user-info">
-        <text class="user-name">{{userInfo.name}}</text>
-        <text class="user-role">员工工作台</text>
-        <text class="user-join-date" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
-        <text class="user-join-date" wx:if="{{joinDateDisplay}}">入厂时间：{{joinDateDisplay}}</text>
+
+  <!-- Hero-employee -->
+  <view class="hero hero-employee">
+    <view class="hero-top">
+      <view class="hero-avatar">{{userInfo.name[0]}}</view>
+      <view class="hero-left">
+        <text class="hero-title">{{userInfo.name}}</text>
+        <text class="hero-subtitle">员工工作台</text>
+        <text class="hero-meta" wx:if="{{userInfo.org_name}}">{{userInfo.org_name}}</text>
       </view>
-      <view class="time-panel">
-        <text class="date-text">{{todayDate}}</text>
-        <text class="time-text">{{currentTime}}</text>
+      <view class="hero-time-col">
+        <text class="hero-meta">{{todayDate}}</text>
+        <text class="hero-time-text">{{currentTime}}</text>
       </view>
     </view>
-
-    <view class="hero-status-row">
-      <view class="hero-status-card">
-        <text class="hero-status-label">今日状态</text>
-        <text class="hero-status-value">{{clockedIn ? '在岗中' : '未上班'}}</text>
+    <view class="hero-stats">
+      <view class="hero-stat">
+        <text class="hero-stat-label">今日状态</text>
+        <text class="hero-stat-value">{{clockedIn ? '在岗中' : '未上班'}}</text>
       </view>
-      <view class="hero-status-card">
-        <text class="hero-status-label">今日工时</text>
-        <text class="hero-status-value">{{todayHours}}h</text>
+      <view class="hero-stat">
+        <text class="hero-stat-label">今日工时</text>
+        <text class="hero-stat-value">{{todayHours}}h</text>
       </view>
-      <view class="hero-status-card">
-        <text class="hero-status-label">打卡次数</text>
-        <text class="hero-status-value">{{sessionCount}}</text>
+      <view class="hero-stat">
+        <text class="hero-stat-label">打卡次数</text>
+        <text class="hero-stat-value">{{sessionCount}}</text>
       </view>
     </view>
   </view>
 
-  <view class="stats-row">
-    <view class="stat-item stat-wage card">
-      <text class="stat-label-top">今日预估工资</text>
-      <text class="stat-value">¥{{todayEarnings}}</text>
-      <text class="stat-foot">基于今日报工实时计算</text>
+  <!-- 工资工时概览 -->
+  <view class="stats-grid">
+    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+      <text class="stats-card-label">今日预估工资</text>
+      <text class="stats-card-value">¥{{todayEarnings}}</text>
+      <text class="stats-card-note">基于今日报工实时计算</text>
     </view>
-    <view class="stat-item stat-hours card">
-      <text class="stat-label-top">本月累计工时</text>
-      <text class="stat-value">{{monthHours}}h</text>
-      <text class="stat-foot">含今日已完成工时</text>
+    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+      <text class="stats-card-label">本月累计工时</text>
+      <text class="stats-card-value">{{monthHours}}h</text>
+      <text class="stats-card-note">含今日已完成工时</text>
     </view>
   </view>
 
-  <view class="clock-section card">
-    <view class="clock-head">
+  <!-- 考勤打卡 -->
+  <view class="clock-section">
+    <view class="flex-between home-clock-header">
       <view>
-        <text class="section-title">考勤打卡</text>
-        <text class="clock-subtitle">请在进入工厂后完成上班打卡，离厂前完成下班打卡。</text>
+        <text class="font-semibold">考勤打卡</text>
+        <text class="clock-hint">进入工厂后完成上班打卡，离厂前完成下班打卡。</text>
       </view>
-      <view wx:if="{{clockSource === 'scan'}}" class="scan-chip">扫码入口</view>
+      <view wx:if="{{clockSource === 'scan'}}" class="badge badge-blue">扫码入口</view>
     </view>
-
-    <view class="clock-buttons">
-      <view class="clock-btn-wrap">
-        <button
-          class="clock-btn {{clockedIn ? 'clock-btn-done' : 'clock-btn-in'}}"
-          bindtap="onClockIn"
-          disabled="{{clockedIn || loading}}"
-        >
-          <text class="clock-btn-caption">上班状态</text>
-          <text class="clock-btn-text">{{clockedIn ? '已开始工作' : '上班打卡'}}</text>
-          <text class="clock-btn-time" wx:if="{{clockInTime}}">{{clockInTime}}</text>
-        </button>
-      </view>
-
-      <view class="clock-btn-wrap">
-        <button
-          class="clock-btn {{clockedIn ? 'clock-btn-out' : 'clock-btn-disabled'}}"
-          bindtap="onClockOut"
-          disabled="{{!clockedIn || loading}}"
-        >
-          <text class="clock-btn-caption">下班状态</text>
-          <text class="clock-btn-text">下班打卡</text>
-          <text class="clock-btn-time" wx:if="{{clockOutTime}}">{{clockOutTime}}</text>
-        </button>
-      </view>
+    <view class="clock-btns">
+      <button class="clock-btn {{clockedIn ? 'clock-btn-done' : 'clock-btn-in'}}" bindtap="onClockIn" disabled="{{clockedIn || loading}}" hover-class="tap-button-hover">
+        <text class="clock-btn-label">上班状态</text>
+        <text class="clock-btn-text">{{clockedIn ? '已开始工作' : '上班打卡'}}</text>
+        <text class="clock-btn-time" wx:if="{{clockInTime}}">{{clockInTime}}</text>
+      </button>
+      <button class="clock-btn {{clockedIn ? 'clock-btn-out' : 'clock-btn-disabled'}}" bindtap="onClockOut" disabled="{{!clockedIn || loading}}" hover-class="tap-button-hover">
+        <text class="clock-btn-label">下班状态</text>
+        <text class="clock-btn-text">下班打卡</text>
+        <text class="clock-btn-time" wx:if="{{clockOutTime}}">{{clockOutTime}}</text>
+      </button>
     </view>
-
-    <view class="session-info">
-      <text>今日已打卡 {{sessionCount}} 次</text>
-      <text class="session-divider">·</text>
-      <text>累计工时 {{todayHours}}h</text>
-    </view>
+    <view class="divider home-clock-divider"></view>
+    <view class="clock-hint home-clock-summary">今日已打卡 {{sessionCount}} 次 · 累计工时 {{todayHours}}h</view>
   </view>
 
-  <view class="card quick-panel">
-    <view class="panel-title-row">
-      <text class="section-title">快捷操作</text>
-      <text class="panel-title-note">常用入口</text>
-    </view>
-
+  <!-- 快捷操作 -->
+  <view class="card-bento">
+    <text class="menu-group-title block-mb-2">快捷操作</text>
     <view class="quick-grid">
-      <view class="quick-card" bindtap="onScanQR">
-        <view class="menu-icon bg-purple">📷</view>
-        <text class="menu-text">扫码打卡</text>
-        <text class="menu-desc">扫描管理员生成的考勤码</text>
+      <view class="quick-item" bindtap="onScanQR" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="quick-item-icon blue">
+          <image src="/images/icons/camera.svg" mode="aspectFit" class="icon-sm" />
+        </view>
+        <text class="quick-item-label">扫码打卡</text>
+        <text class="quick-item-desc">扫描管理员生成的考勤码</text>
       </view>
-      <view class="quick-card" bindtap="goToWorklog">
-        <view class="menu-icon bg-blue">📝</view>
-        <text class="menu-text">计件报工</text>
-        <text class="menu-desc">填写今日产量与工序记录</text>
+      <view class="quick-item" bindtap="goToWorklog" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="quick-item-icon blue">
+          <image src="/images/icons/edit.svg" mode="aspectFit" class="icon-sm" />
+        </view>
+        <text class="quick-item-label">计件报工</text>
+        <text class="quick-item-desc">填写今日产量与工序记录</text>
       </view>
-      <view class="quick-card" bindtap="goToProfile">
-        <view class="menu-icon bg-green">👤</view>
-        <text class="menu-text">我的工资</text>
-        <text class="menu-desc">查看工资与奖惩明细</text>
+      <view class="quick-item" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="quick-item-icon green">
+          <image src="/images/icons/profile.svg" mode="aspectFit" class="icon-sm" />
+        </view>
+        <text class="quick-item-label">我的工资</text>
+        <text class="quick-item-desc">查看工资与奖惩明细</text>
       </view>
-      <view class="quick-card" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}">
-        <view class="menu-icon bg-yellow" style="background:#FFF7E6;color:#FA8C16;">🏆</view>
-        <text class="menu-text">排行榜</text>
-        <text class="menu-desc">查看工时与薪资排名</text>
-      </view>
-      <view class="quick-card" bindtap="openChangePwd">
-        <view class="menu-icon bg-orange">🔒</view>
-        <text class="menu-text">修改密码</text>
-        <text class="menu-desc">定期更新密码更安全</text>
+      <view class="quick-item" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="quick-item-icon slate">
+          <image src="/images/icons/leaderboard.svg" mode="aspectFit" class="icon-sm" />
+        </view>
+        <text class="quick-item-label">排行榜</text>
+        <text class="quick-item-desc">查看工时与薪资排名</text>
       </view>
     </view>
-
-    <view class="logout-bar" bindtap="onLogout">
-      <view class="menu-icon bg-red">🚪</view>
-      <text class="logout-text-main">退出当前登录</text>
-      <text class="logout-arrow">›</text>
+    <view class="divider home-quick-divider"></view>
+    <view class="logout-row" bindtap="onLogout" hover-class="tap-row-hover" hover-stay-time="80">
+      <view class="quick-item-icon red">
+        <image src="/images/icons/logout.svg" mode="aspectFit" class="icon-sm" />
+      </view>
+      <text class="logout-row-text">退出当前登录</text>
     </view>
   </view>
 
   <!-- 修改密码弹窗 -->
   <view wx:if="{{showChangePwd}}">
-    <view class="modal-mask" bindtap="closeChangePwd"></view>
-    <view class="modal-dialog">
-      <view class="modal-title">修改密码</view>
-      <view class="modal-body">
-        <view class="input-group">
-          <text class="input-label">旧密码</text>
-          <view class="pwd-input-wrap">
-            <input class="input-field" type="{{showOldPwd ? 'text' : 'password'}}" placeholder="请输入旧密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" />
-            <text class="pwd-toggle" bindtap="toggleOldPwd">{{showOldPwd ? '隐藏' : '显示'}}</text>
+    <view class="modal-overlay" bindtap="closeChangePwd"></view>
+    <view class="modal-sheet" catchtap="true">
+      <view class="modal-sheet-title">修改密码</view>
+      <view class="modal-sheet-body home-modal-body">
+        <view class="field-group">
+          <text class="field-label">旧密码</text>
+          <view class="flex-row gap-1">
+            <input class="field-input flex-1" type="{{showOldPwd ? 'text' : 'password'}}" placeholder="请输入旧密码" value="{{changePwdData.oldPassword}}" bindinput="onOldPwdInput" />
+            <text class="font-medium text-accent home-pwd-toggle" bindtap="toggleOldPwd" hover-class="tap-chip-hover">{{showOldPwd ? '隐藏' : '显示'}}</text>
           </view>
         </view>
-        <view class="input-group">
-          <text class="input-label">新密码</text>
-          <view class="pwd-input-wrap">
-            <input class="input-field" type="{{showNewPwd ? 'text' : 'password'}}" placeholder="至少8位，含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" />
-            <text class="pwd-toggle" bindtap="toggleNewPwd">{{showNewPwd ? '隐藏' : '显示'}}</text>
+        <view class="field-group">
+          <text class="field-label">新密码</text>
+          <view class="flex-row gap-1">
+            <input class="field-input flex-1" type="{{showNewPwd ? 'text' : 'password'}}" placeholder="至少8位，含字母和数字" value="{{changePwdData.newPassword}}" bindinput="onNewPwdInput" />
+            <text class="font-medium text-accent home-pwd-toggle" bindtap="toggleNewPwd" hover-class="tap-chip-hover">{{showNewPwd ? '隐藏' : '显示'}}</text>
           </view>
         </view>
-        <view class="input-group">
-          <text class="input-label">确认新密码</text>
-          <input class="input-field" type="password" placeholder="再次输入新密码" value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" />
+        <view class="field-group">
+          <text class="field-label">确认新密码</text>
+          <input class="field-input" type="password" placeholder="再次输入新密码" value="{{changePwdData.confirmPassword}}" bindinput="onConfirmPwdInput" />
         </view>
       </view>
-      <view class="modal-footer">
-        <button class="btn-default modal-btn" bindtap="closeChangePwd">取消</button>
-        <button class="btn-primary modal-btn" bindtap="onSubmitChangePwd" disabled="{{changePwdLoading}}">
+      <view class="modal-sheet-footer">
+        <button class="modal-sheet-btn" bindtap="closeChangePwd" hover-class="tap-row-hover">取消</button>
+        <button class="modal-sheet-btn" bindtap="onSubmitChangePwd" disabled="{{changePwdLoading}}" hover-class="tap-row-hover">
           {{changePwdLoading ? '提交中...' : '确认修改'}}
         </button>
       </view>
     </view>
   </view>
+
 </view>

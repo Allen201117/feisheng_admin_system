@@ -1,0 +1,156 @@
+<!--
+  templates/shared.wxml — Apple 极简风格全局模板
+  使用: <import src="/templates/shared.wxml" />
+        <template is="hero-boss" data="{{...}}" />
+-->
+
+<!-- 老板 Hero -->
+<template name="hero-boss">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="flex-1">
+        <text class="hero-title">{{title}}</text>
+        <text class="hero-subtitle" wx:if="{{subtitle}}">{{subtitle}}</text>
+        <text class="hero-meta" wx:if="{{orgName}}">{{orgName}}</text>
+        <text class="hero-meta">{{userName}}</text>
+      </view>
+      <text class="hero-tag hero-tag-light" bindtap="onLogout" wx:if="{{showLogout}}">退出</text>
+    </view>
+    <view class="hero-highlight tappable" wx:if="{{highlight}}" bindtap="onHighlightTap" data-target="{{highlight.target}}">
+      <text class="hero-highlight-label">{{highlight.label}}</text>
+      <text class="hero-highlight-value">{{highlight.value}}</text>
+      <text class="hero-highlight-note">{{highlight.tip}}</text>
+    </view>
+  </view>
+</template>
+
+<!-- 员工 Hero -->
+<template name="hero-employee">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="avatar avatar-blue">{{userNameFirstChar}}</view>
+      <view class="flex-1">
+        <text class="hero-title">{{userName}}</text>
+        <text class="hero-subtitle">员工工作台</text>
+        <text class="hero-meta" wx:if="{{orgName}}">{{orgName}}</text>
+      </view>
+      <view style="text-align:right;flex-shrink:0;">
+        <text class="hero-meta">{{todayDate}}</text>
+        <text style="display:block;margin-top:8rpx;font-size:var(--fs-title);font-weight:var(--fw-semibold);">{{currentTime}}</text>
+      </view>
+    </view>
+    <view class="hero-stats" wx:if="{{showStatus}}">
+      <view class="hero-stat">
+        <text class="hero-stat-label">今日状态</text>
+        <text class="hero-stat-value">{{clockedIn ? '在岗中' : '未上班'}}</text>
+      </view>
+      <view class="hero-stat">
+        <text class="hero-stat-label">今日工时</text>
+        <text class="hero-stat-value">{{todayHours}}h</text>
+      </view>
+      <view class="hero-stat">
+        <text class="hero-stat-label">打卡</text>
+        <text class="hero-stat-value">{{sessionCount}}次</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<!-- 数据卡片 -->
+<template name="stat-card">
+  <view class="stat-card {{accent ? 'stat-card-accent' : ''}}">
+    <text class="stat-card-label">{{label}}</text>
+    <text class="stat-card-value">{{value}}</text>
+    <text class="stat-card-footer" wx:if="{{footer}}">{{footer}}</text>
+  </view>
+</template>
+
+<!-- 统计网格卡片 -->
+<template name="stats-card">
+  <view class="stats-card tappable" bindtap="onCardTap" data-target="{{target}}">
+    <text class="stats-card-label">{{label}}</text>
+    <text class="stats-card-value">{{value}}</text>
+    <text class="stats-card-note" wx:if="{{note}}">{{note}}</text>
+  </view>
+</template>
+
+<!-- 菜单项 -->
+<template name="menu-item">
+  <view class="menu-item tappable" bindtap="onMenuTap" data-page="{{page}}" data-extra="{{extra}}">
+    <view class="menu-item-icon {{iconClass}}">
+      <image wx:if="{{iconSrc}}" src="{{iconSrc}}" mode="aspectFit" style="width:36rpx;height:36rpx;" />
+      <text wx:else style="font-size:36rpx;">{{iconText}}</text>
+    </view>
+    <text class="menu-item-label">{{label}}</text>
+    <text class="menu-item-desc" wx:if="{{desc}}">{{desc}}</text>
+  </view>
+</template>
+
+<!-- 空状态 -->
+<template name="empty-state">
+  <view class="empty">
+    <view class="empty-icon" wx:if="{{iconSrc}}">
+      <image src="{{iconSrc}}" mode="aspectFit" style="width:44rpx;height:44rpx;" />
+    </view>
+    <text class="empty-title" wx:if="{{title}}">{{title}}</text>
+    <text class="empty-desc">{{text}}</text>
+  </view>
+</template>
+
+<!-- 确认弹窗 -->
+<template name="modal-confirm">
+  <view wx:if="{{visible}}" class="modal-overlay {{danger ? 'modal-danger' : ''}}" bindtap="onModalCancel">
+    <view class="modal-sheet" catchtap="true">
+      <view class="modal-sheet-title">{{title}}</view>
+      <view class="modal-sheet-body">{{message}}</view>
+      <view class="modal-sheet-footer">
+        <button class="modal-sheet-btn" bindtap="onModalCancel">取消</button>
+        <button class="modal-sheet-btn {{danger ? 'danger' : ''}}" bindtap="onModalConfirm" disabled="{{loading}}">
+          {{loading ? '处理中...' : (confirmText || '确认')}}
+        </button>
+      </view>
+    </view>
+  </view>
+</template>
+
+<!-- 通知横幅 -->
+<template name="notice-bar">
+  <view class="notice {{typeClass}}" wx:if="{{visible}}">
+    <text>{{text}}</text>
+  </view>
+</template>
+
+<!-- 订阅状态条 -->
+<template name="subscription-bar">
+  <view class="subscription-bar {{statusClass}}" wx:if="{{subscription}}" bindtap="onSubTap">
+    <view class="subscription-bar-main">
+      <text class="subscription-bar-title">服务状态：{{subscription.billing_status_label}}</text>
+      <text class="subscription-bar-meta">{{subscription.plan_name}} | 到期 {{subscription.current_period_end_text}}</text>
+    </view>
+    <text class="subscription-bar-action">查看</text>
+  </view>
+</template>
+
+<!-- 页面头部 -->
+<template name="page-header">
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">{{title}}</text>
+      <text class="page-header-subtitle" wx:if="{{subtitle}}">{{subtitle}}</text>
+    </view>
+    <button wx:if="{{actionLabel}}" class="btn btn-primary" bindtap="onHeaderAction">{{actionLabel}}</button>
+  </view>
+</template>
+
+<!-- 月份滚动选择 -->
+<template name="month-tabs">
+  <scroll-view scroll-x class="month-scroll" wx:if="{{months && months.length > 0}}">
+    <view class="month-pills">
+      <view wx:for="{{months}}" wx:key="*this"
+            class="month-pill {{selectedIndex === index ? 'month-pill-active' : ''}}"
+            bindtap="onMonthTap" data-idx="{{index}}">
+        {{labels[index] || item}}
+      </view>
+    </view>
+  </scroll-view>
+</template>

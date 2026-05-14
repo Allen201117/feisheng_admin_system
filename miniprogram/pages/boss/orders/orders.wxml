@@ -1,130 +1,108 @@
-<!--pages/boss/orders/orders.wxml-->
-<view class="container">
-  <view class="hero-panel card">
-    <view class="top-bar">
-      <view>
-        <text class="hero-title">订单管理</text>
-        <text class="hero-subtitle">共 {{orders.length}} 个订单</text>
-      </view>
-      <button class="btn-primary add-btn" bindtap="toggleAddForm">
-        {{showAddForm ? '取消' : '+ 新建订单'}}
-      </button>
-    </view>
+<view class="container orders-page">
 
-    <view class="stat-grid">
-      <view wx:for="{{statCards}}" wx:key="key" class="stat-item {{item.className}}">
-        <text class="stat-value">{{item.value}}</text>
-        <text class="stat-label">{{item.label}}</text>
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">订单管理</text>
+      <text class="page-header-subtitle">跟踪订单进度与工序配置</text>
+    </view>
+    <button class="orders-create-btn {{showAddForm ? 'is-cancel' : ''}}" bindtap="toggleAddForm" hover-class="tap-button-hover">{{showAddForm ? '收起' : '新建'}}</button>
+  </view>
+
+  <view class="orders-summary card-bento">
+    <view class="stats-grid">
+      <view wx:for="{{statCards}}" wx:for-item="item" wx:key="key" class="stats-card tappable {{item.key === 'active' ? 'amber' : item.key === 'completed' ? 'green' : item.key === 'cancelled' ? 'red' : 'blue'}}" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="stats-card-value">{{item.value}}</text>
+        <text class="stats-card-label">{{item.label}}</text>
       </view>
     </view>
-
-    <view class="filter-tabs">
-      <view
-        wx:for="{{filterTabs}}"
-        wx:key="key"
-        class="filter-chip {{activeFilter === item.key ? 'filter-chip-active' : ''}}"
-        bindtap="onFilterChange"
-        data-key="{{item.key}}"
-      >
-        {{item.label}}
-      </view>
+    <view class="filter-chips" style="margin-top:var(--sp-1);">
+      <view wx:for="{{filterTabs}}" wx:for-item="item" wx:key="key" class="filter-chip {{activeFilter === item.key ? 'filter-chip-active' : ''}}" bindtap="onFilterChange" data-key="{{item.key}}" hover-class="tap-chip-hover">{{item.label}}</view>
     </view>
   </view>
 
-  <view wx:if="{{showAddForm}}" class="card">
-    <view class="section-title">新建订单</view>
-
-    <view class="input-group">
-      <text class="input-label">订单名称 *</text>
-      <input
-        class="input-field"
-        placeholder="如：XX客户-T恤1000件"
-        value="{{newOrder.order_name}}"
-        bindinput="onInputOrderName"
-      />
+  <!-- 新建订单表单 -->
+  <view wx:if="{{showAddForm}}" class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">新建订单</text>
+    <view class="field-group">
+      <text class="field-label">订单名称 *</text>
+      <input class="field-input" placeholder="如：XX客户-T恤1000件" value="{{newOrder.order_name}}" bindinput="onInputOrderName" />
     </view>
-
-    <view class="input-group">
-      <text class="input-label">开始日期 *</text>
+    <view class="field-group">
+      <text class="field-label">开始日期 *</text>
       <picker mode="date" value="{{newOrder.start_date}}" bindchange="onStartDateChange">
-        <view class="picker-field">
+        <view class="picker-field" hover-class="tap-row-hover">
           <text>{{newOrder.start_date || '请选择日期'}}</text>
           <text class="picker-arrow">▼</text>
         </view>
       </picker>
     </view>
-
-    <view class="input-group">
-      <text class="input-label">截止日期</text>
+    <view class="field-group">
+      <text class="field-label">截止日期</text>
       <picker mode="date" value="{{newOrder.end_date}}" bindchange="onEndDateChange">
-        <view class="picker-field">
+        <view class="picker-field" hover-class="tap-row-hover">
           <text>{{newOrder.end_date || '请选择日期（可选）'}}</text>
           <text class="picker-arrow">▼</text>
         </view>
       </picker>
     </view>
-
-    <view class="input-group">
-      <text class="input-label">总数量 *</text>
-      <input
-        class="input-field"
-        type="number"
-        placeholder="订单总件数"
-        value="{{newOrder.total_quantity}}"
-        bindinput="onInputQuantity"
-      />
+    <view class="field-group">
+      <text class="field-label">总数量 *</text>
+      <input class="field-input" type="number" placeholder="订单总件数" value="{{newOrder.total_quantity}}" bindinput="onInputQuantity" />
     </view>
-
-    <button class="btn-success btn-block mt-20" bindtap="onAddOrder">确认创建</button>
+    <button class="btn-primary btn-block" style="margin-top:var(--sp-1);" bindtap="onAddOrder" disabled="{{loading}}" hover-class="tap-button-hover">{{loading ? '创建中...' : '创建订单'}}</button>
   </view>
 
-  <view wx:if="{{filteredOrders.length === 0 && !loading}}" class="empty-state">
-    <text class="empty-text">暂无订单</text>
+  <!-- 空状态 -->
+  <view wx:if="{{filteredOrders.length === 0 && !loading}}" class="empty">
+    <view class="empty-icon">
+      <image src="/images/icons/orders.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+    </view>
+    <text class="empty-title">暂无订单</text>
+    <text class="empty-desc">点击上方按钮创建新订单</text>
+    <view class="empty-action secondary" bindtap="toggleAddForm" hover-class="tap-button-hover">新建订单</view>
   </view>
 
-  <view
-    wx:for="{{filteredOrders}}"
-    wx:key="_id"
-    class="card order-card"
-    bindtap="goOrderDetail"
-    data-id="{{item._id}}"
-  >
-    <view class="order-header">
-      <view class="order-title-wrap">
-        <text class="order-name">{{item.order_name}}</text>
-        <text class="order-date">{{item.start_date}} ~ {{item.end_date || '未设置截止'}}</text>
+  <!-- 订单列表 -->
+  <view wx:for="{{filteredOrders}}" wx:for-item="item" wx:key="_id" class="order-card tappable orders-card" bindtap="goOrderDetail" data-id="{{item._id}}" hover-class="tap-card-hover" hover-stay-time="80">
+    <view class="order-card-head">
+      <view class="flex-1">
+        <text class="order-card-name">{{item.order_name}}</text>
+        <text class="order-card-date">{{item.start_date}} ~ {{item.end_date || '未设置截止'}}</text>
       </view>
-      <text class="tag {{item.status_class}}">{{item.status_text}}</text>
+      <text class="badge {{item.status_class}}">{{item.status_text}}</text>
     </view>
 
-    <view class="timeline-box" wx:if="{{item.end_date}}">
-      <view class="timeline-header">
-        <text class="timeline-label">时间进度</text>
-        <text class="timeline-text {{item.overdue ? 'text-danger' : 'text-gray'}}">{{item.days_left_text}}</text>
+    <view wx:if="{{item.end_date}}" style="margin-bottom:var(--sp-1);">
+      <view class="flex-between" style="margin-bottom:6rpx;">
+        <text class="text-secondary text-xs">时间进度</text>
+        <text class="{{item.overdue ? 'text-red' : 'text-secondary'}} text-xs">{{item.days_left_text}}</text>
       </view>
-      <view class="timeline-track">
-        <view class="timeline-fill {{item.overdue ? 'timeline-fill-overdue' : ''}}" style="width: {{item.timeline_progress}}%;"></view>
+      <view class="progress-bar">
+        <view class="progress-bar-fill {{item.overdue ? 'red' : 'green'}}" style="width: {{item.timeline_progress}}%;"></view>
       </view>
     </view>
 
-    <view class="order-body">
-      <view class="metric-item">
-        <text class="metric-label">总数量</text>
-        <text class="metric-value">{{item.total_quantity}} 件</text>
+    <view class="flex-row gap-1" style="margin-bottom:var(--sp-1);">
+      <view class="flex-1 card orders-mini-metric">
+        <text class="text-tertiary text-xs">总数量</text>
+        <text class="font-semibold text-primary text-sm">{{item.total_quantity}} 件</text>
       </view>
-      <view class="metric-item">
-        <text class="metric-label">工序数</text>
-        <text class="metric-value">{{item.process_count || 0}} 道</text>
+      <view class="flex-1 card orders-mini-metric">
+        <text class="text-tertiary text-xs">工序数</text>
+        <text class="font-semibold text-primary text-sm">{{item.process_count || 0}} 道</text>
       </view>
     </view>
 
-    <view class="order-footer">
-      <text class="text-primary text-sm">点击卡片查看详情 / 管理工序</text>
-      <view class="order-actions" catchtap="true">
-        <button class="btn-sm btn-status" bindtap="onChangeStatus" data-order="{{item}}">改状态</button>
-        <button wx:if="{{item.status === 'active'}}" class="btn-sm btn-complete" bindtap="onCompleteOrder" data-order="{{item}}">完成</button>
-        <button class="btn-sm btn-delete" bindtap="onDeleteOrder" data-order="{{item}}">删除订单</button>
+    <view class="divider"></view>
+
+    <view class="orders-card-footer">
+      <text class="orders-detail-hint">查看详情</text>
+      <view class="orders-actions" catchtap="stopPropagation">
+        <button class="btn-sm btn-sm-ghost orders-tool-btn" bindtap="onChangeStatus" data-order="{{item}}" hover-class="tap-button-hover">状态</button>
+        <button wx:if="{{item.status === 'active'}}" class="btn-sm btn-sm-success orders-tool-btn success" bindtap="onCompleteOrder" data-order="{{item}}" hover-class="tap-button-hover">完成</button>
+        <button class="btn-sm btn-sm-outline orders-tool-btn danger" bindtap="onDeleteOrder" data-order="{{item}}" hover-class="tap-button-hover">删除</button>
       </view>
     </view>
   </view>
+
 </view>

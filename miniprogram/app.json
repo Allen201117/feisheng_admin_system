@@ -28,10 +28,10 @@
   ],
   "window": {
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#2f4761",
+    "navigationBarBackgroundColor": "#F5F5F7",
     "navigationBarTitleText": "工厂记账",
-    "navigationBarTextStyle": "white",
-    "backgroundColor": "#eef3f7"
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F5F5F7"
   },
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",

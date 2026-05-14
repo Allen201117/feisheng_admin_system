@@ -1,40 +1,38 @@
-<!--pages/boss/employees/employees.wxml-->
-<view class="container">
-  <view class="top-bar">
-    <text class="section-title">员工列表 ({{employees.length}}人)</text>
-    <button class="btn-primary add-btn" bindtap="goAddEmployee">+ 添加员工</button>
+<view class="container employees-page">
+
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">员工列表</text>
+      <text class="page-header-subtitle">{{employees.length}}人</text>
+    </view>
+    <view class="employee-add-btn tappable" bindtap="goAddEmployee" hover-class="tap-button-hover">添加</view>
   </view>
 
-  <view wx:if="{{employees.length === 0 && !loading}}" class="empty-state">
-    <text class="empty-text">暂无员工，请添加</text>
+  <view wx:if="{{employees.length === 0 && !loading}}" class="empty">
+    <view class="empty-icon">
+      <image src="/images/icons/employees.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+    </view>
+    <text class="empty-title">暂无员工</text>
+    <text class="empty-desc">请添加员工以开始使用</text>
   </view>
 
-  <view wx:for="{{employees}}" wx:key="_id" class="card emp-card">
-    <view class="emp-header">
-      <view class="emp-avatar">{{item.name[0]}}</view>
+  <view wx:for="{{employees}}" wx:key="_id" class="employee-card">
+    <view class="emp-row">
+      <view class="emp-avatar blue">{{item.name[0]}}</view>
       <view class="emp-info">
-        <text class="emp-name">{{item.name}}</text>
-        <text class="emp-phone text-sm text-gray">{{item.phone}}</text>
+        <view class="flex-row gap-1" style="margin-bottom:4rpx;">
+          <text class="emp-name">{{item.name}}</text>
+          <text class="badge {{item.status === 'active' ? 'badge-green' : 'badge-red'}}">{{item.status_text}}</text>
+        </view>
+        <text class="emp-meta">{{item.phone}}</text>
+        <text class="emp-meta">角色: {{item.role_name}}<text wx:if="{{item.join_date}}"> | 入厂: {{item.join_date}}</text><text wx:else> | 入厂时间: 未设置</text></text>
       </view>
-      <text class="tag {{item.status === 'active' ? 'tag-success' : 'tag-danger'}}">
-        {{item.status_text}}
-      </text>
     </view>
-    <view class="emp-body">
-      <text class="emp-role">角色: {{item.role_name}}</text>
-      <text class="emp-join-date text-sm text-gray" wx:if="{{item.join_date}}"> | 入厂: {{item.join_date}}</text>
-      <text class="emp-join-date text-sm text-gray" wx:else> | 入厂时间: 未设置</text>
-    </view>
-    <view class="emp-actions">
-      <button class="btn-sm btn-edit" bindtap="goEditEmployee" data-id="{{item._id}}">编辑</button>
-      <button class="btn-sm btn-reset" bindtap="resetPassword" data-emp="{{item}}">重置密码</button>
-      <button 
-        class="btn-sm {{item.status === 'active' ? 'btn-disable' : 'btn-enable'}}" 
-        bindtap="toggleStatus" 
-        data-emp="{{item}}"
-      >
-        {{item.status === 'active' ? '停用' : '启用'}}
-      </button>
+    <view class="employee-actions">
+      <view class="employee-action primary" bindtap="goEditEmployee" data-id="{{item._id}}" hover-class="tap-button-hover">编辑</view>
+      <view class="employee-action" bindtap="resetPassword" data-emp="{{item}}" hover-class="tap-button-hover">重置密码</view>
+      <view class="employee-action {{item.status === 'active' ? 'danger' : 'success'}}" bindtap="toggleStatus" data-emp="{{item}}" hover-class="tap-button-hover">{{item.status === 'active' ? '停用' : '启用'}}</view>
     </view>
   </view>
+
 </view>

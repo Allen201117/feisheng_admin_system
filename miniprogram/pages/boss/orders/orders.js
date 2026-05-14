@@ -195,6 +195,8 @@ Page({
     wx.navigateTo({ url: `/pages/boss/order-detail/order-detail?id=${id}` })
   },
 
+  stopPropagation() {},
+
   async onCompleteOrder(e) {
     const order = e.currentTarget.dataset.order
     const confirmed = await showConfirm('确认完成', `确定将订单"${order.order_name}"标记为已完成吗？`)

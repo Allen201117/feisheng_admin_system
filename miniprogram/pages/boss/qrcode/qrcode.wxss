@@ -1,85 +1,40 @@
-/* pages/boss/qrcode/qrcode.wxss */
-.container {
-  background:
-    radial-gradient(circle at 20% 0%, #f0f9ff 0%, transparent 34%),
-    radial-gradient(circle at 90% 10%, #fff3e8 0%, transparent 30%),
-    #f7f8fb;
+.container { padding-bottom: 60rpx; }
+
+.qrcode-page {
+  background: #F5F5F7;
 }
 
-.qr-card {
-  text-align: center;
-  border: 2rpx solid #e8eef8;
-}
-
-.qr-image-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 20rpx auto;
-}
-
-.qr-image {
-  width: 500rpx;
-  height: 500rpx;
-  border-radius: 16rpx;
-  border: 2rpx solid #d9e4f3;
-}
-
-.qr-placeholder {
-  width: 500rpx;
-  height: 500rpx;
-  border-radius: 16rpx;
-  border: 2rpx dashed #c9d9ed;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #FAFAFA;
-}
-
-.qr-placeholder-text {
-  font-size: 32rpx;
-  color: #666;
-}
-
-.qr-info {
-  text-align: left;
-  padding: 20rpx;
-  background: #fbfcff;
-  border-radius: 12rpx;
-  border: 2rpx solid #edf2fa;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8rpx 0;
-}
-
-.tip-list {
-  padding: 10rpx 0;
-}
-
-.tip-item {
-  font-size: 32rpx;
-  color: #4f6584;
-  padding: 10rpx 0;
-  line-height: 1.6;
-}
-
-/* 体验版二维码提示 */
-.qr-fallback-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.qrcode-actions {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12rpx;
-  margin-top: 20rpx;
-}
-.qr-fallback-text {
-  font-size: 28rpx;
-  color: #FA8C16;
-  text-align: center;
+  margin-top: 34rpx;
 }
 
-.qr-scheme-text {
-  color: #52C41A;
+.qrcode-action {
+  width: 100%;
+  min-height: 78rpx;
+  border-radius: 22rpx;
+  border: none;
+  background: #F2F4F7;
+  color: #475467;
+  font-size: 28rpx;
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qrcode-action.primary {
+  background: #007AFF;
+  color: #FFFFFF;
+}
+
+.qrcode-action.danger {
+  background: rgba(255,59,48,0.09);
+  color: #D92D20;
+}
+
+.qrcode-action::after {
+  border: none;
 }

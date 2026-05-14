@@ -1,19 +1,19 @@
-<view class="container">
+<view class="container worklog-manage-page">
   <!-- 主Tab：进度总览 / 报工明细 -->
-  <view class="card main-tab-bar">
-    <view class="main-tab {{mainTab === 'progress' ? 'main-tab-active' : ''}}" bindtap="switchMainTab" data-tab="progress">进度总览</view>
-    <view class="main-tab {{mainTab === 'detail' ? 'main-tab-active' : ''}}" bindtap="switchMainTab" data-tab="detail">报工明细</view>
+  <view class="tab-bar">
+    <view class="tab-item {{mainTab === 'progress' ? 'tab-item-active' : ''}}" bindtap="switchMainTab" data-tab="progress">进度总览</view>
+    <view class="tab-item {{mainTab === 'detail' ? 'tab-item-active' : ''}}" bindtap="switchMainTab" data-tab="detail">报工明细</view>
   </view>
 
   <!-- ========== 进度总览 ========== -->
   <block wx:if="{{mainTab === 'progress'}}">
-    <view class="card">
-      <view class="input-group" style="margin-bottom:0;">
-        <text class="input-label">选择订单</text>
+    <view class="card-bento">
+      <view class="field-group">
+        <text class="field-label">选择订单</text>
         <picker mode="selector" range="{{orders}}" range-key="display" value="{{progressOrderIndex}}" bindchange="onProgressOrderChange">
           <view class="picker-field">
             <text wx:if="{{progressOrder}}">{{progressOrder.display}}</text>
-            <text wx:else class="text-gray">请选择订单</text>
+            <text wx:else class="text-secondary">请选择订单</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
@@ -22,104 +22,128 @@
 
     <block wx:if="{{progressData}}">
       <!-- 整体进度卡片 -->
-      <view class="card overall-card">
-        <view class="overall-title">{{progressData.order_name}}</view>
-        <view class="overall-stats">
-          <view class="overall-stat">
-            <text class="overall-num">{{progressData.overall_reported}}</text>
-            <text class="overall-label">已报工件数</text>
+      <view class="worklog-progress-card">
+        <view class="worklog-progress-head">
+          <text class="worklog-progress-title">{{progressData.order_name}}</text>
+        </view>
+        <view class="worklog-stat-row">
+          <view class="worklog-stat-cell">
+            <text class="worklog-stat-value">{{progressData.overall_reported}}</text>
+            <text class="worklog-stat-label">已报工件数</text>
           </view>
-          <view class="overall-stat">
-            <text class="overall-num">{{progressData.total_quantity}}</text>
-            <text class="overall-label">订单总量</text>
+          <view class="worklog-stat-cell">
+            <text class="worklog-stat-value">{{progressData.total_quantity}}</text>
+            <text class="worklog-stat-label">订单总量</text>
           </view>
-          <view class="overall-stat">
-            <text class="overall-num overall-percent">{{progressData.overall_percent}}%</text>
-            <text class="overall-label">整体完成</text>
+          <view class="worklog-stat-cell">
+            <text class="worklog-stat-value">{{progressData.overall_percent}}%</text>
+            <text class="worklog-stat-label">整体完成</text>
           </view>
         </view>
-        <view class="progress-track progress-track-lg">
-          <view class="progress-fill {{progressData.overall_percent >= 100 ? 'progress-fill-done' : ''}}" style="width: {{progressData.overall_percent}}%;"></view>
+        <view class="progress-bar worklog-overall-bar">
+          <view class="progress-bar-fill {{progressData.overall_percent >= 100 ? 'green' : ''}}" style="width: {{progressData.overall_percent}}%;"></view>
         </view>
       </view>
 
       <!-- 各工序进度 -->
-      <view class="card" wx:if="{{progressData.processes.length > 0}}">
-        <text class="section-title">工序进度明细</text>
-        <view wx:for="{{progressData.processes}}" wx:key="_id" class="progress-card progress-card-clickable" bindtap="goProcessWorklogs" data-process="{{item}}">
-          <view class="progress-header">
-            <text class="progress-name">{{item.process_name}}</text>
-            <text class="progress-price" wx:if="{{item.current_price != null}}">¥{{item.current_price}}/件</text>
+      <view class="card-bento" wx:if="{{progressData.processes.length > 0}}">
+        <text class="font-semibold text-sm" style="margin-bottom:var(--sp-2);display:block;">工序进度明细</text>
+        <view wx:for="{{progressData.processes}}" wx:for-item="item" wx:key="_id" class="worklog-process-card tappable" bindtap="goProcessWorklogs" data-process="{{item}}" hover-class="tap-card-hover">
+          <view class="worklog-process-head">
+            <text class="worklog-process-name">{{item.process_name}}</text>
+            <text class="worklog-price-pill" wx:if="{{item.current_price != null}}">¥{{item.current_price}}/件</text>
           </view>
-          <view class="progress-track">
-            <view class="progress-fill {{item.progress_percent >= 100 ? 'progress-fill-done' : ''}}" style="width: {{item.progress_percent}}%;"></view>
+          <view class="progress-bar">
+            <view class="progress-bar-fill {{item.progress_percent >= 100 ? 'green' : ''}}" style="width: {{item.progress_percent}}%;"></view>
           </view>
-          <view class="progress-meta">
-            <text class="progress-qty">{{item.total_reported}} / {{progressData.total_quantity}} 件 ({{item.progress_percent}}%)</text>
-            <text class="progress-people">{{item.employee_count}} 人参与 · 分配 {{item.assigned_count}} 人</text>
+          <view class="worklog-process-meta">
+            <text class="worklog-process-progress">{{item.total_reported}} / {{progressData.total_quantity}} 件 ({{item.progress_percent}}%)</text>
+            <text class="worklog-process-people">{{item.employee_count}} 人参与 · 分配 {{item.assigned_count}} 人</text>
           </view>
-          <text class="progress-open-tip">查看该工序报工明细 ›</text>
+          <text class="worklog-process-link">查看明细</text>
         </view>
       </view>
 
-      <view wx:if="{{progressData.processes.length === 0}}" class="card empty-state">
-        <text class="empty-text">该订单暂无工序</text>
+      <view wx:if="{{progressData.processes.length === 0}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+        </view>
+        <text class="empty-title">暂无工序</text>
+        <text class="empty-desc">该订单暂无工序</text>
       </view>
     </block>
 
-    <view wx:if="{{!progressData && !loading && progressOrder}}" class="card empty-state">
-      <text class="empty-text">暂无进度数据</text>
+    <view wx:if="{{!progressData && !loading && progressOrder}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">暂无数据</text>
+      <text class="empty-desc">暂无进度数据</text>
     </view>
-    <view wx:if="{{!progressOrder && !loading}}" class="card empty-state">
-      <text class="empty-text">请先选择一个订单</text>
+    <view wx:if="{{!progressOrder && !loading}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">选择订单</text>
+      <text class="empty-desc">请先选择一个订单</text>
     </view>
   </block>
 
   <!-- ========== 工序报工明细 ========== -->
   <block wx:if="{{mainTab === 'process'}}">
-    <view class="card hero-panel">
-      <view class="hero-title">{{processDetail.process_name}}</view>
-      <view class="hero-subtitle">{{processDetail.order_name}} · 该工序下所有报工明细</view>
-      <button class="btn-primary add-worklog-btn" bindtap="openAddWorkLog">新增报工</button>
-    </view>
-
-    <view class="card summary-card">
-      <view class="summary-item">
-        <text class="summary-value text-primary">{{summary.count}}</text>
-        <text class="summary-label">报工条数</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-value text-success">{{summary.quantity}}</text>
-        <text class="summary-label">报工总件数</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-value text-danger">¥{{summary.amount}}</text>
-        <text class="summary-label">报工总金额</text>
-      </view>
-    </view>
-
-    <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="card empty-state">
-      <text class="empty-text">该工序暂无报工记录</text>
-    </view>
-
-    <view wx:for="{{groupedLogs}}" wx:key="date" class="card day-card">
-      <view class="day-header">
-        <text class="day-title">{{item.date}}</text>
-        <text class="day-sub">{{item.dayQty}}件 · ¥{{item.dayAmount}}</text>
-      </view>
-
-      <view wx:for="{{item.items}}" wx:key="_id" class="log-row">
-        <view class="log-main">
-          <view class="log-title-row">
-            <text class="log-name">{{item.user_name || '未知员工'}}</text>
-            <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
-          </view>
-          <text class="log-sub">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
-          <text class="log-sub">备注：{{item.note || '无'}}</text>
+    <view class="card-bento">
+      <view class="worklog-detail-head">
+        <view class="flex-1">
+          <text class="font-semibold text-primary text-md">{{processDetail.process_name}}</text>
+          <text class="text-secondary text-xs" style="margin-top:4rpx;display:block;">{{processDetail.order_name}} · 该工序下所有报工明细</text>
         </view>
-        <view class="log-actions">
-          <button class="btn-primary btn-sm" bindtap="onEditWorkLog" data-log="{{item}}">编辑</button>
-          <button class="btn-danger btn-sm" bindtap="onDeleteLog" data-log="{{item}}">删除</button>
+        <view class="worklog-add-btn tappable" bindtap="openAddWorkLog" hover-class="tap-button-hover">新增</view>
+      </view>
+    </view>
+
+    <view class="card-bento">
+      <view class="stats-grid">
+        <view class="stats-card blue">
+          <text class="stats-card-value text-accent">{{summary.count}}</text>
+          <text class="stats-card-label">报工条数</text>
+        </view>
+        <view class="stats-card green">
+          <text class="stats-card-value text-green">{{summary.quantity}}</text>
+          <text class="stats-card-label">报工总件数</text>
+        </view>
+        <view class="stats-card amber">
+          <text class="stats-card-value text-red">¥{{summary.amount}}</text>
+          <text class="stats-card-label">报工总金额</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">暂无报工记录</text>
+      <text class="empty-desc">该工序暂无报工记录</text>
+    </view>
+
+    <view wx:for="{{groupedLogs}}" wx:for-item="group" wx:key="date" class="card-bento">
+      <view class="flex-between" style="margin-bottom:var(--sp-2);padding-bottom:var(--sp-2);border-bottom:1rpx solid var(--border);">
+        <text class="font-semibold text-sm">{{group.date}}</text>
+        <text class="text-secondary text-xs">{{group.dayQty}}件 · ¥{{group.dayAmount}}</text>
+      </view>
+
+      <view wx:for="{{group.items}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
+        <view class="flex-1">
+          <view class="flex-row gap-1" style="margin-bottom:6rpx;">
+            <text class="list-row-title">{{item.user_name || '未知员工'}}</text>
+            <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
+          </view>
+          <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+          <text class="list-row-subtitle">备注：{{item.note || '无'}}</text>
+        </view>
+        <view class="worklog-log-actions">
+          <view class="worklog-log-action primary" bindtap="onEditWorkLog" data-log="{{item}}" hover-class="tap-button-hover">编辑</view>
+          <view class="worklog-log-action danger" bindtap="onDeleteLog" data-log="{{item}}" hover-class="tap-button-hover">删除</view>
         </view>
       </view>
     </view>
@@ -127,18 +151,18 @@
 
   <!-- ========== 报工明细（原有功能） ========== -->
   <block wx:if="{{mainTab === 'detail'}}">
-    <view class="card hero-panel">
-      <view class="hero-title">报工明细</view>
-      <view class="hero-subtitle">按日、按月、按订单查看全员报工记录</view>
+    <view class="card-bento">
+      <text class="font-semibold text-md" style="display:block;">报工明细</text>
+      <text class="text-secondary text-xs" style="margin-bottom:var(--sp-2);display:block;">按日、按月、按订单查看全员报工记录</text>
 
-      <view class="filter-tabs">
-        <view class="filter-tab filter-chip {{viewType === 'day' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="day">按日</view>
-        <view class="filter-tab filter-chip {{viewType === 'month' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="month">按月</view>
-        <view class="filter-tab filter-chip {{viewType === 'order' ? 'filter-tab-active filter-chip-active' : ''}}" bindtap="switchViewType" data-type="order">按订单</view>
+      <view class="filter-chips" style="margin-bottom:var(--sp-2);">
+        <view class="filter-chip {{viewType === 'day' ? 'filter-chip-active' : ''}}" bindtap="switchViewType" data-type="day">按日</view>
+        <view class="filter-chip {{viewType === 'month' ? 'filter-chip-active' : ''}}" bindtap="switchViewType" data-type="month">按月</view>
+        <view class="filter-chip {{viewType === 'order' ? 'filter-chip-active' : ''}}" bindtap="switchViewType" data-type="order">按订单</view>
       </view>
 
-      <view wx:if="{{viewType === 'day'}}" class="input-group" style="margin-bottom:0;">
-        <text class="input-label">选择日期</text>
+      <view wx:if="{{viewType === 'day'}}" class="field-group">
+        <text class="field-label">选择日期</text>
         <picker mode="date" value="{{dayDate}}" bindchange="onDayChange">
           <view class="picker-field">
             <text>{{dayDate}}</text>
@@ -147,8 +171,8 @@
         </picker>
       </view>
 
-      <view wx:if="{{viewType === 'month'}}" class="input-group" style="margin-bottom:0;">
-        <text class="input-label">选择月份</text>
+      <view wx:if="{{viewType === 'month'}}" class="field-group">
+        <text class="field-label">选择月份</text>
         <picker mode="date" fields="month" value="{{monthDate}}" bindchange="onMonthChange">
           <view class="picker-field">
             <text>{{monthDate}}</text>
@@ -158,18 +182,18 @@
       </view>
 
       <block wx:if="{{viewType === 'order'}}">
-        <view class="input-group">
-          <text class="input-label">选择订单</text>
+        <view class="field-group">
+          <text class="field-label">选择订单</text>
           <picker mode="selector" range="{{orders}}" range-key="display" value="{{orderIndex}}" bindchange="onOrderChange">
             <view class="picker-field">
               <text wx:if="{{selectedOrder}}">{{selectedOrder.display}}</text>
-              <text wx:else class="text-gray">请选择订单</text>
+              <text wx:else class="text-secondary">请选择订单</text>
               <text class="picker-arrow">▼</text>
             </view>
           </picker>
         </view>
-        <view class="input-group" style="margin-bottom:0;">
-          <text class="input-label">限定月份（可快速筛选）</text>
+        <view class="field-group">
+          <text class="field-label">限定月份（可快速筛选）</text>
           <picker mode="date" fields="month" value="{{orderMonth}}" bindchange="onOrderMonthChange">
             <view class="picker-field">
               <text>{{orderMonth}}</text>
@@ -180,121 +204,127 @@
       </block>
     </view>
 
-    <view class="card summary-card">
-      <view class="summary-item">
-        <text class="summary-value text-primary">{{summary.count}}</text>
-        <text class="summary-label">报工条数</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-value text-success">{{summary.quantity}}</text>
-        <text class="summary-label">报工总件数</text>
-      </view>
-      <view class="summary-item">
-        <text class="summary-value text-danger">¥{{summary.amount}}</text>
-        <text class="summary-label">报工总金额</text>
-      </view>
-    </view>
-
-    <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="card empty-state">
-      <text class="empty-text">当前条件下暂无报工记录</text>
-    </view>
-
-    <view wx:for="{{groupedLogs}}" wx:key="date" class="card day-card">
-      <view class="day-header">
-        <text class="day-title">{{item.date}}</text>
-        <text class="day-sub">{{item.dayQty}}件 · ¥{{item.dayAmount}}</text>
-      </view>
-
-      <view wx:for="{{item.items}}" wx:key="_id" class="log-row">
-        <view class="log-main">
-          <view class="log-title-row">
-            <text class="log-name">{{item.user_name || '未知员工'}}</text>
-            <text class="tag {{item.statusClass}}">{{item.statusText}}</text>
-          </view>
-          <text class="log-sub">{{item.order_name || '未知订单'}} · {{item.process_name || '未知工序'}}</text>
-          <text class="log-sub">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+    <view class="card-bento">
+      <view class="stats-grid">
+        <view class="stats-card blue">
+          <text class="stats-card-value text-accent">{{summary.count}}</text>
+          <text class="stats-card-label">报工条数</text>
         </view>
-        <view class="log-actions">
-          <button class="btn-primary btn-sm" bindtap="onEditWorkLog" data-log="{{item}}">编辑</button>
-          <button class="btn-danger btn-sm" bindtap="onDeleteLog" data-log="{{item}}">删除</button>
+        <view class="stats-card green">
+          <text class="stats-card-value text-green">{{summary.quantity}}</text>
+          <text class="stats-card-label">报工总件数</text>
+        </view>
+        <view class="stats-card amber">
+          <text class="stats-card-value text-red">¥{{summary.amount}}</text>
+          <text class="stats-card-label">报工总金额</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">暂无报工记录</text>
+      <text class="empty-desc">当前条件下暂无报工记录</text>
+    </view>
+
+    <view wx:for="{{groupedLogs}}" wx:for-item="group" wx:key="date" class="card-bento">
+      <view class="flex-between" style="margin-bottom:var(--sp-2);padding-bottom:var(--sp-2);border-bottom:1rpx solid var(--border);">
+        <text class="font-semibold text-sm">{{group.date}}</text>
+        <text class="text-secondary text-xs">{{group.dayQty}}件 · ¥{{group.dayAmount}}</text>
+      </view>
+
+      <view wx:for="{{group.items}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
+        <view class="flex-1">
+          <view class="flex-row gap-1" style="margin-bottom:6rpx;">
+            <text class="list-row-title">{{item.user_name || '未知员工'}}</text>
+            <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
+          </view>
+          <text class="list-row-subtitle">{{item.order_name || '未知订单'}} · {{item.process_name || '未知工序'}}</text>
+          <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+        </view>
+        <view class="worklog-log-actions">
+          <view class="worklog-log-action primary" bindtap="onEditWorkLog" data-log="{{item}}" hover-class="tap-button-hover">编辑</view>
+          <view class="worklog-log-action danger" bindtap="onDeleteLog" data-log="{{item}}" hover-class="tap-button-hover">删除</view>
         </view>
       </view>
     </view>
   </block>
 
-  <view wx:if="{{loading}}" class="loading-mask">
-    <text class="loading-text">加载中...</text>
+  <view wx:if="{{loading}}" class="flex-center" style="padding:var(--sp-5);">
+    <text class="text-secondary text-xs">加载中...</text>
   </view>
 </view>
 
 <!-- 新增报工弹窗 -->
-<view wx:if="{{showAddWorkLog}}" class="modal-mask" bindtap="closeAddWorkLog">
-  <view class="modal-dialog" catchtap="stopBubble">
-    <view class="modal-title">新增报工记录</view>
-    <view class="modal-body">
-      <view class="edit-info">
-        订单：{{processDetail.order_name}}｜工序：{{processDetail.process_name}}
+<view wx:if="{{showAddWorkLog}}" class="modal-overlay" bindtap="closeAddWorkLog">
+  <view class="modal-sheet" catchtap="stopBubble">
+    <text class="modal-sheet-title">新增报工记录</text>
+    <view class="modal-sheet-body" style="text-align:left;">
+      <view class="card" style="margin-bottom:var(--sp-2);padding:var(--sp-2);">
+        <text class="text-secondary text-xs">订单：{{processDetail.order_name}}｜工序：{{processDetail.process_name}}</text>
       </view>
-      <view class="input-group">
-        <text class="input-label">选择员工</text>
+      <view class="field-group">
+        <text class="field-label">选择员工</text>
         <picker mode="selector" range="{{processEmployees}}" range-key="name" value="{{processEmployeeIndex}}" bindchange="onAddEmployeeChange">
           <view class="picker-field">
             <text wx:if="{{selectedProcessEmployee}}">{{selectedProcessEmployee.name}}</text>
-            <text wx:else class="text-gray">请选择员工</text>
+            <text wx:else class="text-secondary">请选择员工</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
       </view>
-      <view class="input-group">
-        <text class="input-label">报工数量</text>
-        <input class="input-field" type="number" value="{{addWLQuantity > 0 ? addWLQuantity : ''}}" bindinput="onAddWLQtyInput" placeholder="请输入完成数量" />
+      <view class="field-group">
+        <text class="field-label">报工数量</text>
+        <input class="field-input" type="number" value="{{addWLQuantity > 0 ? addWLQuantity : ''}}" bindinput="onAddWLQtyInput" placeholder="请输入完成数量" />
       </view>
-      <view class="input-group">
-        <text class="input-label">备注</text>
-        <input class="input-field" placeholder="可选，例如老板代报" value="{{addWLNote}}" bindinput="onAddWLNoteInput" />
+      <view class="field-group">
+        <text class="field-label">备注</text>
+        <input class="field-input" placeholder="可选，例如老板代报" value="{{addWLNote}}" bindinput="onAddWLNoteInput" />
       </view>
     </view>
-    <view class="modal-footer">
-      <button class="btn-default modal-btn" bindtap="closeAddWorkLog">取消</button>
-      <button class="btn-primary modal-btn" bindtap="onSubmitAddWorkLog">保存新增</button>
+    <view class="modal-sheet-footer">
+      <button class="modal-sheet-btn" bindtap="closeAddWorkLog">取消</button>
+      <button class="modal-sheet-btn" bindtap="onSubmitAddWorkLog">保存新增</button>
     </view>
   </view>
 </view>
 
 <!-- 编辑报工弹窗 -->
-<view wx:if="{{showEditWorkLog}}" class="modal-mask" bindtap="closeEditWorkLog">
-  <view class="modal-dialog" catchtap="stopBubble">
-    <view class="modal-title">修改报工记录</view>
-    <view class="modal-body">
-      <view class="edit-info">
-        员工：{{editWL.user_name || '未知'}}｜工序：{{editWL.process_name || '未知'}}｜日期：{{editWL.date || ''}}
+<view wx:if="{{showEditWorkLog}}" class="modal-overlay" bindtap="closeEditWorkLog">
+  <view class="modal-sheet" catchtap="stopBubble">
+    <text class="modal-sheet-title">修改报工记录</text>
+    <view class="modal-sheet-body" style="text-align:left;">
+      <view class="card" style="margin-bottom:var(--sp-2);padding:var(--sp-2);">
+        <text class="text-secondary text-xs">员工：{{editWL.user_name || '未知'}}｜工序：{{editWL.process_name || '未知'}}｜日期：{{editWL.date || ''}}</text>
       </view>
-      <view class="input-group">
-        <text class="input-label">报工数量</text>
-        <input class="input-field" type="number" value="{{editWLQuantity}}" bindinput="onEditWLQtyInput" />
+      <view class="field-group">
+        <text class="field-label">报工数量</text>
+        <input class="field-input" type="number" value="{{editWLQuantity}}" bindinput="onEditWLQtyInput" />
       </view>
-      <view class="input-group">
-        <text class="input-label">备注</text>
-        <input class="input-field" placeholder="可选" value="{{editWLNote}}" bindinput="onEditWLNoteInput" />
+      <view class="field-group">
+        <text class="field-label">备注</text>
+        <input class="field-input" placeholder="可选" value="{{editWLNote}}" bindinput="onEditWLNoteInput" />
       </view>
-      <view class="input-group">
-        <text class="input-label">修改原因 *</text>
+      <view class="field-group">
+        <text class="field-label">修改原因 *</text>
         <picker mode="selector" range="{{editWLReasons}}" value="{{editWLReasonIndex}}" bindchange="onEditWLReasonChange">
           <view class="picker-field">
             <text wx:if="{{editWLReasonIndex >= 0}}">{{editWLReasons[editWLReasonIndex]}}</text>
-            <text wx:else class="text-gray">请选择原因</text>
+            <text wx:else class="text-secondary">请选择原因</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
       </view>
-      <view wx:if="{{editWLReasonIndex === 4}}" class="input-group">
-        <text class="input-label">详细原因</text>
-        <input class="input-field" placeholder="请输入具体原因" value="{{editWLReason}}" bindinput="onEditWLReasonCustom" />
+      <view wx:if="{{editWLReasonIndex === 4}}" class="field-group">
+        <text class="field-label">详细原因</text>
+        <input class="field-input" placeholder="请输入具体原因" value="{{editWLReason}}" bindinput="onEditWLReasonCustom" />
       </view>
     </view>
-    <view class="modal-footer">
-      <button class="btn-default modal-btn" bindtap="closeEditWorkLog">取消</button>
-      <button class="btn-primary modal-btn" bindtap="onSaveEditWorkLog">保存</button>
+    <view class="modal-sheet-footer">
+      <button class="modal-sheet-btn" bindtap="closeEditWorkLog">取消</button>
+      <button class="modal-sheet-btn" bindtap="onSaveEditWorkLog">保存</button>
     </view>
   </view>
 </view>

@@ -8,6 +8,22 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-05-13
+
+### 前端视觉系统重构
+
+- 背景：各页面视觉语言碎片化，emoji 图标在不同设备显示不稳，样式大量重复拷贝，信息密度对中老年用户偏高。
+- 改动：
+  - app.wxss 建立完整设计 Token 体系（CSS 变量）：角色三色体系（boss 蓝/employee 绿/qc 紫）、功能色、6 档字体阶梯、4 档间距、3 档圆角、统一阴影和背景渐变。
+  - 新增 templates/shared.wxml 共享组件（hero、data-card、menu-entry、empty-state、confirm-modal、subscription-strip 等）。
+  - 新增 18 个 SVG 线框图标（/miniprogram/images/icons/），替换所有 emoji。
+  - 老板首页、员工首页、薪资页、员工管理页、订单页、登录页 WXSS 大幅精简（总计 1,500+ 行 → ~250 行），业务样式收归 app.wxss。
+  - util.js 新增 translateError 函数，将技术错误码映射为用户能理解的中文提示。
+  - 危险操作弹窗新增 confirm-danger 模式（红色顶部边框）。
+  - 新增骨架屏、通知条、分隔线等通用 UI 状态组件样式。
+- 数据影响：无。未修改任何 JS 业务逻辑、云函数、数据库。仅修改 WXML 结构和 WXSS 样式。
+- 验证：`node --test tests/*.test.js` 通过 123 项。
+
 ## 2026-05-11
 
 ### 订单详情一键清空报工

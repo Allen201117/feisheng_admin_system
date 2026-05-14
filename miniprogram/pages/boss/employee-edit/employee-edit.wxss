@@ -1,28 +1,5 @@
-/* pages/boss/employee-edit/employee-edit.wxss */
-.container {
-  background:
-    radial-gradient(circle at 20% 0%, #f0f9ff 0%, transparent 34%),
-    radial-gradient(circle at 90% 10%, #fff3e8 0%, transparent 30%),
-    #f7f8fb;
-}
+.container { padding-bottom: 60rpx; }
 
-.card {
-  border: 2rpx solid #e8eef8;
-}
-
-.picker-field {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  height: 88rpx;
-  border: 2rpx solid #d8e4f3;
-  border-radius: 12rpx;
-  padding: 0 24rpx;
-  background: #fff;
-  font-size: 34rpx;
-}
-
-.picker-arrow {
-  font-size: 28rpx;
-  color: #556677;
+.employee-edit-page {
+  padding-bottom: 188rpx;
 }
