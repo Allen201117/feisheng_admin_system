@@ -3,8 +3,8 @@
 <view class="container employee-home-page">
 
   <!-- Hero-employee -->
-  <view class="hero hero-employee">
-    <view class="hero-top">
+  <view class="hero hero-employee home-hero">
+    <view class="hero-top home-hero-top">
       <view class="hero-avatar">{{userInfo.name[0]}}</view>
       <view class="hero-left">
         <text class="hero-title">{{userInfo.name}}</text>
@@ -16,115 +16,57 @@
         <text class="hero-time-text">{{currentTime}}</text>
       </view>
     </view>
-    <view class="hero-stats">
-      <view class="hero-stat">
-        <text class="hero-stat-label">今日状态</text>
-        <text class="hero-stat-value">{{clockedIn ? '在岗中' : '未上班'}}</text>
+    <view class="home-hero-metrics">
+      <view class="home-hero-primary" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+        <text class="home-hero-metric-label">今日预估工资</text>
+        <text class="home-hero-money">¥{{todayEarnings}}</text>
+        <text class="home-hero-metric-note">按今日报工实时估算</text>
       </view>
-      <view class="hero-stat">
-        <text class="hero-stat-label">今日工时</text>
-        <text class="hero-stat-value">{{todayHours}}h</text>
-      </view>
-      <view class="hero-stat">
-        <text class="hero-stat-label">打卡次数</text>
-        <text class="hero-stat-value">{{sessionCount}}</text>
+      <view class="home-hero-secondary">
+        <view class="home-hero-mini" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+          <text class="home-hero-metric-label">本月累计工时</text>
+          <text class="home-hero-metric-value">{{monthHours}}h</text>
+        </view>
+        <view class="home-hero-mini" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+          <text class="home-hero-metric-label">入厂时间</text>
+          <text class="home-hero-metric-value home-hero-date">{{joinDateDisplay || '未登记'}}</text>
+        </view>
       </view>
     </view>
+  </view>
+
+  <!-- 考勤打卡 -->
+  <view class="clock-section home-clock-compact">
+    <view class="flex-between home-clock-header">
+      <view>
+        <text class="font-semibold">考勤打卡</text>
+        <text class="clock-hint">上班与下班状态</text>
+      </view>
+      <view wx:if="{{clockSource === 'scan'}}" class="badge badge-blue">扫码入口</view>
+    </view>
+    <view class="clock-btns">
+      <button class="clock-btn {{clockedIn ? 'clock-btn-done' : 'clock-btn-in'}}" bindtap="onClockIn" disabled="{{clockedIn || loading}}" hover-class="tap-button-hover">
+        <text class="clock-btn-label">上班</text>
+        <text class="clock-btn-text">{{clockedIn ? '已开始' : '打卡'}}</text>
+        <text class="clock-btn-time" wx:if="{{clockInTime}}">{{clockInTime}}</text>
+      </button>
+      <button class="clock-btn {{clockedIn ? 'clock-btn-out' : 'clock-btn-disabled'}}" bindtap="onClockOut" disabled="{{!clockedIn || loading}}" hover-class="tap-button-hover">
+        <text class="clock-btn-label">下班</text>
+        <text class="clock-btn-text">打卡</text>
+        <text class="clock-btn-time" wx:if="{{clockOutTime}}">{{clockOutTime}}</text>
+      </button>
+    </view>
+    <view class="divider home-clock-divider"></view>
+    <view class="clock-hint home-clock-summary">今日已打卡 {{sessionCount}} 次 · 累计工时 {{todayHours}}h</view>
   </view>
 
   <!-- 今日报工 -->
-  <view class="home-worklog-head">
-    <view class="home-section-copy">
-      <text class="home-section-title">今日报工</text>
-      <text class="home-section-subtitle">负责工序 {{assignedProcessTotal}} 道</text>
-    </view>
-    <view class="home-earnings-pill" bindtap="goToProfile" hover-class="tap-chip-hover">
-      <text class="home-earnings-label">今日预估</text>
-      <text class="home-earnings-value">¥{{todayEarnings}}</text>
-    </view>
-  </view>
-
-  <view class="home-report-panel">
-    <block wx:if="{{selectedHomeProcess}}">
-      <view class="home-selected-head">
-        <view class="home-selected-main">
-          <text class="home-selected-kicker">已选工序</text>
-          <text class="home-selected-name">{{selectedHomeProcess.process_name}}</text>
-          <text class="home-selected-order">{{selectedHomeProcess.order_name}}</text>
-        </view>
-        <text class="home-selected-price">{{selectedHomeProcess.price_hidden ? '工价隐藏' : ('¥' + selectedHomeProcess.current_price + '/件')}}</text>
-      </view>
-
-      <view class="home-quota-grid" wx:if="{{homeQuotaInfo}}">
-        <view class="home-quota-cell">
-          <text class="home-quota-value">{{homeQuotaInfo.remaining_quantity}}</text>
-          <text class="home-quota-label">剩余可报</text>
-        </view>
-        <view class="home-quota-cell">
-          <text class="home-quota-value">{{homeQuotaInfo.current_total}}</text>
-          <text class="home-quota-label">已报数量</text>
-        </view>
-        <view class="home-quota-cell">
-          <text class="home-quota-value">{{homeQuotaInfo.order_total_quantity}}</text>
-          <text class="home-quota-label">订单数量</text>
-        </view>
-      </view>
-
-      <view class="home-qty-row">
-        <view class="home-qty-input-wrap">
-          <text class="field-label">完成数量</text>
-          <input
-            class="field-input home-qty-input"
-            type="number"
-            placeholder="填写数量"
-            value="{{homeQuantity > 0 ? homeQuantity : ''}}"
-            bindinput="onHomeQuantityInput"
-            confirm-type="done"
-          />
-        </view>
-        <view class="home-estimate-box">
-          <text class="home-estimate-label">预估金额</text>
-          <text wx:if="{{!selectedHomeProcess.price_hidden}}" class="home-estimate-value">¥{{homeEstimateAmount}}</text>
-          <text wx:else class="home-estimate-muted">已隐藏</text>
-        </view>
-      </view>
-
-      <view class="home-quick-qty">
-        <view wx:for="{{homeQuickQuantities}}" wx:key="index" class="home-quick-chip" data-value="{{item}}" bindtap="onHomeQuickQuantityTap" hover-class="tap-chip-hover">{{item}}</view>
-        <view wx:if="{{homeQuantity > 0}}" class="home-quick-chip is-clear" bindtap="onHomeClearQuantity" hover-class="tap-chip-hover">清空</view>
-      </view>
-
-      <text wx:if="{{homeQuantityError && homeQuantity > 0}}" class="field-error home-field-error">{{homeQuantityError}}</text>
-      <text wx:if="{{homeQuotaLoading}}" class="home-quota-loading">正在更新可报数量...</text>
-
-      <button
-        class="btn-primary btn-block home-submit-btn"
-        bindtap="onSubmitHomeWorklog"
-        disabled="{{loading || !homeCanSubmit}}"
-        hover-class="tap-button-hover"
-      >
-        {{loading ? '提交中...' : '提交报工'}}
-      </button>
-    </block>
-
-    <view wx:else class="home-report-empty">
-      <view class="home-report-empty-icon">
-        <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
-      </view>
-      <view>
-        <text class="home-report-empty-title">选择工序</text>
-        <text class="home-report-empty-desc">下方工序卡片</text>
-      </view>
-    </view>
-  </view>
-
   <view class="home-process-section">
-    <view class="home-section-row">
+    <view class="home-worklog-head">
       <view class="home-section-copy">
-        <text class="home-section-title">我的负责工序</text>
-        <text class="home-section-subtitle">今日可报工序</text>
+        <text class="home-section-title">今日报工</text>
+        <text class="home-section-subtitle">负责工序 {{assignedProcessTotal}} 道，点击工序进入报工</text>
       </view>
-      <view class="home-section-link" bindtap="goToWorklog" hover-class="tap-chip-hover">记录</view>
     </view>
 
     <view wx:if="{{homeProcessLoading}}" class="home-process-loading">
@@ -146,8 +88,8 @@
         wx:for="{{displayedHomeProcesses}}"
         wx:for-item="item"
         wx:key="_id"
-        class="home-process-card tappable {{item.isSelected ? 'is-selected' : ''}} {{item.isComplete ? 'is-complete' : ''}}"
-        bindtap="onSelectHomeProcess"
+        class="home-process-card tappable {{item.isComplete ? 'is-complete' : ''}}"
+        bindtap="goToWorklog"
         data-id="{{item._id}}"
         hover-class="tap-card-hover"
         hover-stay-time="80"
@@ -171,55 +113,14 @@
         </view>
 
         <view class="home-process-foot">
-          <text class="home-process-foot-text">{{item.isSelected ? '已选中' : '选择报工'}}</text>
-          <view class="home-process-check" wx:if="{{item.isSelected}}">选</view>
+          <text class="home-process-foot-text">{{item.actionText}}</text>
         </view>
       </view>
 
       <view wx:if="{{hasMoreAssignedProcesses}}" class="home-more-row" bindtap="goToWorklog" hover-class="tap-row-hover">
         <text>查看全部 {{assignedProcessTotal}} 道工序</text>
-        <text class="picker-arrow">&#x276F;</text>
       </view>
     </view>
-  </view>
-
-  <!-- 工资工时概览 -->
-  <view class="stats-grid home-summary-grid">
-    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
-      <text class="stats-card-label">本月累计工时</text>
-      <text class="stats-card-value">{{monthHours}}h</text>
-      <text class="stats-card-note">含今日已完成工时</text>
-    </view>
-    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
-      <text class="stats-card-label">入厂时间</text>
-      <text class="stats-card-value home-join-value">{{joinDateDisplay || '未登记'}}</text>
-      <text class="stats-card-note">个人资料与工资明细</text>
-    </view>
-  </view>
-
-  <!-- 考勤打卡 -->
-  <view class="clock-section">
-    <view class="flex-between home-clock-header">
-      <view>
-        <text class="font-semibold">考勤打卡</text>
-        <text class="clock-hint">上班与下班状态</text>
-      </view>
-      <view wx:if="{{clockSource === 'scan'}}" class="badge badge-blue">扫码入口</view>
-    </view>
-    <view class="clock-btns">
-      <button class="clock-btn {{clockedIn ? 'clock-btn-done' : 'clock-btn-in'}}" bindtap="onClockIn" disabled="{{clockedIn || loading}}" hover-class="tap-button-hover">
-        <text class="clock-btn-label">上班状态</text>
-        <text class="clock-btn-text">{{clockedIn ? '已开始工作' : '上班打卡'}}</text>
-        <text class="clock-btn-time" wx:if="{{clockInTime}}">{{clockInTime}}</text>
-      </button>
-      <button class="clock-btn {{clockedIn ? 'clock-btn-out' : 'clock-btn-disabled'}}" bindtap="onClockOut" disabled="{{!clockedIn || loading}}" hover-class="tap-button-hover">
-        <text class="clock-btn-label">下班状态</text>
-        <text class="clock-btn-text">下班打卡</text>
-        <text class="clock-btn-time" wx:if="{{clockOutTime}}">{{clockOutTime}}</text>
-      </button>
-    </view>
-    <view class="divider home-clock-divider"></view>
-    <view class="clock-hint home-clock-summary">今日已打卡 {{sessionCount}} 次 · 累计工时 {{todayHours}}h</view>
   </view>
 
   <!-- 快捷操作 -->
