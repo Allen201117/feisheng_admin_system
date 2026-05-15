@@ -3,12 +3,7 @@ const { callCloud, showError, showSuccess, showLoading, hideLoading, formatTime,
 const { getStoredUser } = require('../../../utils/auth')
 const { requestBestLocation, sampleLocationAndPickBest, calculateDistanceMeters, isValidCoordinate, checkLocationPermission } = require('../../../utils/location')
 const { normalizeAssignedProcessForEmployee } = require('../worklog/worklog.logic')
-const {
-  buildHomeProcessView,
-  buildQuantityState,
-  buildQuotaFromProcess,
-  findProcessById
-} = require('./home.logic')
+const { buildHomeProcessView } = require('./home.logic')
 const app = getApp()
 
 const HOME_PROCESS_PREVIEW_LIMIT = 5
@@ -35,15 +30,6 @@ Page({
     displayedHomeProcesses: [],
     assignedProcessTotal: 0,
     hasMoreAssignedProcesses: false,
-    selectedHomeProcess: null,
-    selectedHomeProcessId: '',
-    homeQuantity: 0,
-    homeQuickQuantities: [50, 100, 200, 500],
-    homeQuotaInfo: null,
-    homeQuotaLoading: false,
-    homeQuantityError: '',
-    homeCanSubmit: false,
-    homeEstimateAmount: '0.00',
     homeProcessLoading: false,
     homeProcessError: '',
     // 修改密码
@@ -158,23 +144,6 @@ Page({
     }
   },
 
-  buildHomeEstimate(quantity, selectedProcess) {
-    if (!selectedProcess || selectedProcess.price_hidden || quantity <= 0) {
-      return '0.00'
-    }
-    return formatMoney(quantity * (selectedProcess.current_price || 0))
-  },
-
-  applyHomeQuantityState(quantity, quotaInfo, selectedProcess) {
-    const state = buildQuantityState(quantity, quotaInfo, selectedProcess)
-    this.setData({
-      homeQuantity: state.quantity,
-      homeQuantityError: state.quantityError,
-      homeCanSubmit: state.canSubmit,
-      homeEstimateAmount: this.buildHomeEstimate(state.quantity, selectedProcess)
-    })
-  },
-
   async loadHomeAssignedProcesses() {
     if (!this.data.userInfo || !this.data.userInfo._id) return
     this.setData({ homeProcessLoading: true, homeProcessError: '' })
@@ -185,181 +154,21 @@ Page({
         user_id: this.data.userInfo._id
       })
       const processes = (res.data || []).map(normalizeAssignedProcessForEmployee)
-      let selected = this.data.selectedHomeProcessId
-        ? findProcessById(processes, this.data.selectedHomeProcessId)
-        : null
-
-      if (!selected && processes.length === 1) {
-        selected = processes[0]
-      }
-
-      const selectedId = selected ? selected._id : ''
-      const quotaInfo = selected ? buildQuotaFromProcess(selected) : null
-      const state = buildQuantityState(this.data.homeQuantity, quotaInfo, selected)
-      const view = buildHomeProcessView(processes, selectedId, HOME_PROCESS_PREVIEW_LIMIT)
+      const view = buildHomeProcessView(processes, HOME_PROCESS_PREVIEW_LIMIT)
 
       this.setData({
         assignedProcesses: processes,
         displayedHomeProcesses: view.items,
         assignedProcessTotal: view.totalCount,
         hasMoreAssignedProcesses: view.hasMore,
-        selectedHomeProcess: selected,
-        selectedHomeProcessId: selectedId,
-        homeQuotaInfo: quotaInfo,
-        homeQuantity: state.quantity,
-        homeQuantityError: state.quantityError,
-        homeCanSubmit: state.canSubmit,
-        homeEstimateAmount: this.buildHomeEstimate(state.quantity, selected),
         homeProcessLoading: false
       })
-
-      if (selected) {
-        this.loadHomeProcessQuota()
-      }
     } catch (e) {
       console.error('加载首页工序失败', e)
       this.setData({
         homeProcessLoading: false,
         homeProcessError: e.message || '工序加载失败'
       })
-    }
-  },
-
-  onSelectHomeProcess(e) {
-    const processId = e.currentTarget.dataset.id
-    const selected = findProcessById(this.data.assignedProcesses, processId)
-    if (!selected) return
-
-    const quotaInfo = buildQuotaFromProcess(selected)
-    const view = buildHomeProcessView(this.data.assignedProcesses, selected._id, HOME_PROCESS_PREVIEW_LIMIT)
-    const state = buildQuantityState(0, quotaInfo, selected)
-
-    this.setData({
-      selectedHomeProcess: selected,
-      selectedHomeProcessId: selected._id,
-      displayedHomeProcesses: view.items,
-      assignedProcessTotal: view.totalCount,
-      hasMoreAssignedProcesses: view.hasMore,
-      homeQuotaInfo: quotaInfo,
-      homeQuantity: state.quantity,
-      homeQuantityError: state.quantityError,
-      homeCanSubmit: state.canSubmit,
-      homeEstimateAmount: '0.00'
-    })
-
-    this.loadHomeProcessQuota()
-  },
-
-  async loadHomeProcessQuota() {
-    const selected = this.data.selectedHomeProcess
-    if (!selected) return
-
-    this.setData({ homeQuotaLoading: true })
-    try {
-      const res = await callCloud('worklog', {
-        action: 'getProcessQuota',
-        order_id: selected.order_id,
-        process_id: selected._id
-      })
-      const quotaInfo = res.data || buildQuotaFromProcess(selected)
-      const state = buildQuantityState(this.data.homeQuantity, quotaInfo, selected)
-      this.setData({
-        homeQuotaInfo: quotaInfo,
-        homeQuantity: state.quantity,
-        homeQuantityError: state.quantityError,
-        homeCanSubmit: state.canSubmit,
-        homeEstimateAmount: this.buildHomeEstimate(state.quantity, selected)
-      })
-    } catch (err) {
-      console.error('加载首页工序余量失败', err)
-    } finally {
-      this.setData({ homeQuotaLoading: false })
-    }
-  },
-
-  onHomeQuantityInput(e) {
-    const val = parseInt((e.detail.value || '').replace(/[^0-9]/g, ''), 10) || 0
-    this.applyHomeQuantityState(val, this.data.homeQuotaInfo, this.data.selectedHomeProcess)
-  },
-
-  onHomeQuickQuantityTap(e) {
-    const val = parseInt(e.currentTarget.dataset.value, 10) || 0
-    this.applyHomeQuantityState(val, this.data.homeQuotaInfo, this.data.selectedHomeProcess)
-  },
-
-  onHomeClearQuantity() {
-    this.applyHomeQuantityState(0, this.data.homeQuotaInfo, this.data.selectedHomeProcess)
-  },
-
-  async verifyHomeQuotaBeforeSubmit() {
-    const selected = this.data.selectedHomeProcess
-    if (!selected) return false
-
-    const res = await callCloud('worklog', {
-      action: 'getProcessQuota',
-      order_id: selected.order_id,
-      process_id: selected._id
-    })
-    const quotaInfo = res.data || {}
-    const state = buildQuantityState(this.data.homeQuantity, quotaInfo, selected)
-
-    this.setData({
-      homeQuotaInfo: quotaInfo,
-      homeQuantityError: state.quantityError,
-      homeCanSubmit: state.canSubmit
-    })
-
-    if (!state.canSubmit) {
-      showError(state.quantityError || '请输入有效的完成数量')
-      return false
-    }
-    return true
-  },
-
-  async onSubmitHomeWorklog() {
-    const selected = this.data.selectedHomeProcess
-    if (!selected) {
-      showError('请先选择工序')
-      return
-    }
-
-    const state = buildQuantityState(this.data.homeQuantity, this.data.homeQuotaInfo, selected)
-    if (!state.canSubmit) {
-      showError(state.quantityError || '请输入有效的完成数量')
-      return
-    }
-
-    try {
-      const canSubmit = await this.verifyHomeQuotaBeforeSubmit()
-      if (!canSubmit) return
-    } catch (err) {
-      showError(err.message || '获取剩余可报数量失败')
-      return
-    }
-
-    this.setData({ loading: true })
-    showLoading('提交中...')
-
-    try {
-      await callCloud('worklog', {
-        action: 'submit',
-        user_id: this.data.userInfo._id,
-        user_name: this.data.userInfo.name,
-        process_id: selected._id,
-        order_id: selected.order_id,
-        quantity: this.data.homeQuantity
-      })
-
-      hideLoading()
-      showSuccess('报工成功')
-      this.applyHomeQuantityState(0, this.data.homeQuotaInfo, selected)
-      this.loadTodayEarnings()
-      this.loadHomeAssignedProcesses()
-    } catch (err) {
-      hideLoading()
-      showError(err.message || '报工失败')
-    } finally {
-      this.setData({ loading: false })
     }
   },
 

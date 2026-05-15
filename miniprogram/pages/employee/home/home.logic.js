@@ -10,7 +10,7 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)))
 }
 
-function buildProcessCard(process, selectedProcessId) {
+function buildProcessCard(process) {
   const normalized = normalizeAssignedProcessForEmployee(process || {})
   const total = toNumber(normalized.order_total_quantity)
   const current = toNumber(normalized.current_total)
@@ -25,17 +25,17 @@ function buildProcessCard(process, selectedProcessId) {
     remaining_quantity: remaining,
     progressPercent,
     isComplete,
-    isSelected: String(normalized._id || '') === String(selectedProcessId || ''),
+    actionText: '进入报工',
     priceText: normalized.price_hidden ? '工价已隐藏' : `¥${normalized.current_price}/件`,
     quotaText: total > 0 ? `剩余 ${remaining} 件` : '未设置总量',
     statusText: isComplete ? '已报满' : '可报工'
   }
 }
 
-function buildHomeProcessView(processes, selectedProcessId, limit = 5) {
+function buildHomeProcessView(processes, limit = 5) {
   const safeLimit = Math.max(1, toNumber(limit, 5))
   const source = Array.isArray(processes) ? processes : []
-  const items = source.slice(0, safeLimit).map((process) => buildProcessCard(process, selectedProcessId))
+  const items = source.slice(0, safeLimit).map((process) => buildProcessCard(process))
 
   return {
     items,
@@ -45,43 +45,6 @@ function buildHomeProcessView(processes, selectedProcessId, limit = 5) {
   }
 }
 
-function findProcessById(processes, processId) {
-  const source = Array.isArray(processes) ? processes : []
-  const found = source.find((process) => String(process && process._id) === String(processId))
-  return found || null
-}
-
-function buildQuotaFromProcess(process) {
-  if (!process) return null
-  return {
-    order_total_quantity: toNumber(process.order_total_quantity),
-    current_total: toNumber(process.current_total),
-    remaining_quantity: toNumber(process.remaining_quantity)
-  }
-}
-
-function buildQuantityState(rawQuantity, quotaInfo, selectedProcess) {
-  const quantity = Math.max(0, parseInt(rawQuantity, 10) || 0)
-  let quantityError = ''
-
-  if (!selectedProcess) {
-    quantityError = '请先选择工序'
-  } else if (quantity <= 0) {
-    quantityError = ''
-  } else if (quotaInfo && quantity > toNumber(quotaInfo.remaining_quantity)) {
-    quantityError = '超过剩余可报数量'
-  }
-
-  return {
-    quantity,
-    quantityError,
-    canSubmit: !!selectedProcess && quantity > 0 && !quantityError
-  }
-}
-
 module.exports = {
-  buildHomeProcessView,
-  buildQuantityState,
-  buildQuotaFromProcess,
-  findProcessById
+  buildHomeProcessView
 }
