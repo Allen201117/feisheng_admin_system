@@ -9,6 +9,7 @@ Page({
     processes: [],
     selectedProcess: null,
     selectedProcessIndex: -1,
+    initialProcessId: '',
     quantity: 0,
     quickQuantities: [50, 100, 200, 500],
     quotaInfo: null,
@@ -25,13 +26,16 @@ Page({
     editReasons: ['录入错误', '数量填多了', '数量填少了', '其他原因']
   },
 
-  onLoad() {
+  onLoad(options = {}) {
     const user = getStoredUser()
     if (!user) {
       wx.reLaunch({ url: '/pages/login/login' })
       return
     }
-    this.setData({ userInfo: user })
+    this.setData({
+      userInfo: user,
+      initialProcessId: options.process_id || ''
+    })
   },
 
   onShow() {
@@ -46,7 +50,22 @@ Page({
         user_id: this.data.userInfo._id
       })
       const processes = (res.data || []).map(normalizeAssignedProcessForEmployee)
-      this.setData({ processes })
+      const targetProcessId = this.data.initialProcessId || (this.data.selectedProcess && this.data.selectedProcess._id) || ''
+      const selectedProcessIndex = targetProcessId
+        ? processes.findIndex((item) => String(item._id) === String(targetProcessId))
+        : -1
+      const selectedProcess = selectedProcessIndex >= 0 ? processes[selectedProcessIndex] : null
+
+      this.setData({
+        processes,
+        selectedProcessIndex,
+        selectedProcess,
+        quotaInfo: selectedProcess ? null : this.data.quotaInfo
+      })
+
+      if (selectedProcess) {
+        this.loadProcessQuota()
+      }
     } catch (e) {
       console.error('加载工序失败', e)
     }

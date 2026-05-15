@@ -22,9 +22,18 @@ function markConsentAccepted() {
   }
 }
 
+function clearConsentAccepted() {
+  try {
+    wx.removeStorageSync(CONSENT_STORAGE_KEY)
+  } catch (e) {
+    // ignore
+  }
+}
+
 module.exports = {
   CONSENT_VERSION,
   getConsentVersion,
   hasCurrentConsent,
-  markConsentAccepted
+  markConsentAccepted,
+  clearConsentAccepted
 }

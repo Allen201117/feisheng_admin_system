@@ -1,6 +1,6 @@
 <import src="/templates/shared.wxml" />
 
-<view class="container">
+<view class="container employee-home-page">
 
   <!-- Hero-employee -->
   <view class="hero hero-employee">
@@ -32,17 +32,168 @@
     </view>
   </view>
 
-  <!-- 工资工时概览 -->
-  <view class="stats-grid">
-    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
-      <text class="stats-card-label">今日预估工资</text>
-      <text class="stats-card-value">¥{{todayEarnings}}</text>
-      <text class="stats-card-note">基于今日报工实时计算</text>
+  <!-- 今日报工 -->
+  <view class="home-worklog-head">
+    <view class="home-section-copy">
+      <text class="home-section-title">今日报工</text>
+      <text class="home-section-subtitle">负责工序 {{assignedProcessTotal}} 道</text>
     </view>
+    <view class="home-earnings-pill" bindtap="goToProfile" hover-class="tap-chip-hover">
+      <text class="home-earnings-label">今日预估</text>
+      <text class="home-earnings-value">¥{{todayEarnings}}</text>
+    </view>
+  </view>
+
+  <view class="home-report-panel">
+    <block wx:if="{{selectedHomeProcess}}">
+      <view class="home-selected-head">
+        <view class="home-selected-main">
+          <text class="home-selected-kicker">已选工序</text>
+          <text class="home-selected-name">{{selectedHomeProcess.process_name}}</text>
+          <text class="home-selected-order">{{selectedHomeProcess.order_name}}</text>
+        </view>
+        <text class="home-selected-price">{{selectedHomeProcess.price_hidden ? '工价隐藏' : ('¥' + selectedHomeProcess.current_price + '/件')}}</text>
+      </view>
+
+      <view class="home-quota-grid" wx:if="{{homeQuotaInfo}}">
+        <view class="home-quota-cell">
+          <text class="home-quota-value">{{homeQuotaInfo.remaining_quantity}}</text>
+          <text class="home-quota-label">剩余可报</text>
+        </view>
+        <view class="home-quota-cell">
+          <text class="home-quota-value">{{homeQuotaInfo.current_total}}</text>
+          <text class="home-quota-label">已报数量</text>
+        </view>
+        <view class="home-quota-cell">
+          <text class="home-quota-value">{{homeQuotaInfo.order_total_quantity}}</text>
+          <text class="home-quota-label">订单数量</text>
+        </view>
+      </view>
+
+      <view class="home-qty-row">
+        <view class="home-qty-input-wrap">
+          <text class="field-label">完成数量</text>
+          <input
+            class="field-input home-qty-input"
+            type="number"
+            placeholder="填写数量"
+            value="{{homeQuantity > 0 ? homeQuantity : ''}}"
+            bindinput="onHomeQuantityInput"
+            confirm-type="done"
+          />
+        </view>
+        <view class="home-estimate-box">
+          <text class="home-estimate-label">预估金额</text>
+          <text wx:if="{{!selectedHomeProcess.price_hidden}}" class="home-estimate-value">¥{{homeEstimateAmount}}</text>
+          <text wx:else class="home-estimate-muted">已隐藏</text>
+        </view>
+      </view>
+
+      <view class="home-quick-qty">
+        <view wx:for="{{homeQuickQuantities}}" wx:key="index" class="home-quick-chip" data-value="{{item}}" bindtap="onHomeQuickQuantityTap" hover-class="tap-chip-hover">{{item}}</view>
+        <view wx:if="{{homeQuantity > 0}}" class="home-quick-chip is-clear" bindtap="onHomeClearQuantity" hover-class="tap-chip-hover">清空</view>
+      </view>
+
+      <text wx:if="{{homeQuantityError && homeQuantity > 0}}" class="field-error home-field-error">{{homeQuantityError}}</text>
+      <text wx:if="{{homeQuotaLoading}}" class="home-quota-loading">正在更新可报数量...</text>
+
+      <button
+        class="btn-primary btn-block home-submit-btn"
+        bindtap="onSubmitHomeWorklog"
+        disabled="{{loading || !homeCanSubmit}}"
+        hover-class="tap-button-hover"
+      >
+        {{loading ? '提交中...' : '提交报工'}}
+      </button>
+    </block>
+
+    <view wx:else class="home-report-empty">
+      <view class="home-report-empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
+      </view>
+      <view>
+        <text class="home-report-empty-title">选择工序</text>
+        <text class="home-report-empty-desc">下方工序卡片</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="home-process-section">
+    <view class="home-section-row">
+      <view class="home-section-copy">
+        <text class="home-section-title">我的负责工序</text>
+        <text class="home-section-subtitle">今日可报工序</text>
+      </view>
+      <view class="home-section-link" bindtap="goToWorklog" hover-class="tap-chip-hover">记录</view>
+    </view>
+
+    <view wx:if="{{homeProcessLoading}}" class="home-process-loading">
+      <view class="skeleton skeleton-card"></view>
+      <view class="skeleton skeleton-card"></view>
+    </view>
+
+    <view wx:elif="{{assignedProcessTotal === 0}}" class="empty home-process-empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
+      </view>
+      <text class="empty-title">暂无负责工序</text>
+      <text class="empty-desc">管理员分配后会显示在这里</text>
+      <view class="empty-action secondary" bindtap="loadHomeAssignedProcesses" hover-class="tap-button-hover">刷新</view>
+    </view>
+
+    <view wx:else class="home-process-list">
+      <view
+        wx:for="{{displayedHomeProcesses}}"
+        wx:for-item="item"
+        wx:key="_id"
+        class="home-process-card tappable {{item.isSelected ? 'is-selected' : ''}} {{item.isComplete ? 'is-complete' : ''}}"
+        bindtap="onSelectHomeProcess"
+        data-id="{{item._id}}"
+        hover-class="tap-card-hover"
+        hover-stay-time="80"
+      >
+        <view class="home-process-card-head">
+          <view class="home-process-main">
+            <text class="home-process-name">{{item.process_name}}</text>
+            <text class="home-process-order">{{item.order_name}}</text>
+          </view>
+          <text class="home-process-price">{{item.priceText}}</text>
+        </view>
+
+        <view class="home-process-tags">
+          <text class="home-process-tag {{item.isComplete ? 'is-muted' : 'is-ready'}}">{{item.statusText}}</text>
+          <text class="home-process-tag">{{item.quotaText}}</text>
+          <text class="home-process-tag">已报 {{item.current_total}} 件</text>
+        </view>
+
+        <view class="home-process-progress">
+          <view class="home-process-progress-fill {{item.isComplete ? 'is-complete' : ''}}" style="width: {{item.progressPercent}}%;"></view>
+        </view>
+
+        <view class="home-process-foot">
+          <text class="home-process-foot-text">{{item.isSelected ? '已选中' : '选择报工'}}</text>
+          <view class="home-process-check" wx:if="{{item.isSelected}}">选</view>
+        </view>
+      </view>
+
+      <view wx:if="{{hasMoreAssignedProcesses}}" class="home-more-row" bindtap="goToWorklog" hover-class="tap-row-hover">
+        <text>查看全部 {{assignedProcessTotal}} 道工序</text>
+        <text class="picker-arrow">&#x276F;</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 工资工时概览 -->
+  <view class="stats-grid home-summary-grid">
     <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
       <text class="stats-card-label">本月累计工时</text>
       <text class="stats-card-value">{{monthHours}}h</text>
       <text class="stats-card-note">含今日已完成工时</text>
+    </view>
+    <view class="stats-card green" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
+      <text class="stats-card-label">入厂时间</text>
+      <text class="stats-card-value home-join-value">{{joinDateDisplay || '未登记'}}</text>
+      <text class="stats-card-note">个人资料与工资明细</text>
     </view>
   </view>
 
@@ -51,7 +202,7 @@
     <view class="flex-between home-clock-header">
       <view>
         <text class="font-semibold">考勤打卡</text>
-        <text class="clock-hint">进入工厂后完成上班打卡，离厂前完成下班打卡。</text>
+        <text class="clock-hint">上班与下班状态</text>
       </view>
       <view wx:if="{{clockSource === 'scan'}}" class="badge badge-blue">扫码入口</view>
     </view>
@@ -80,28 +231,28 @@
           <image src="/images/icons/camera.svg" mode="aspectFit" class="icon-sm" />
         </view>
         <text class="quick-item-label">扫码打卡</text>
-        <text class="quick-item-desc">扫描管理员生成的考勤码</text>
+        <text class="quick-item-desc">管理员考勤码</text>
       </view>
       <view class="quick-item" bindtap="goToWorklog" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon blue">
           <image src="/images/icons/edit.svg" mode="aspectFit" class="icon-sm" />
         </view>
-        <text class="quick-item-label">计件报工</text>
-        <text class="quick-item-desc">填写今日产量与工序记录</text>
+        <text class="quick-item-label">报工记录</text>
+        <text class="quick-item-desc">今日记录与修改</text>
       </view>
       <view class="quick-item" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon green">
           <image src="/images/icons/profile.svg" mode="aspectFit" class="icon-sm" />
         </view>
         <text class="quick-item-label">我的工资</text>
-        <text class="quick-item-desc">查看工资与奖惩明细</text>
+        <text class="quick-item-desc">工资与奖惩明细</text>
       </view>
       <view class="quick-item" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon slate">
           <image src="/images/icons/leaderboard.svg" mode="aspectFit" class="icon-sm" />
         </view>
         <text class="quick-item-label">排行榜</text>
-        <text class="quick-item-desc">查看工时与薪资排名</text>
+        <text class="quick-item-desc">排名统计</text>
       </view>
     </view>
     <view class="divider home-quick-divider"></view>

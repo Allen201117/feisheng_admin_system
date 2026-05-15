@@ -12,6 +12,7 @@ var storeUser = auth.storeUser
 var getStoredUser = auth.getStoredUser
 var privacy = require('../../utils/privacy')
 var markConsentAccepted = privacy.markConsentAccepted
+var clearConsentAccepted = privacy.clearConsentAccepted
 var hasLocalCurrentConsent = privacy.hasCurrentConsent
 var app = getApp()
 var LAST_LOGIN_INFO_KEY = 'factory_last_login_info'
@@ -66,12 +67,14 @@ Page({
   onLoad: function(options) {
     var existingUser = getStoredUser()
     var lastLoginInfo = getLastLoginInfo()
+    var rememberedConsent = hasLocalCurrentConsent()
     this.setData({
       existingUser: existingUser || null,
       factoryCode: lastLoginInfo && lastLoginInfo.factoryCode ? lastLoginInfo.factoryCode : '',
       name: lastLoginInfo && lastLoginInfo.name ? lastLoginInfo.name : '',
       phone: lastLoginInfo && lastLoginInfo.phone ? lastLoginInfo.phone : '',
-      hasRememberedLoginInfo: !!(lastLoginInfo && (lastLoginInfo.factoryCode || lastLoginInfo.name || lastLoginInfo.phone))
+      hasRememberedLoginInfo: !!(lastLoginInfo && (lastLoginInfo.factoryCode || lastLoginInfo.name || lastLoginInfo.phone)),
+      consentChecked: rememberedConsent
     })
     this.loadConsentStatus()
 
@@ -140,11 +143,9 @@ Page({
       that.setData({
         consentVersion: data.consent_version || '',
         hasCurrentConsent: hasConsent,
-        consentChecked: hasConsent || localConsent
+        // 首次进入不默认勾选；仅在本机曾手动勾选过时带出用户选择。
+        consentChecked: localConsent
       })
-      if (hasConsent) {
-        markConsentAccepted()
-      }
     }).catch(function() {
       that.setData({
         hasCurrentConsent: false,
@@ -156,8 +157,10 @@ Page({
   onConsentCheck: function(e) {
     var checked = !!e.detail.value.length
     this.setData({ consentChecked: checked })
-    if (checked && !this.data.hasCurrentConsent) {
-      this.persistConsentAgreement({ silent: true, force: true }).catch(function() {})
+    if (checked) {
+      markConsentAccepted()
+    } else {
+      clearConsentAccepted()
     }
   },
 
