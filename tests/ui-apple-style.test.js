@@ -117,6 +117,19 @@ test('login keeps the primary action reachable without scrolling', () => {
   assert.match(json, /"navigationBarTextStyle":\s*"black"/)
 })
 
+test('login consent starts unchecked for new users and remembers manual choice', () => {
+  const source = read('miniprogram/pages/login/login.js')
+
+  assert.match(source, /consentChecked:\s*false/)
+  assert.match(source, /rememberedConsent\s*=\s*hasLocalCurrentConsent\(\)/)
+  assert.match(source, /consentChecked:\s*rememberedConsent/)
+  assert.match(source, /consentChecked:\s*localConsent/)
+  assert.match(source, /if\s*\(checked\)\s*\{\s*markConsentAccepted\(\)/)
+  assert.match(source, /else\s*\{\s*clearConsentAccepted\(\)/)
+  assert.doesNotMatch(source, /consentChecked:\s*hasConsent\s*\|\|\s*localConsent/)
+  assert.doesNotMatch(source, /persistConsentAgreement\(\{\s*silent:\s*true,\s*force:\s*true\s*\}\)/)
+})
+
 test('frontend audit has no dark navigation or thick left rails', () => {
   for (const file of listFiles('miniprogram/pages', (name) => name.endsWith('.json'))) {
     const source = read(file)
