@@ -47,8 +47,21 @@
 
       <!-- 各工序进度 -->
       <view class="card-bento" wx:if="{{progressData.processes.length > 0}}">
-        <text class="font-semibold text-sm" style="margin-bottom:var(--sp-2);display:block;">工序进度明细</text>
-        <view wx:for="{{progressData.processes}}" wx:for-item="item" wx:key="_id" class="worklog-process-card tappable" bindtap="goProcessWorklogs" data-process="{{item}}" hover-class="tap-card-hover">
+        <view class="flex-between" style="margin-bottom:var(--sp-2);">
+          <text class="font-semibold text-sm">工序进度明细</text>
+          <text wx:if="{{progressProcessKeyword}}" class="field-hint process-search-meta">匹配 {{filteredProgressProcesses.length}} / {{progressData.processes.length}}</text>
+        </view>
+        <view class="process-search-row">
+          <input class="field-input process-search-input" placeholder="搜索工序名称" value="{{progressProcessKeyword}}" bindinput="onProgressProcessSearchInput" confirm-type="search" />
+          <view wx:if="{{progressProcessKeyword}}" class="btn-sm btn-sm-secondary process-search-clear tappable" bindtap="clearProgressProcessSearch" hover-class="tap-button-hover">清除</view>
+        </view>
+        <view wx:if="{{filteredProgressProcesses.length === 0}}" class="empty" style="padding:60rpx 0;">
+          <view class="empty-icon">
+            <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+          </view>
+          <text class="empty-title">没有匹配的工序</text>
+        </view>
+        <view wx:for="{{filteredProgressProcesses}}" wx:for-item="item" wx:key="_id" class="worklog-process-card tappable" bindtap="goProcessWorklogs" data-process="{{item}}" hover-class="tap-card-hover">
           <view class="worklog-process-head">
             <text class="worklog-process-name">{{item.process_name}}</text>
             <text class="worklog-price-pill" wx:if="{{item.current_price != null}}">¥{{item.current_price}}/件</text>
