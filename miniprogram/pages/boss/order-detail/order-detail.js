@@ -1,6 +1,7 @@
 // pages/boss/order-detail/order-detail.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm, formatMoney } = require('../../../utils/util')
 const { buildDeleteOrderConfirmContent } = require('../orders/orders.logic')
+const { buildProcessListView } = require('../process-search.logic')
 
 function parseSafeDate(dateStr) {
   if (!dateStr) return null
@@ -78,6 +79,7 @@ Page({
     assignedCount: 0,
     unassignedCount: 0,
     processFilter: 'all', // all | unassigned | assigned
+    processSearchKeyword: '',
 
     // 状态选项
     statusOptions: [
@@ -202,38 +204,44 @@ Page({
 
   // ===== 工序筛选 =====
   onProcessFilter(e) {
-    this.setData({ processFilter: e.currentTarget.dataset.filter })
-    this.applyFilter()
+    this.applyFilter({ processFilter: e.currentTarget.dataset.filter })
   },
 
-  applyFilter() {
-    const { processes, processFilter } = this.data
-    let filtered
-    if (processFilter === 'unassigned') {
-      filtered = processes.filter(p => !p.assigned_user_ids || p.assigned_user_ids.length === 0)
-    } else if (processFilter === 'assigned') {
-      filtered = processes.filter(p => p.assigned_user_ids && p.assigned_user_ids.length > 0)
-    } else {
-      filtered = processes
-    }
-    const displayed = filtered.slice(0, this.data.processPageSize)
+  onProcessSearchInput(e) {
+    this.applyFilter({ processSearchKeyword: e.detail.value })
+  },
+
+  clearProcessSearch() {
+    if (!this.data.processSearchKeyword) return
+    this.applyFilter({ processSearchKeyword: '' })
+  },
+
+  applyFilter(overrides = {}) {
+    const processes = overrides.processes !== undefined ? overrides.processes : this.data.processes
+    const processFilter = overrides.processFilter !== undefined ? overrides.processFilter : this.data.processFilter
+    const processSearchKeyword = overrides.processSearchKeyword !== undefined ? overrides.processSearchKeyword : this.data.processSearchKeyword
+    const view = buildProcessListView({
+      processes,
+      processFilter,
+      keyword: processSearchKeyword,
+      page: 1,
+      pageSize: this.data.processPageSize
+    })
     this.setData({
-      filteredProcesses: filtered,
-      displayedProcesses: displayed,
-      processPage: 1,
-      hasMoreProcesses: filtered.length > displayed.length
+      ...overrides,
+      ...view
     })
   },
 
   loadMoreProcesses() {
-    const nextPage = this.data.processPage + 1
-    const end = nextPage * this.data.processPageSize
-    const displayed = this.data.filteredProcesses.slice(0, end)
-    this.setData({
-      displayedProcesses: displayed,
-      processPage: nextPage,
-      hasMoreProcesses: this.data.filteredProcesses.length > displayed.length
+    const view = buildProcessListView({
+      processes: this.data.processes,
+      processFilter: this.data.processFilter,
+      keyword: this.data.processSearchKeyword,
+      page: this.data.processPage + 1,
+      pageSize: this.data.processPageSize
     })
+    this.setData(view)
   },
 
   // ===== 添加工序 =====

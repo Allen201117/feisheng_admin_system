@@ -99,6 +99,12 @@
       <view class="order-add-process-btn tappable {{showAddProcess ? 'is-cancel' : ''}}" bindtap="toggleAddProcess" wx:if="{{order.status === 'active'}}" hover-class="tap-button-hover">{{showAddProcess ? '收起' : '添加'}}</view>
     </view>
 
+    <view class="process-search-row">
+      <input class="field-input process-search-input" placeholder="搜索工序名称" value="{{processSearchKeyword}}" bindinput="onProcessSearchInput" confirm-type="search" />
+      <view wx:if="{{processSearchKeyword}}" class="btn-sm btn-sm-secondary process-search-clear tappable" bindtap="clearProcessSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <view wx:if="{{processSearchKeyword}}" class="field-hint process-search-meta">匹配 {{filteredProcesses.length}} / {{processes.length}} 道工序</view>
+
     <!-- 添加工序表单 -->
     <view wx:if="{{showAddProcess}}" class="card" style="margin-bottom:var(--sp-1);padding:var(--sp-2);">
       <view class="field-group">
@@ -117,7 +123,7 @@
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
       </view>
-      <text class="empty-title">{{processFilter === 'all' ? '暂无工序' : (processFilter === 'unassigned' ? '没有未分配的工序' : '没有已分配的工序')}}</text>
+      <text class="empty-title">{{processSearchKeyword ? '没有匹配的工序' : (processFilter === 'all' ? '暂无工序' : (processFilter === 'unassigned' ? '没有未分配的工序' : '没有已分配的工序'))}}</text>
     </view>
 
     <!-- 工序列表 -->

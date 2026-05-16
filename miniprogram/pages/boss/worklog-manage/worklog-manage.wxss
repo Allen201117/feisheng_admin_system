@@ -71,6 +71,29 @@
   margin-top: 22rpx;
 }
 
+.process-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-1);
+}
+
+.process-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 88rpx;
+  font-size: var(--fs-sm);
+}
+
+.process-search-clear {
+  flex-shrink: 0;
+  min-width: 96rpx;
+}
+
+.process-search-meta {
+  margin: 0;
+}
+
 .worklog-process-card {
   padding: 24rpx;
   border-radius: 24rpx;

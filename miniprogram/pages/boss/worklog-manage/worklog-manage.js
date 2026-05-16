@@ -1,5 +1,6 @@
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatMoney, getToday } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
+const { filterProcessesByKeyword } = require('../process-search.logic')
 
 Page({
   data: {
@@ -23,6 +24,8 @@ Page({
     progressOrderIndex: -1,
     progressOrder: null,
     progressData: null,
+    progressProcessKeyword: '',
+    filteredProgressProcesses: [],
 
     // 工序报工明细
     processDetail: null,
@@ -134,7 +137,7 @@ Page({
 
   async loadOrderProgress() {
     if (!this.data.progressOrder) {
-      this.setData({ progressData: null })
+      this.setData({ progressData: null, filteredProgressProcesses: [] })
       return
     }
 
@@ -146,14 +149,37 @@ Page({
         order_id: this.data.progressOrder._id
       })
       hideLoading()
-      this.setData({ progressData: res.data || null })
+      const progressData = res.data || null
+      const processes = progressData && Array.isArray(progressData.processes) ? progressData.processes : []
+      this.setData({
+        progressData,
+        filteredProgressProcesses: filterProcessesByKeyword(processes, this.data.progressProcessKeyword)
+      })
     } catch (err) {
       hideLoading()
       showError(err.message || '加载进度失败')
-      this.setData({ progressData: null })
+      this.setData({ progressData: null, filteredProgressProcesses: [] })
     } finally {
       this.setData({ loading: false })
     }
+  },
+
+  applyProgressProcessSearch(keyword) {
+    const progressData = this.data.progressData
+    const processes = progressData && Array.isArray(progressData.processes) ? progressData.processes : []
+    this.setData({
+      progressProcessKeyword: keyword,
+      filteredProgressProcesses: filterProcessesByKeyword(processes, keyword)
+    })
+  },
+
+  onProgressProcessSearchInput(e) {
+    this.applyProgressProcessSearch(e.detail.value)
+  },
+
+  clearProgressProcessSearch() {
+    if (!this.data.progressProcessKeyword) return
+    this.applyProgressProcessSearch('')
   },
 
   switchViewType(e) {

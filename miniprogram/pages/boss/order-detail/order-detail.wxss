@@ -280,6 +280,29 @@
   color: #6E6E73;
 }
 
+.process-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-bottom: 10rpx;
+}
+
+.process-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 88rpx;
+  font-size: var(--fs-sm);
+}
+
+.process-search-clear {
+  flex-shrink: 0;
+  min-width: 96rpx;
+}
+
+.process-search-meta {
+  margin: -2rpx 0 var(--sp-1);
+}
+
 .process-item-card {
   padding: 24rpx;
   border-radius: 24rpx;
