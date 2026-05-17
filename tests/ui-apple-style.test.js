@@ -117,6 +117,14 @@ test('login keeps the primary action reachable without scrolling', () => {
   assert.match(json, /"navigationBarTextStyle":\s*"black"/)
 })
 
+test('modal sheets stay above their blocking overlay', () => {
+  const source = read('miniprogram/app.wxss')
+
+  assert.match(source, /\.modal-overlay\s*\{[^}]*z-index:\s*1000/s)
+  assert.match(source, /\.modal-sheet\s*\{[^}]*position:\s*fixed/s)
+  assert.match(source, /\.modal-sheet\s*\{[^}]*z-index:\s*1001/s)
+})
+
 test('login consent starts unchecked for new users and remembers manual choice', () => {
   const source = read('miniprogram/pages/login/login.js')
 
