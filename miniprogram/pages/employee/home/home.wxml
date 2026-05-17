@@ -148,6 +148,13 @@
         <text class="quick-item-label">我的工资</text>
         <text class="quick-item-desc">工资与奖惩明细</text>
       </view>
+      <view class="quick-item" bindtap="openChangePwd" hover-class="tap-card-hover" hover-stay-time="80">
+        <view class="quick-item-icon slate">
+          <image src="/images/icons/lock.svg" mode="aspectFit" class="icon-sm" />
+        </view>
+        <text class="quick-item-label">修改密码</text>
+        <text class="quick-item-desc">更新登录密码</text>
+      </view>
       <view class="quick-item" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon slate">
           <image src="/images/icons/leaderboard.svg" mode="aspectFit" class="icon-sm" />
