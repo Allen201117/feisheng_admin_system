@@ -1,7 +1,7 @@
 .container { padding-bottom: 60rpx; }
 
 .qrcode-page {
-  background: #F5F5F7;
+  background: var(--bg-page);
 }
 
 .qrcode-actions {
@@ -16,8 +16,8 @@
   min-height: 78rpx;
   border-radius: 22rpx;
   border: none;
-  background: #F2F4F7;
-  color: #475467;
+  background: var(--surface-strong);
+  color: var(--text-primary);
   font-size: 28rpx;
   font-weight: 650;
   display: flex;
@@ -28,6 +28,7 @@
 .qrcode-action.primary {
   background: #007AFF;
   color: #FFFFFF;
+  box-shadow: var(--shadow-blue);
 }
 
 .qrcode-action.danger {

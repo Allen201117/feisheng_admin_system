@@ -1,7 +1,9 @@
 .stats-card { width: calc(33.33% - 11rpx); }
 .stats-card.indigo {
   border-left: none;
-  background: #F8FAFC;
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--bg-card-soft) 100%);
+  border: 1rpx solid var(--hairline);
+  box-shadow: var(--shadow-card);
 }
 .profile-modal-body { text-align: left; }
 .profile-list-meta { display: block; margin-top: 4rpx; }

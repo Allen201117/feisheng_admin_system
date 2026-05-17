@@ -23,6 +23,37 @@ function listFiles(relativeDir, predicate) {
   return result
 }
 
+function getCssVariable(source, name) {
+  const match = new RegExp(`${name}:\\s*(#[0-9A-Fa-f]{6})`).exec(source)
+  return match ? match[1] : ''
+}
+
+function hexToRgb(hex) {
+  const value = hex.replace('#', '')
+  return [
+    parseInt(value.slice(0, 2), 16) / 255,
+    parseInt(value.slice(2, 4), 16) / 255,
+    parseInt(value.slice(4, 6), 16) / 255
+  ]
+}
+
+function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((channel) => {
+    return channel <= 0.03928
+      ? channel / 12.92
+      : Math.pow((channel + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrastRatio(foreground, background) {
+  const fg = luminance(foreground)
+  const bg = luminance(background)
+  const lighter = Math.max(fg, bg)
+  const darker = Math.min(fg, bg)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
 test('global WXSS exposes Apple-style design tokens and tactile utilities', () => {
   const source = read('miniprogram/app.wxss')
 
@@ -44,13 +75,49 @@ test('global WXSS exposes Apple-style design tokens and tactile utilities', () =
   assert.match(source, /\.bottom-action-bar\b/)
 })
 
+test('global neutral text tokens stay readable on white cards', () => {
+  const source = read('miniprogram/app.wxss')
+  const primary = getCssVariable(source, '--text-primary')
+
+  assert.equal(getCssVariable(source, '--text-secondary'), primary)
+  assert.equal(getCssVariable(source, '--text-tertiary'), primary)
+  assert.ok(contrastRatio(getCssVariable(source, '--text-secondary'), '#FFFFFF') >= 7)
+  assert.ok(contrastRatio(getCssVariable(source, '--text-tertiary'), '#FFFFFF') >= 7)
+  assert.ok(contrastRatio(getCssVariable(source, '--text-placeholder'), '#FFFFFF') >= 7)
+})
+
+test('page styles do not use low-contrast hardcoded gray text colors', () => {
+  const files = [
+    'miniprogram/app.wxss',
+    ...listFiles('miniprogram/pages', (name) => name.endsWith('.wxss') || name.endsWith('.wxml'))
+  ]
+  const lowContrastGrayText = /color:\s*#(?:475467|667085|6B7280|6E6E73|8A8F98|98A2B3|A0A4AC|AEAEB3|B0B3BA|C7C7CC)\b/i
+
+  for (const file of files) {
+    assert.doesNotMatch(read(file), lowContrastGrayText, `${file} uses low-contrast gray text`)
+  }
+})
+
 test('global WXSS avoids template-admin rails and dark hero shells', () => {
   const source = read('miniprogram/app.wxss')
 
   assert.doesNotMatch(source, /--hero-(boss|employee|qc)\s*:\s*linear-gradient/)
   assert.doesNotMatch(source, /border-left:\s*[56]rpx\s+solid/)
-  assert.match(source, /\.btn-primary\s*\{[^}]*background:\s*var\(--blue-500\)[^}]*box-shadow:\s*none/s)
-  assert.match(source, /\.filter-chips\s*\{[^}]*background:\s*#EDEEF2/s)
+  assert.match(source, /\.btn-primary\s*\{[^}]*background:\s*var\(--blue-500\)[^}]*box-shadow:\s*var\(--shadow-blue\)/s)
+  assert.match(source, /\.filter-chips\s*\{[^}]*background:\s*var\(--surface-strong\)/s)
+})
+
+test('global WXSS gives Apple grouped surfaces product polish', () => {
+  const source = read('miniprogram/app.wxss')
+
+  assert.match(source, /--bg-card-soft:\s*#FBFCFE/)
+  assert.match(source, /--surface-strong:\s*#EEF2F7/)
+  assert.match(source, /--hairline:\s*rgba\(210,216,225,0\.92\)/)
+  assert.match(source, /--shadow-card:\s*0 10rpx 30rpx rgba\(15,23,42,0\.07\)/)
+  assert.match(source, /\.card\s*\{[^}]*background:\s*linear-gradient\(180deg,\s*#FFFFFF 0%,\s*var\(--bg-card-soft\) 100%\)[^}]*box-shadow:\s*var\(--shadow-card\)/s)
+  assert.match(source, /\.hero\s*\{[^}]*background:\s*linear-gradient\(180deg,\s*#FFFFFF 0%,\s*var\(--bg-card-soft\) 100%\)[^}]*box-shadow:\s*var\(--shadow-elevated\)/s)
+  assert.match(source, /\.quick-item\s*\{[^}]*background:\s*linear-gradient\(180deg,\s*#FFFFFF 0%,\s*var\(--bg-card-soft\) 100%\)[^}]*box-shadow:\s*var\(--shadow-card\)/s)
+  assert.match(source, /\.quick-item-icon\.slate\s*\{\s*background:\s*var\(--surface-strong\);?\s*\}/)
 })
 
 test('priority pages wire WeChat hover-class feedback on tappable elements', () => {

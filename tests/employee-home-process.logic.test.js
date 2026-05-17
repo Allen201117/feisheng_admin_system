@@ -71,3 +71,15 @@ test('employee homepage keeps attendance compact above worklog', () => {
   assert.match(wxss, /\.home-clock-compact\s*\{[^}]*padding:\s*22rpx/s)
   assert.match(wxss, /\.home-clock-compact \.clock-btn\s*\{[^}]*min-height:\s*112rpx/s)
 })
+
+test('employee homepage exposes password change beside quick actions', () => {
+  const source = read('miniprogram/pages/employee/home/home.wxml')
+  const quickGridIndex = source.indexOf('class="quick-grid"')
+  const changePasswordIndex = source.indexOf('class="quick-item" bindtap="openChangePwd"')
+  const dividerIndex = source.indexOf('class="divider home-quick-divider"')
+
+  assert.ok(quickGridIndex >= 0, 'quick action grid should exist')
+  assert.ok(changePasswordIndex > quickGridIndex, 'password change should be in the quick action grid')
+  assert.ok(changePasswordIndex < dividerIndex, 'password change should stay beside quick actions, above logout')
+  assert.match(source, /bindtap="openChangePwd"[\s\S]*<image src="\/images\/icons\/lock\.svg"/)
+})
