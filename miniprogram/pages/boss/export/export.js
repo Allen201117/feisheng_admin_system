@@ -18,6 +18,8 @@ Page({
 
     // 路径提示
     pathHint: '',
+    // 报表类型按钮中「明细」的动态标签：订单维度下为「核算表」
+    detailLabel: '明细表',
 
     // 状态
     loading: false,
@@ -147,7 +149,8 @@ Page({
     const dim = this.data.dimension
     const rt = this.data.reportType
     const dimLabels = { month: '按月', year: '按年', order: '按订单' }
-    const rtLabels = { summary: '汇总表', detail: '明细表' }
+    // 订单维度的「明细」已改为计件核算表（矩阵），标签同步显示为「核算表」
+    const rtLabels = { summary: '汇总表', detail: dim === 'order' ? '核算表' : '明细表' }
 
     let filterLabel = ''
     if (dim === 'month') filterLabel = this.data.month || '未选'
@@ -155,7 +158,8 @@ Page({
     else filterLabel = this.data.selectedOrderName || '未选'
 
     this.setData({
-      pathHint: `${dimLabels[dim]} → ${rtLabels[rt]}（${filterLabel}）`
+      pathHint: `${dimLabels[dim]} → ${rtLabels[rt]}（${filterLabel}）`,
+      detailLabel: rtLabels.detail
     })
   },
 
@@ -237,7 +241,7 @@ Page({
     }
 
     const { dimension, reportType, month, year, selectedOrderId } = this.data
-    const rtLabel = reportType === 'summary' ? '汇总表' : '明细表'
+    const rtLabel = reportType === 'summary' ? '汇总表' : (dimension === 'order' ? '核算表' : '明细表')
     const dimLabels = { month: '按月', year: '按年', order: '按订单' }
 
     const confirmed = await showConfirm(

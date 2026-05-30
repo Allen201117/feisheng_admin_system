@@ -69,7 +69,7 @@
 ### 统计 -> 导出
 
 1. 老板在 `pages/boss/export/export` 或相关页面选择月份、年份、订单和报表类型。
-2. 前端调用 `export.getTableDataV2` 预览数据，或调用 `export.exportToFileV2` 导出。
+2. 前端调用 `export.getTableDataV2` 预览数据，或调用 `export.exportToFileV2` 导出。`dimension=order` + `report_type=detail` 走 `buildDetailByOrder`，自 2026-05-31 起由 `order-matrix.logic.js` 的 `buildOrderMatrix` 生成计件核算矩阵（工序为行、每个员工一列仅报工数量、表头只写姓名、含最右合计列与最底合计行；纯函数保留 `includeAmount` 选项可拆数量/金额两列，按 `quantity * snapshot_price` 计算，当前导出未启用），其余维度明细仍为扁平表。
 3. `export` 云函数读取 `Users`、`WorkLogs`、`Attendances`、`SalaryAdjustments`、`Orders` 等集合。
 4. 云函数生成汇总/明细数据，使用 `xlsx` 构建 Excel。
 5. 文件上传到云存储，导出记录写入 `export_history`。

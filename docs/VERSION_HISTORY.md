@@ -8,6 +8,22 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-05-31
+
+### 按订单导出改为计件核算矩阵表
+
+- 背景：原「按订单 · 明细表」是一行一条报工的扁平表（员工/订单/工序/数量…），核对计件工资时需要人工透视。参考工厂手写《计件工资核算表》，改为工序为行、员工为列的矩阵，更高效。
+- 改动：
+  - 新增纯函数 `cloudfunctions/export/order-matrix.logic.js` 的 `buildOrderMatrix`：工序为行（工序名带工价括号，如「去明线（0.05元）」，工价取 `Processes.current_price`）。**默认每个员工一列、单元格仅报工数量、表头只写员工姓名**（参考工厂手写核算表）；最右「合计」列（工序跨员工数量合计）、最底「合计」行（员工跨工序数量合计）；员工列按姓名拼音排序以保证导出稳定。保留可选 `options.includeAmount=true` 拆「数量｜金额」两列，金额 = `quantity * snapshot_price`（与既有计件工资口径一致，`passed_qty` 不参与），当前导出不启用。
+  - `export` 云函数 `buildDetailByOrder`（`dimension=order` + `report_type=detail` 路径）改为调用该纯函数（仅数量），标题改为「订单-xxx 计件核算表」；其余维度（按月/按年）明细表不变。
+  - 前端 `pages/boss/export/export`：订单维度下报表类型按钮、路径提示、导出确认中的「明细表」动态显示为「核算表」（新增 `detailLabel`），WXML 绑定 `{{detailLabel}}`；调用参数与接口（`report_type=detail`）不变。
+  - 修复预览表格错位：原单元格用 `min-width/max-width` + `flex:0 0 auto`，每格按各自内容撑宽导致同列表头与数据列宽不一致；改为按列序固定列宽（首列工序 340rpx、其余 150rpx）并数字列居中，保证对齐。
+  - 新增 `tests/export-order-matrix.logic.test.js`（`node:test`）覆盖表头/数量单元格/行列合计/多条累加/已删工序/零工价/空数据/排序/`includeAmount` 两列，共 12 项。
+  - `package.json` 新增 `test:unit`（`node --test tests/*.test.js`）便于本地与后续 agent 跑逻辑单测。
+- 数据影响：无新增集合或字段；不改 `WorkLogs`/`Processes` 数据。仅导出展示形态变化。`export_history` 记录的 `report_type` 仍为 `detail`。
+- 部署影响：需在微信开发者工具「上传并部署」`export` 云函数后生效（本次未部署）。
+- 验证：`node --test tests/*.test.js` 通过 155 项（含本次新增 11 项）；需在开发者工具按订单预览/导出核对矩阵、工价括号与合计。
+
 ## 2026-05-15
 
 ### 员工首页报工前置

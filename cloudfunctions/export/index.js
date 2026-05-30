@@ -5,6 +5,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 const XLSX = require('xlsx')
+const { buildOrderMatrix } = require('./order-matrix.logic')
 
 // ---- 公共工具 ----
 
@@ -211,26 +212,23 @@ async function buildSummaryByOrder(orderId, orgId) {
   return { headers, rows, title: `订单-${order.order_name} 员工汇总` }
 }
 
-// ---- 按订单 细节 ----
+// ---- 按订单 细节（计件核算表 / 矩阵：工序为行，员工拆数量|金额两列）----
 
 async function buildDetailByOrder(orderId, orgId) {
   const orderRes = await db.collection('Orders').doc(orderId).get()
   const order = orderRes.data
   if (!order || order.org_id !== orgId) return null
-  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'desc' } })
+  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'asc' } })
+  // 取工序以确定行顺序与工价（工价显示在工序单元格括号内）
+  const processes = await fetchAll('Processes', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'asc' } })
 
-  const headers = ['员工', '工序名称', '报工数量', '单价(元)', '小计薪资(元)', '报工时间', '备注']
-  const rows = logs.map(l => ([
-    l.user_name || '',
-    l.process_name || '',
-    l.quantity || 0,
-    l.snapshot_price || 0,
-    round2((l.quantity || 0) * (l.snapshot_price || 0)),
-    formatTs(l.created_at) || l.date || '',
-    l.note || l.remark || ''
-  ]))
+  const { headers, rows } = buildOrderMatrix({
+    logs,
+    processes,
+    options: { includeRowTotal: true, includeColTotal: true, priceInLabel: true }
+  })
 
-  return { headers, rows, title: `订单-${order.order_name} 报工明细` }
+  return { headers, rows, title: `订单-${order.order_name} 计件核算表` }
 }
 
 // ---- 月份列表工具 ----
