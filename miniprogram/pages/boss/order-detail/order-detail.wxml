@@ -274,7 +274,7 @@
           <text class="font-bold text-sm flex-1">编辑工序</text>
           <text class="btn-sm btn-ghost" bindtap="closeEditProcess">关闭</text>
         </view>
-        <view class="modal-sheet-body" style="text-align:left;">
+        <scroll-view scroll-y class="modal-sheet-body modal-scroll-body" style="text-align:left;">
           <view class="field-group">
             <text class="field-label">工序名称</text>
             <input class="field-input" value="{{editProcessName}}" bindinput="onEditProcessNameInput" />
@@ -289,7 +289,7 @@
           </view>
           <view class="notice notice-amber" style="margin-top:var(--sp-1);">修改单价不影响历史报工记录</view>
           <button class="btn-primary btn-block" bindtap="onSaveEditProcess" style="margin-top:var(--sp-1);">保存修改</button>
-        </view>
+        </scroll-view>
       </view>
     </view>
   </view>
@@ -302,7 +302,7 @@
           <text class="font-bold text-sm flex-1">编辑订单</text>
           <text class="btn-sm btn-ghost" bindtap="closeEditOrder">关闭</text>
         </view>
-        <view class="modal-sheet-body" style="text-align:left;">
+        <scroll-view scroll-y class="modal-sheet-body modal-scroll-body" style="text-align:left;">
           <view class="field-group">
             <text class="field-label">订单名称</text>
             <input class="field-input" value="{{editOrderName}}" bindinput="onEditOrderNameInput" />
@@ -340,7 +340,7 @@
           </view>
           <view class="notice notice-amber" style="margin-top:var(--sp-1);">注意：如果已报工数量超出新总量，保存将被阻止</view>
           <button class="btn-primary btn-block" bindtap="onSaveEditOrder" style="margin-top:var(--sp-1);">保存修改</button>
-        </view>
+        </scroll-view>
       </view>
     </view>
   </view>
@@ -353,14 +353,14 @@
           <text class="font-bold text-sm flex-1">复制订单</text>
           <text class="btn-sm btn-ghost" bindtap="closeCopyOrder">关闭</text>
         </view>
-        <view class="modal-sheet-body" style="text-align:left;">
+        <scroll-view scroll-y class="modal-sheet-body modal-scroll-body" style="text-align:left;">
           <view class="notice notice-blue" style="margin-bottom:var(--sp-1);">将复制"{{order.order_name}}"的所有工序和员工分配</view>
           <view class="field-group">
             <text class="field-label">新订单总数量（件）</text>
             <input class="field-input" type="number" value="{{copyTotalQuantity}}" bindinput="onCopyTotalQuantityInput" />
           </view>
           <button class="btn-primary btn-block" bindtap="onConfirmCopyOrder" style="margin-top:var(--sp-1);">确认复制</button>
-        </view>
+        </scroll-view>
       </view>
     </view>
   </view>
