@@ -192,6 +192,16 @@ test('modal sheets stay above their blocking overlay', () => {
   assert.match(source, /\.modal-sheet\s*\{[^}]*z-index:\s*1001/s)
 })
 
+test('modal sheets make overflowing body content scroll instead of clipping actions', () => {
+  const source = read('miniprogram/app.wxss')
+
+  assert.match(source, /\.modal-sheet\s*\{[^}]*display:\s*flex/s)
+  assert.match(source, /\.modal-sheet\s*\{[^}]*flex-direction:\s*column/s)
+  assert.match(source, /\.modal-sheet-title[\s\S]*flex-shrink:\s*0/s)
+  assert.match(source, /\.modal-sheet-body\s*\{[^}]*overflow-y:\s*auto/s)
+  assert.match(source, /\.modal-sheet-footer\s*\{[^}]*flex-shrink:\s*0/s)
+})
+
 test('order detail bottom modals override centered modal transform', () => {
   const appStyle = read('miniprogram/app.wxss')
   const orderDetail = read('miniprogram/pages/boss/order-detail/order-detail.wxml')
@@ -200,6 +210,25 @@ test('order detail bottom modals override centered modal transform', () => {
   assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*transform:\s*none/s)
   assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*left:\s*0/s)
   assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*right:\s*0/s)
+})
+
+test('bottom modal sheets keep long forms scrollable', () => {
+  const appStyle = read('miniprogram/app.wxss')
+  const orderDetail = read('miniprogram/pages/boss/order-detail/order-detail.wxml')
+
+  assert.equal((orderDetail.match(/modal-sheet\s+modal-bottom-sheet/g) || []).length, 3)
+  assert.equal((orderDetail.match(/<scroll-view[^>]*scroll-y[^>]*class="modal-sheet-body modal-scroll-body"/g) || []).length, 3)
+  assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*display:\s*flex/s)
+  assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*flex-direction:\s*column/s)
+  assert.match(appStyle, /\.modal-scroll-body\s*\{[^}]*flex:\s*1/s)
+  assert.match(appStyle, /\.modal-scroll-body\s*\{[^}]*overflow-y:\s*auto/s)
+})
+
+test('wxml does not define ad-hoc bottom modal sheets inline', () => {
+  for (const file of listFiles('miniprogram', (name) => name.endsWith('.wxml'))) {
+    const source = read(file)
+    assert.doesNotMatch(source, /class="[^"]*\bmodal-sheet\b[^"]*"[^>]*style="[^"]*bottom\s*:\s*0/i, `${file} has an inline bottom modal-sheet`)
+  }
 })
 
 test('login consent starts unchecked for new users and remembers manual choice', () => {

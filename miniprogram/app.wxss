@@ -887,6 +887,7 @@ button[disabled] { opacity: 0.48; }
 
 .modal-sheet {
   position: fixed; top: 50%; left: 50%; z-index: 1001;
+  display: flex; flex-direction: column;
   width: 84%; max-height: 76vh;
   background: linear-gradient(180deg, #FFFFFF 0%, var(--bg-card-soft) 100%);
   border-radius: 30rpx;
@@ -898,6 +899,8 @@ button[disabled] { opacity: 0.48; }
 }
 
 .modal-bottom-sheet {
+  display: flex;
+  flex-direction: column;
   top: auto;
   left: 0;
   right: 0;
@@ -907,6 +910,14 @@ button[disabled] { opacity: 0.48; }
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   transform: none;
   animation: bottomSheetUp 0.24s var(--ease-apple);
+}
+
+.modal-scroll-body {
+  flex: 1;
+  min-height: 0;
+  max-height: calc(70vh - 104rpx);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 @keyframes slideUp {
@@ -924,17 +935,21 @@ button[disabled] { opacity: 0.48; }
   font-size: var(--fs-md); font-weight: var(--fw-bold);
   color: var(--text-primary);
   padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  flex-shrink: 0;
 }
 
 .modal-sheet-body {
   padding: var(--sp-1) var(--sp-3) var(--sp-2);
   font-size: var(--fs-base); color: var(--text-secondary);
   line-height: 1.6; text-align: center;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .modal-sheet-footer {
   display: flex;
   border-top: 1rpx solid var(--hairline);
+  flex-shrink: 0;
 }
 
 .modal-sheet-btn {
