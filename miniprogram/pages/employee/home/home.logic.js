@@ -15,6 +15,9 @@ function buildProcessCard(process) {
   const total = toNumber(normalized.order_total_quantity)
   const current = toNumber(normalized.current_total)
   const remaining = toNumber(normalized.remaining_quantity, Math.max(total - current, 0))
+  const myReported = toNumber(normalized.user_current_total)
+  const assignedUserCount = Math.max(0, toNumber(normalized.assigned_user_count))
+  const isMultiAssigned = assignedUserCount > 1
   const progressPercent = total > 0 ? clampPercent((current / total) * 100) : 0
   const isComplete = remaining <= 0 && total > 0
 
@@ -23,11 +26,17 @@ function buildProcessCard(process) {
     order_total_quantity: total,
     current_total: current,
     remaining_quantity: remaining,
+    user_current_total: myReported,
+    assigned_user_count: assignedUserCount,
+    isMultiAssigned,
     progressPercent,
     isComplete,
     actionText: '进入报工',
     priceText: normalized.price_hidden ? '工价已隐藏' : `¥${normalized.current_price}/件`,
+    multiAssignedText: isMultiAssigned ? `多人负责 ${assignedUserCount}人` : '',
     quotaText: total > 0 ? `剩余 ${remaining} 件` : '未设置总量',
+    myReportedText: `我的已报 ${myReported} 件`,
+    progressText: total > 0 ? `总进度 ${current}/${total} 件` : `总进度 ${current} 件`,
     statusText: isComplete ? '已报满' : '可报工'
   }
 }

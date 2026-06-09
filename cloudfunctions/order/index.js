@@ -880,13 +880,17 @@ async function getAssignedProcesses(event, caller) {
           } while (batchLen === 100)
 
           let currentTotal = 0
+          let userCurrentTotal = 0
           allLogs.forEach((log) => {
-            currentTotal += parseInt(log.quantity || 0, 10) || 0
+            const quantity = parseInt(log.quantity || 0, 10) || 0
+            currentTotal += quantity
+            if (String(log.user_id) === String(user_id)) userCurrentTotal += quantity
           })
 
           const orderTotal = parseInt(orderRes.data.total_quantity || orderRes.data.order_total_quantity || 0, 10) || 0
 
           const isPriceHidden = orderRes.data.price_hidden === true
+          const assignedUserCount = Array.isArray(p.assigned_user_ids) ? p.assigned_user_ids.length : 0
 
           processes.push({
             _id: p._id,
@@ -897,7 +901,10 @@ async function getAssignedProcesses(event, caller) {
             price_hidden: isPriceHidden,
             order_total_quantity: orderTotal,
             current_total: currentTotal,
-            remaining_quantity: Math.max(orderTotal - currentTotal, 0)
+            remaining_quantity: Math.max(orderTotal - currentTotal, 0),
+            user_current_total: userCurrentTotal,
+            user_remaining_quantity: Math.max(orderTotal - userCurrentTotal, 0),
+            assigned_user_count: assignedUserCount
           })
         }
       } catch (e) {

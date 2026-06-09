@@ -269,7 +269,7 @@
   <!-- ========== 编辑工序弹窗 ========== -->
   <view wx:if="{{showEditProcess}}">
     <view class="modal-overlay" bindtap="closeEditProcess">
-      <view class="modal-sheet" style="position:fixed;bottom:0;left:0;right:0;border-radius:var(--r-lg) var(--r-lg) 0 0;max-height:70vh;width:100%;" catchtap>
+      <view class="modal-sheet modal-bottom-sheet" catchtap>
         <view class="flex-between" style="padding:var(--sp-2) var(--sp-2) 0;">
           <text class="font-bold text-sm flex-1">编辑工序</text>
           <text class="btn-sm btn-ghost" bindtap="closeEditProcess">关闭</text>
@@ -297,7 +297,7 @@
   <!-- ========== 编辑订单弹窗 ========== -->
   <view wx:if="{{showEditOrder}}">
     <view class="modal-overlay" bindtap="closeEditOrder">
-      <view class="modal-sheet" style="position:fixed;bottom:0;left:0;right:0;border-radius:var(--r-lg) var(--r-lg) 0 0;max-height:70vh;width:100%;" catchtap>
+      <view class="modal-sheet modal-bottom-sheet" catchtap>
         <view class="flex-between" style="padding:var(--sp-2) var(--sp-2) 0;">
           <text class="font-bold text-sm flex-1">编辑订单</text>
           <text class="btn-sm btn-ghost" bindtap="closeEditOrder">关闭</text>
@@ -348,7 +348,7 @@
   <!-- ========== 复制订单弹窗 ========== -->
   <view wx:if="{{showCopyOrder}}">
     <view class="modal-overlay" bindtap="closeCopyOrder">
-      <view class="modal-sheet" style="position:fixed;bottom:0;left:0;right:0;border-radius:var(--r-lg) var(--r-lg) 0 0;max-height:70vh;width:100%;" catchtap>
+      <view class="modal-sheet modal-bottom-sheet" catchtap>
         <view class="flex-between" style="padding:var(--sp-2) var(--sp-2) 0;">
           <text class="font-bold text-sm flex-1">复制订单</text>
           <text class="btn-sm btn-ghost" bindtap="closeCopyOrder">关闭</text>

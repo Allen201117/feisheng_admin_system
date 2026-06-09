@@ -5,7 +5,7 @@
 
   <!-- 薪资概览 -->
   <view class="stat-card accent-blue">
-    <text class="stat-card-label">{{currentMonth}} {{isPaid ? '实发薪资' : '预估薪资'}}</text>
+    <text class="stat-card-label">{{salaryPeriodLabel}} {{isPaid ? '实发薪资' : '预估薪资'}}</text>
     <text class="stat-card-value">¥{{finalSalary}}</text>
     <view wx:if="{{isPaid}}" style="margin-top:8rpx;">
       <view class="badge badge-green">已发放</view>
@@ -16,7 +16,7 @@
   <view class="card-bento">
     <text class="menu-group-title block-mb-2">薪资明细</text>
     <view class="list-row">
-      <text class="text-tertiary text-xs">计件工资</text>
+      <text class="text-tertiary text-xs">{{pieceRateLabel}}</text>
       <text class="font-semibold">{{isPaid ? '***' : '¥' + monthlySalary}}</text>
     </view>
     <view class="list-row">
@@ -35,22 +35,37 @@
     </view>
   </view>
 
-  <!-- 本月统计 -->
+  <!-- 发薪周期统计 -->
   <view class="card-bento">
-    <text class="menu-group-title block-mb-2">本月统计</text>
+    <text class="menu-group-title block-mb-2">{{statisticsTitle}}</text>
     <view class="stats-grid">
-      <view class="stats-card indigo">
+      <view wx:if="{{payrollMode === 'monthly'}}" class="stats-card indigo">
         <text class="stats-card-value">{{monthlyHours}}h</text>
         <text class="stats-card-label">累计工时</text>
       </view>
       <view class="stats-card indigo">
         <text class="stats-card-value">{{monthlyOutput}}</text>
-        <text class="stats-card-label">{{isPaid ? '产出(已归档)' : '合格产出'}}</text>
+        <text class="stats-card-label">{{outputLabel}}</text>
       </view>
       <view class="stats-card indigo">
         <text class="stats-card-value">{{passRate}}{{isPaid ? '' : '%'}}</text>
-        <text class="stats-card-label">{{isPaid ? '合格率(已归档)' : '合格率'}}</text>
+        <text class="stats-card-label">{{passRateLabel}}</text>
       </view>
+    </view>
+  </view>
+
+  <!-- 订单工资明细 -->
+  <view class="card-bento" wx:if="{{payrollMode === 'order'}}">
+    <text class="menu-group-title block-mb-2">订单工资明细</text>
+    <view wx:if="{{orderSummaries.length === 0}}" class="empty profile-empty-inline">
+      <text class="empty-desc">暂无未发薪订单报工</text>
+    </view>
+    <view wx:for="{{orderSummaries}}" wx:key="order_id" class="list-row">
+      <view class="flex-1">
+        <text class="font-medium">{{item.order_name}}</text>
+        <text class="text-tertiary profile-list-meta">{{item.quantity_display}} · {{item.detail_display}}</text>
+      </view>
+      <text class="font-bold text-accent">{{item.amount_display === '已隐藏' ? item.amount_display : '¥' + item.amount_display}}</text>
     </view>
   </view>
 
@@ -65,6 +80,21 @@
       <text class="font-bold {{item.amount >= 0 ? 'text-green' : 'text-red'}}">
         {{item.amount >= 0 ? '+' : ''}}¥{{item.amount}}
       </text>
+    </view>
+  </view>
+
+  <!-- 历史发薪记录 -->
+  <view class="card-bento">
+    <text class="menu-group-title block-mb-2">历史发薪记录</text>
+    <view wx:if="{{paymentRecords.length === 0}}" class="empty profile-empty-inline">
+      <text class="empty-desc">暂无发薪记录</text>
+    </view>
+    <view wx:for="{{paymentRecords}}" wx:key="paid_at" class="list-row">
+      <view class="flex-1">
+        <text class="font-medium">{{item.label}}</text>
+        <text class="text-tertiary profile-list-meta">{{item.paid_at || ''}}</text>
+      </view>
+      <text class="font-bold text-accent">{{item.amount_display === '--' ? '--' : '¥' + item.amount_display}}</text>
     </view>
   </view>
 

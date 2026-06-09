@@ -21,6 +21,7 @@ test('sanitizeSettingsRecord normalizes legacy qr code expiry fields', () => {
       qrcode_expire_days: 2,
       face_recognition_enabled: false,
       allow_home_checkin: false,
+      salary_payroll_mode: 'monthly',
       checkpoints: [
         {
           name: '主打卡点',
@@ -31,6 +32,12 @@ test('sanitizeSettingsRecord normalizes legacy qr code expiry fields', () => {
       ]
     }
   )
+})
+
+test('sanitizeSettingsRecord defaults payroll mode to monthly and preserves order mode', () => {
+  assert.equal(sanitizeSettingsRecord({}).salary_payroll_mode, 'monthly')
+  assert.equal(sanitizeSettingsRecord({ salary_payroll_mode: 'order' }).salary_payroll_mode, 'order')
+  assert.equal(sanitizeSettingsRecord({ salary_payroll_mode: 'bad-value' }).salary_payroll_mode, 'monthly')
 })
 
 test('canSaveSettings fails closed when settings are not loaded', () => {

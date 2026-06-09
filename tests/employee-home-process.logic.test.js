@@ -30,10 +30,65 @@ test('buildHomeProcessView prepares direct-to-worklog process cards', () => {
   assert.equal(view.items[0].progressPercent, 20)
   assert.equal(view.items[1].priceText, '工价已隐藏')
   assert.equal(view.items[1].statusText, '已报满')
+  assert.equal(view.items[0].statusText, '可报工')
   assert.equal(view.items[1].actionText, '进入报工')
 })
 
-test('employee homepage puts clocking before worklog and process cards navigate away', () => {
+test('buildHomeProcessView separates my reported quantity from shared process progress', () => {
+  const view = buildHomeProcessView([
+    {
+      _id: 'p1',
+      process_name: '缝制',
+      order_name: '订单A',
+      current_price: 0.3,
+      order_total_quantity: 100,
+      current_total: 80,
+      remaining_quantity: 20,
+      user_current_total: 25,
+      user_remaining_quantity: 75
+    }
+  ])
+
+  assert.equal(view.items[0].current_total, 80)
+  assert.equal(view.items[0].remaining_quantity, 20)
+  assert.equal(view.items[0].user_current_total, 25)
+  assert.equal(view.items[0].progressPercent, 80)
+  assert.equal(view.items[0].quotaText, '剩余 20 件')
+  assert.equal(view.items[0].myReportedText, '我的已报 25 件')
+  assert.equal(view.items[0].progressText, '总进度 80/100 件')
+})
+
+test('buildHomeProcessView marks processes assigned to multiple employees', () => {
+  const view = buildHomeProcessView([
+    {
+      _id: 'p1',
+      process_name: '缝制',
+      order_name: '订单A',
+      current_price: 0.3,
+      order_total_quantity: 100,
+      current_total: 30,
+      remaining_quantity: 70,
+      assigned_user_count: 3
+    },
+    {
+      _id: 'p2',
+      process_name: '包装',
+      order_name: '订单A',
+      current_price: 0.2,
+      order_total_quantity: 100,
+      current_total: 10,
+      remaining_quantity: 90,
+      assigned_user_count: 1
+    }
+  ])
+
+  assert.equal(view.items[0].isMultiAssigned, true)
+  assert.equal(view.items[0].multiAssignedText, '多人负责 3人')
+  assert.equal(view.items[1].isMultiAssigned, false)
+  assert.equal(view.items[1].multiAssignedText, '')
+})
+
+test('employee homepage puts clocking before worklog and process cards navigate to submit form', () => {
   const source = read('miniprogram/pages/employee/home/home.wxml')
   const clockIndex = source.indexOf('class="clock-section')
   const processIndex = source.indexOf('class="home-process-section')
@@ -42,6 +97,9 @@ test('employee homepage puts clocking before worklog and process cards navigate 
   assert.ok(processIndex >= 0, 'process section should exist')
   assert.ok(clockIndex < processIndex, 'clock section should be above assigned processes')
   assert.match(source, /class="home-process-card[^"]*"[\s\S]*bindtap="goToWorklog"[\s\S]*data-id="\{\{item\._id\}\}"/)
+  assert.match(source, /点击工序进入报工/)
+  assert.match(source, /bindtap="goToWorklogHistory"[\s\S]*历史报工/)
+  assert.match(source, /wx:if="\{\{item\.isMultiAssigned\}\}"[\s\S]*home-process-multi-badge[\s\S]*\{\{item\.multiAssignedText\}\}/)
   assert.doesNotMatch(source, /\bhome-report-panel\b/)
   assert.doesNotMatch(source, /\bhome-qty-input\b/)
   assert.doesNotMatch(source, /\bonSelectHomeProcess\b/)

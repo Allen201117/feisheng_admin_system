@@ -367,6 +367,10 @@ Page({
     wx.navigateTo({ url: `/pages/employee/worklog/worklog${query}` })
   },
 
+  goToWorklogHistory() {
+    wx.navigateTo({ url: '/pages/employee/worklog-history/worklog-history' })
+  },
+
   // 扫码打卡（体验版：员工在小程序内扫老板生成的二维码）
   async onScanQR() {
     try {

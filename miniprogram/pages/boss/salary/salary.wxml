@@ -1,15 +1,21 @@
 <view class="container">
 
-  <!-- 月份切换 -->
-  <scroll-view scroll-x class="month-scroll" wx:if="{{availableMonths.length > 0}}">
+  <!-- 月份 / 订单切换 -->
+  <scroll-view scroll-x class="month-scroll" wx:if="{{payrollMode === 'monthly' && availableMonths.length > 0}}">
     <view class="month-pills">
       <view wx:for="{{availableMonths}}" wx:key="*this" class="month-pill {{selectedMonthIndex === index ? 'month-pill-active' : ''}}" bindtap="onMonthTap" data-idx="{{index}}">{{monthLabels[index]}}</view>
     </view>
   </scroll-view>
 
+  <scroll-view scroll-x class="month-scroll" wx:if="{{payrollMode === 'order' && orders.length > 0}}">
+    <view class="month-pills">
+      <view wx:for="{{orders}}" wx:key="_id" class="month-pill {{selectedOrderIndex === index ? 'month-pill-active' : ''}}" bindtap="onOrderTap" data-idx="{{index}}">{{orderLabels[index]}}</view>
+    </view>
+  </scroll-view>
+
   <!-- 统计卡片 -->
   <view class="stat-card accent-blue">
-    <text class="stat-card-label">{{currentMonth}} 薪资总支出</text>
+    <text class="stat-card-label">{{payrollMode === 'order' ? '订单' : ''}}{{currentMonth}} 薪资总支出</text>
     <text class="stat-card-value">¥{{totalSalary}}</text>
     <text class="stat-card-footer">已发 {{paidCount}}/{{employees.length}} 人</text>
   </view>
@@ -23,7 +29,7 @@
         <image src="/images/icons/salary.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
       </view>
       <text class="empty-title">暂无薪资数据</text>
-      <text class="empty-desc">选择月份查看薪资明细</text>
+      <text class="empty-desc">{{payrollMode === 'order' ? '选择订单查看薪资明细' : '选择月份查看薪资明细'}}</text>
     </view>
 
     <view wx:for="{{employees}}" wx:for-item="item" wx:key="user_id" class="salary-row">

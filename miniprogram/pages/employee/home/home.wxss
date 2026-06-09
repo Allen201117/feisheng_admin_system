@@ -192,6 +192,30 @@
   font-variant-numeric: tabular-nums;
 }
 
+.home-process-side {
+  flex-shrink: 0;
+  max-width: 220rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10rpx;
+}
+
+.home-process-multi-badge {
+  max-width: 220rpx;
+  padding: 9rpx 16rpx;
+  border-radius: var(--r-full);
+  background: linear-gradient(180deg, var(--green-50) 0%, #FFFFFF 100%);
+  border: 1rpx solid var(--green-100);
+  color: var(--green-600);
+  font-size: var(--fs-xs);
+  line-height: 1.2;
+  font-weight: var(--fw-bold);
+  text-align: center;
+  box-shadow: 0 6rpx 14rpx rgba(36,138,61,0.10);
+  box-sizing: border-box;
+}
+
 .home-process-tags {
   display: flex;
   flex-wrap: wrap;

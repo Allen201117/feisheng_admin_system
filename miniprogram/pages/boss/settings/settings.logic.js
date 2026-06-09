@@ -47,8 +47,13 @@ function buildCheckpointPayload(state) {
   return payload
 }
 
+function normalizePayrollMode(value) {
+  return value === 'order' ? 'order' : 'monthly'
+}
+
 module.exports = {
   canSaveSettings,
   createCheckpointDraft,
-  buildCheckpointPayload
+  buildCheckpointPayload,
+  normalizePayrollMode
 }

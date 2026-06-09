@@ -13,6 +13,13 @@ test('buildSalaryPaymentDocId scopes deterministic id by org, user, and month', 
   )
 })
 
+test('buildSalaryPaymentDocId scopes order payroll by org, user, and order', () => {
+  assert.equal(
+    buildSalaryPaymentDocId({ orgId: 'org_home', userId: 'user_1', month: '2026-05', orderId: 'order_88' }),
+    'org_home_user_1_order_order_88'
+  )
+})
+
 test('buildSalaryPaymentCreateData does not include immutable _id in set data', () => {
   const result = buildSalaryPaymentCreateData({
     orgId: 'org_home',
@@ -35,4 +42,21 @@ test('buildSalaryPaymentCreateData does not include immutable _id in set data', 
     operator_name: '老板',
     created_at: 'SERVER_DATE'
   })
+})
+
+test('buildSalaryPaymentCreateData stores order payroll context', () => {
+  const result = buildSalaryPaymentCreateData({
+    orgId: 'org_home',
+    userId: 'user_1',
+    userName: '张三',
+    month: '2026-05',
+    orderId: 'order_88',
+    orderName: '8号1楼',
+    caller: { _id: 'boss_1', name: '老板' },
+    serverDate: () => 'SERVER_DATE'
+  })
+
+  assert.equal(result.order_id, 'order_88')
+  assert.equal(result.order_name, '8号1楼')
+  assert.equal(result.payroll_type, 'order')
 })

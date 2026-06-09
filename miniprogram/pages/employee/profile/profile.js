@@ -13,6 +13,12 @@ Page({
   data: {
     userInfo: null,
     currentMonth: '',
+    payrollMode: 'monthly',
+    salaryPeriodLabel: '',
+    statisticsTitle: '本月统计',
+    pieceRateLabel: '计件工资',
+    outputLabel: '合格产出',
+    passRateLabel: '合格率',
     monthlySalary: '0.00',
     monthlyHours: '0.0',
     monthlyOutput: 0,
@@ -21,6 +27,8 @@ Page({
     totalAdjustment: '0.00',
     finalSalary: '0.00',
     attendanceRecords: [],
+    paymentRecords: [],
+    orderSummaries: [],
     showAttendance: false,
     // 已发薪隐私标记
     isPaid: false,
@@ -43,34 +51,54 @@ Page({
     var f = bjTime.getBeijingFields()
     this.setData({
       userInfo: user,
-      currentMonth: f.year + '年' + f.month + '月'
+      currentMonth: f.year + '年' + f.month + '月',
+      salaryPeriodLabel: f.year + '年' + f.month + '月'
     })
   },
 
   onShow: function() {
     this.loadSalaryData()
+    this.loadPaymentRecords()
     this.loadAttendance()
   },
 
   loadSalaryData: function() {
     var that = this
     callCloud('salary', {
-      action: 'getUserMonthlySalary',
+      action: 'getUserPayrollSalary',
       user_id: this.data.userInfo._id
     }).then(function(res) {
       var data = res.data || {}
+      var payrollMode = data.payroll_mode === 'order' ? 'order' : 'monthly'
+      var isOrderMode = payrollMode === 'order'
+      var salaryPeriodLabel = isOrderMode ? '按订单' : that.data.currentMonth
+      var orderSummaries = (data.order_summaries || []).map(function(item) {
+        return {
+          ...item,
+          amount_display: item.has_hidden_amount ? '已隐藏' : formatMoney(item.amount || 0),
+          quantity_display: (item.quantity || 0) + ' 件',
+          detail_display: (item.detail_count || 0) + ' 条明细'
+        }
+      })
 
       if (data.is_paid) {
         // 已发薪 — 脱敏模式：无 piece_rate / logs / work_stats.total_quantity / total_passed / pass_rate
         var ws = data.work_stats || {}
         that.setData({
           isPaid: true,
+          payrollMode: payrollMode,
+          salaryPeriodLabel: salaryPeriodLabel,
+          statisticsTitle: isOrderMode ? '订单统计' : '本月统计',
+          pieceRateLabel: isOrderMode ? '订单计件工资' : '计件工资',
+          outputLabel: isOrderMode ? '订单产出' : '产出(已归档)',
+          passRateLabel: isOrderMode ? '订单合格率' : '合格率(已归档)',
           paidAt: data.paid_at || '',
           finalSalary: formatMoney(data.total || 0),
           monthlyHours: (ws.total_hours || 0).toFixed(1),
           monthlySalary: '--',
           monthlyOutput: '--',
           passRate: '--',
+          orderSummaries: orderSummaries,
           adjustments: data.adjustments || [],
           totalAdjustment: formatMoney((data.reward || 0) - (data.penalty || 0))
         })
@@ -82,11 +110,18 @@ Page({
         var ws2 = data.work_stats || {}
         that.setData({
           isPaid: false,
+          payrollMode: payrollMode,
+          salaryPeriodLabel: salaryPeriodLabel,
+          statisticsTitle: isOrderMode ? '订单统计' : '本月统计',
+          pieceRateLabel: isOrderMode ? '订单计件工资' : '计件工资',
+          outputLabel: isOrderMode ? '订单产出' : '合格产出',
+          passRateLabel: isOrderMode ? '订单合格率' : '合格率',
           paidAt: '',
           monthlySalary: formatMoney(pieceRate),
           monthlyHours: (ws2.total_hours || 0).toFixed(1),
           monthlyOutput: ws2.total_quantity || 0,
           passRate: (ws2.pass_rate || 0).toFixed(1),
+          orderSummaries: orderSummaries,
           adjustments: data.adjustments || [],
           totalAdjustment: formatMoney(reward - penalty),
           finalSalary: formatMoney(data.total || 0)
@@ -94,6 +129,28 @@ Page({
       }
     }).catch(function(e) {
       console.error('加载薪资数据失败', e)
+    })
+  },
+
+  loadPaymentRecords: function() {
+    var that = this
+    callCloud('salary', {
+      action: 'getUserPaymentRecords',
+      user_id: this.data.userInfo._id
+    }).then(function(res) {
+      var records = (res.data || []).map(function(item) {
+        var label = item.payroll_type === 'order'
+          ? (item.order_name || '订单发薪')
+          : ((item.month || '') + ' 月度发薪')
+        return {
+          ...item,
+          label: label,
+          amount_display: item.total_amount === undefined || item.total_amount === null ? '--' : formatMoney(item.total_amount)
+        }
+      })
+      that.setData({ paymentRecords: records })
+    }).catch(function(e) {
+      console.error('加载历史发薪记录失败', e)
     })
   },
 
