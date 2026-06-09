@@ -6,7 +6,8 @@ const {
   collectAssignedUserIds,
   buildUserNameMap,
   attachAssignedNamesToProcesses,
-  findInvalidAssignedUserIdProcesses
+  findInvalidAssignedUserIdProcesses,
+  sortProcessesForDetail
 } = require('../cloudfunctions/order/detail.logic')
 
 test('normalizeAssignedUserIds keeps only non-empty string ids', () => {
@@ -58,4 +59,24 @@ test('findInvalidAssignedUserIdProcesses reports non-array assigned values', () 
     { _id: 'p2', process_name: '字符串', assigned_user_ids_type: '[object String]' },
     { _id: 'p3', process_name: '对象', assigned_user_ids_type: '[object Object]' }
   ])
+})
+
+test('sortProcessesForDetail prefers copied process sort index over write time', () => {
+  const result = sortProcessesForDetail([
+    { _id: 'p3', process_name: '后写先排', process_sort_index: 2, created_at: 100 },
+    { _id: 'p1', process_name: '源第一道', process_sort_index: 0, created_at: 300 },
+    { _id: 'p2', process_name: '源第二道', process_sort_index: 1, created_at: 200 }
+  ])
+
+  assert.deepEqual(result.map(item => item._id), ['p1', 'p2', 'p3'])
+})
+
+test('sortProcessesForDetail keeps legacy time ordering when sort index is absent', () => {
+  const result = sortProcessesForDetail([
+    { _id: 'p3', created_at: 300 },
+    { _id: 'p1', created_at: 100 },
+    { _id: 'p2', created_at: 200 }
+  ])
+
+  assert.deepEqual(result.map(item => item._id), ['p1', 'p2', 'p3'])
 })

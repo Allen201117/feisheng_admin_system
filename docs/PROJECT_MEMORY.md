@@ -131,7 +131,7 @@ docs/                               项目文档、验收报告、审计报告
 - `UsageMonthly`：`org_id`、`month`、`active_users`、`orders_created`、`worklogs_count`、`attendances_count`、`export_count`、`updated_at`。
 - `Users`：`name`、`phone`、`role`、`password_hash`、`salt`、`status`、`openid`、`session_token`、`monthly_hours`、`join_date`、`created_at`、`updated_at`。
 - `Orders`：`order_name`、`start_date`、`end_date`、`total_quantity`、`status`、`price_hidden`、`created_at`、`updated_at`。
-- `Processes`：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`status`、`created_at`、`updated_at`。
+- `Processes`：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`process_sort_index`、`status`、`created_at`、`updated_at`。
 - `WorkLogs`：`user_id`、`user_name`、`order_id`、`order_name`、`process_id`、`process_name`、`quantity`、`snapshot_price`、`amount`、`date`、`status`、`qc_status`、`passed_qty`、`inspected_by`、`inspected_by_name`、`inspected_at`、`note`、`created_at`、`updated_at`。
 - `Attendances`：`user_id`、`user_name`、`date`、`clock_in_time`、`clock_out_time`、`clock_in_location`、`clock_out_location`、`status`、`source`、`qr_id`、`distance_meters`、`hours`、`quality_score`、`quality_level`、`created_at`。
 - `SalaryAdjustments`：`user_id`、`user_name`、`type`、`amount`、`reason`、`month`、`order_id`、`operator_id`、`operator_name`、`is_reversal`、`is_correction`、`original_id`、`created_at`、`updated_at`。
@@ -192,6 +192,7 @@ docs/                               项目文档、验收报告、审计报告
 
 ## 近期迭代摘要
 
+- 2026-06-09：复制订单时为副本工序写入可选 `Processes.process_sort_index`，订单详情优先按该索引排序，避免并发复制导致副本工序顺序与源订单不一致；旧订单缺省继续按时间排序。
 - 2026-05-31：按订单导出明细改为计件核算矩阵表（工序为行、每个员工一列仅数量、表头只写姓名、含行列合计、工价显示在工序括号内）；修复预览表格列宽错位；新增 `export/order-matrix.logic.js` 纯函数（保留 `includeAmount` 可选金额列）与单测，新增 `npm run test:unit`。
 - 2026-05-02：登录页隐私确认改为默认未勾选的行内勾选框，替换订阅联系管理员微信二维码。
 - 2026-05-01：巩固单订单 150-200 道工序承载，订单详情与分配面板改为分批渲染，分配保存改为批量云函数提交。

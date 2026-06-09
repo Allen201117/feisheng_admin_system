@@ -12,8 +12,9 @@ function buildCopiedProcessData(process, options) {
   const assignedUserIds = Array.isArray(process.assigned_user_ids)
     ? process.assigned_user_ids.slice()
     : []
+  const processSortIndex = Number(options.processSortIndex)
 
-  return {
+  const data = {
     org_id: options.orgId,
     order_id: options.newOrderId,
     process_name: process.process_name,
@@ -24,6 +25,12 @@ function buildCopiedProcessData(process, options) {
     created_at: serverDate(),
     updated_at: serverDate()
   }
+
+  if (Number.isFinite(processSortIndex)) {
+    data.process_sort_index = processSortIndex
+  }
+
+  return data
 }
 
 async function copyProcessDocsInChunks(processes, options) {
@@ -32,11 +39,15 @@ async function copyProcessDocsInChunks(processes, options) {
   let copiedCount = 0
 
   for (const chunk of chunkList(processes || [], chunkSize)) {
-    await Promise.all(chunk.map(async (process) => {
-      const data = buildCopiedProcessData(process, options)
+    const chunkStartIndex = copiedCount
+    await Promise.all(chunk.map(async (process, index) => {
+      const data = buildCopiedProcessData(process, {
+        ...options,
+        processSortIndex: chunkStartIndex + index
+      })
       await addProcess(data)
-      copiedCount += 1
     }))
+    copiedCount += chunk.length
   }
 
   return { copiedCount }

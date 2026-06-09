@@ -16,7 +16,8 @@ test('buildCopiedProcessData writes active status for copied processes', () => {
   }, {
     orgId: 'org_home',
     newOrderId: 'order_new',
-    serverDate: () => 'SERVER_DATE'
+    serverDate: () => 'SERVER_DATE',
+    processSortIndex: 7
   })
 
   assert.equal(result.org_id, 'org_home')
@@ -24,6 +25,7 @@ test('buildCopiedProcessData writes active status for copied processes', () => {
   assert.equal(result.status, 'active')
   assert.equal(Object.prototype.hasOwnProperty.call(result, 'is_active'), false)
   assert.deepEqual(result.assigned_user_ids, ['u1', 'u2'])
+  assert.equal(result.process_sort_index, 7)
 })
 
 test('chunkList splits large process copies into bounded batches', () => {
@@ -51,4 +53,5 @@ test('copyProcessDocsInChunks copies every process through the injected writer',
   assert.equal(result.copiedCount, 5)
   assert.equal(copied.length, 5)
   assert.deepEqual(copied.map(item => item.status), ['active', 'active', 'active', 'active', 'active'])
+  assert.deepEqual(copied.map(item => item.process_sort_index), [0, 1, 2, 3, 4])
 })
