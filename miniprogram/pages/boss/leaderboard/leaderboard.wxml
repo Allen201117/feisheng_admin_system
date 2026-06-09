@@ -6,6 +6,16 @@
     <image src="/images/icons/leaderboard.svg" mode="aspectFit" style="width:44rpx;height:44rpx;" />
   </view>
 
+  <view class="card-bento">
+    <view class="list-row">
+      <view class="flex-1">
+        <text class="list-row-title">公开给员工</text>
+        <text class="list-row-subtitle">关闭时员工只看自己的名次，开启后员工可看完整排行榜</text>
+      </view>
+      <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onLeaderboardVisibleChange" disabled="{{visibilitySaving}}" color="#2563EB" />
+    </view>
+  </view>
+
   <!-- 周期 Tabs -->
   <view class="tab-bar">
     <view wx:for="{{periodTabs}}" wx:for-item="item" wx:key="key"

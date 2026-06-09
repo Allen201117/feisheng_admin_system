@@ -4,7 +4,9 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 const {
-  buildHomeProcessView
+  buildHomeProcessView,
+  buildHomeRankCard,
+  pickHomeRankItem
 } = require('../miniprogram/pages/employee/home/home.logic')
 
 const root = path.join(__dirname, '..')
@@ -140,4 +142,45 @@ test('employee homepage exposes password change beside quick actions', () => {
   assert.ok(changePasswordIndex > quickGridIndex, 'password change should be in the quick action grid')
   assert.ok(changePasswordIndex < dividerIndex, 'password change should stay beside quick actions, above logout')
   assert.match(source, /bindtap="openChangePwd"[\s\S]*<image src="\/images\/icons\/lock\.svg"/)
+})
+
+test('buildHomeRankCard formats employee self ranking summary', () => {
+  const card = buildHomeRankCard({
+    rank: 6,
+    total_employees: 28,
+    total_salary: 321.5,
+    displayValue: '¥321.50',
+    visibility: 'self'
+  })
+
+  assert.equal(card.rankText, '第 6 名')
+  assert.equal(card.scopeText, '仅自己可见')
+  assert.equal(card.valueText, '¥321.50')
+  assert.equal(card.totalText, '共 28 人')
+})
+
+test('pickHomeRankItem selects current employee from public leaderboard list', () => {
+  const item = pickHomeRankItem([
+    { user_id: 'u1', rank: 1 },
+    { user_id: 'u2', rank: 5 }
+  ], 'u2')
+
+  assert.deepEqual(item, { user_id: 'u2', rank: 5 })
+})
+
+test('employee homepage has prominent self rank card with leaderboard icon', () => {
+  const wxml = read('miniprogram/pages/employee/home/home.wxml')
+  const wxss = read('miniprogram/pages/employee/home/home.wxss')
+  const heroIndex = wxml.indexOf('class="hero hero-employee')
+  const rankIndex = wxml.indexOf('class="home-rank-card')
+  const clockIndex = wxml.indexOf('class="clock-section')
+
+  assert.ok(heroIndex >= 0, 'hero should exist')
+  assert.ok(rankIndex > heroIndex, 'rank card should be below hero')
+  assert.ok(rankIndex < clockIndex, 'rank card should be above clocking')
+  assert.match(wxml, /class="home-rank-card[^"]*"[\s\S]*bindtap="goToLeaderboard"/)
+  assert.match(wxml, /<image src="\/images\/icons\/leaderboard\.svg"[\s\S]*class="home-rank-icon"/)
+  assert.match(wxml, /我的排名/)
+  assert.match(wxml, /\{\{homeRankCard\.rankText\}\}/)
+  assert.match(wxss, /\.home-rank-icon-wrap\s*\{[^}]*width:\s*96rpx[^}]*height:\s*96rpx/s)
 })

@@ -77,9 +77,21 @@ function canSaveSettings(state) {
   return { ok: true }
 }
 
+function buildLeaderboardVisibilitySettingsData(existing, options) {
+  const source = Object.assign({}, existing || {})
+  delete source._id
+
+  return Object.assign({}, source, {
+    org_id: options.orgId,
+    leaderboard_visible: options.leaderboardVisible === true,
+    updated_at: options.updatedAt
+  })
+}
+
 module.exports = {
   sanitizeSettingsRecord,
   canSaveSettings,
   normalizeCheckpoints,
-  normalizePayrollMode
+  normalizePayrollMode,
+  buildLeaderboardVisibilitySettingsData
 }

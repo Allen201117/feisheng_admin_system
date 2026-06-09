@@ -193,6 +193,7 @@
 - 核心字段：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`coordinate_system`、`location_source`、`location_confirmed`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`salary_payroll_mode`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_host`、`smtp_port`、`smtp_user`、`smtp_pass`、`updated_at`。
 - 主要写入：`settings`、`init`、迁移脚本。
 - 主要读取：`attendance`、`settings`、`leaderboard`、`qrcode`。
+- 兼容规则：`leaderboard_visible` 控制员工是否可见完整全员榜；关闭时员工/QC 仍可查看本人排名，老板端始终可见完整榜单。
 
 ### audit_logs
 

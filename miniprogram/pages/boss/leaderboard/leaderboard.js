@@ -3,6 +3,7 @@
 var util = require('../../../utils/util')
 var callCloud = util.callCloud
 var showError = util.showError
+var showSuccess = util.showSuccess
 
 Page({
   data: {
@@ -34,6 +35,8 @@ Page({
     // 排行数据
     rankList: [],
     totalEmployees: 0,
+    leaderboard_visible: false,
+    visibilitySaving: false,
     loading: false
   },
 
@@ -51,7 +54,34 @@ Page({
   },
 
   onShow: function() {
+    this.loadLeaderboardVisibility()
     this.loadRank()
+  },
+
+  loadLeaderboardVisibility: function() {
+    var that = this
+    return callCloud('settings', { action: 'getAll' }).then(function(res) {
+      that.setData({ leaderboard_visible: !!(res.data && res.data.leaderboard_visible) })
+    }).catch(function() {})
+  },
+
+  onLeaderboardVisibleChange: function(e) {
+    var that = this
+    var nextVisible = !!(e.detail && e.detail.value)
+    var prevVisible = this.data.leaderboard_visible
+    this.setData({ leaderboard_visible: nextVisible, visibilitySaving: true })
+    callCloud('settings', {
+      action: 'updateLeaderboardVisibility',
+      leaderboard_visible: nextVisible
+    }).then(function() {
+      showSuccess(nextVisible ? '已公开排行榜' : '已关闭全员榜')
+      that.loadRank()
+    }).catch(function(err) {
+      that.setData({ leaderboard_visible: prevVisible })
+      showError(err.message || '保存失败')
+    }).then(function() {
+      that.setData({ visibilitySaving: false })
+    })
   },
 
   onPullDownRefresh: function() {

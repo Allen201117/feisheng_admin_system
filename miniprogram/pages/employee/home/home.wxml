@@ -35,6 +35,21 @@
     </view>
   </view>
 
+  <view wx:if="{{homeRankChecked}}" class="home-rank-card" bindtap="goToLeaderboard" hover-class="tap-card-hover" hover-stay-time="80">
+    <view class="home-rank-icon-wrap">
+      <image src="/images/icons/leaderboard.svg" mode="aspectFit" class="home-rank-icon" />
+    </view>
+    <view class="home-rank-main">
+      <text class="home-rank-label">我的排名</text>
+      <text class="home-rank-value">{{homeRankCard.rankText}}</text>
+      <text class="home-rank-sub">{{homeRankCard.scopeText}} · {{homeRankCard.totalText}}</text>
+    </view>
+    <view class="home-rank-side">
+      <text class="home-rank-side-label">本月薪资</text>
+      <text class="home-rank-side-value">{{homeRankCard.valueText}}</text>
+    </view>
+  </view>
+
   <!-- 考勤打卡 -->
   <view class="clock-section home-clock-compact">
     <view class="flex-between home-clock-header">
@@ -159,7 +174,7 @@
         <text class="quick-item-label">修改密码</text>
         <text class="quick-item-desc">更新登录密码</text>
       </view>
-      <view class="quick-item" bindtap="goToLeaderboard" wx:if="{{leaderboardVisible}}" hover-class="tap-card-hover" hover-stay-time="80">
+      <view class="quick-item" bindtap="goToLeaderboard" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon slate">
           <image src="/images/icons/leaderboard.svg" mode="aspectFit" class="icon-sm" />
         </view>

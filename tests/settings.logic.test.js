@@ -4,7 +4,8 @@ const assert = require('node:assert/strict')
 const {
   sanitizeSettingsRecord,
   canSaveSettings,
-  normalizeCheckpoints
+  normalizeCheckpoints,
+  buildLeaderboardVisibilitySettingsData
 } = require('../cloudfunctions/settings/settings.logic')
 
 test('sanitizeSettingsRecord normalizes legacy qr code expiry fields', () => {
@@ -64,4 +65,25 @@ test('normalizeCheckpoints backfills from single-point settings and normalizes c
       { name: '车间A', latitude: 38.2691, longitude: 114.1894, radius: 80 }
     ]
   )
+})
+
+test('buildLeaderboardVisibilitySettingsData preserves settings but never writes immutable _id', () => {
+  const result = buildLeaderboardVisibilitySettingsData({
+    _id: 'org_home',
+    org_id: 'org_home',
+    factory_latitude: 38.2,
+    leaderboard_visible: false,
+    salary_payroll_mode: 'order'
+  }, {
+    orgId: 'org_home',
+    leaderboardVisible: true,
+    updatedAt: 'SERVER_DATE'
+  })
+
+  assert.equal(Object.prototype.hasOwnProperty.call(result, '_id'), false)
+  assert.equal(result.org_id, 'org_home')
+  assert.equal(result.factory_latitude, 38.2)
+  assert.equal(result.salary_payroll_mode, 'order')
+  assert.equal(result.leaderboard_visible, true)
+  assert.equal(result.updated_at, 'SERVER_DATE')
 })

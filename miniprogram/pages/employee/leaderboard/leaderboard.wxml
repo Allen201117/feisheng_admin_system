@@ -45,6 +45,7 @@
   <view class="card-bento">
     <view class="flex-between" style="margin-bottom:var(--sp-1);padding:0 0 var(--sp-1);">
       <text class="text-tertiary text-xs">共 {{totalEmployees}} 名员工</text>
+      <text class="text-tertiary text-xs">{{visibility === 'self' ? '仅显示我的排名' : '全员榜'}}</text>
     </view>
 
     <view wx:if="{{rankList.length === 0 && !loading}}" class="empty">
@@ -65,12 +66,5 @@
 
   <view wx:if="{{loading}}" class="flex-center" style="padding:var(--sp-2);">
     <text class="text-tertiary">加载中...</text>
-  </view>
-</view>
-
-<view class="container" wx:if="{{!visible && checked}}">
-  <view class="empty">
-    <text class="empty-title">排行榜暂未开放</text>
-    <text class="empty-desc">管理员尚未开启员工排行榜功能</text>
   </view>
 </view>

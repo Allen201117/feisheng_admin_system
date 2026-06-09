@@ -3,7 +3,11 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const { buildStrictAuthWhere } = require('./auth.logic')
-const { sanitizeSettingsRecord, normalizeCheckpoints } = require('./settings.logic')
+const {
+  sanitizeSettingsRecord,
+  normalizeCheckpoints,
+  buildLeaderboardVisibilitySettingsData
+} = require('./settings.logic')
 
 async function getCallerUserByEvent(event) {
   const strictWhere = buildStrictAuthWhere(event)
@@ -42,6 +46,7 @@ exports.main = async function(event, context) {
   switch (action) {
     case 'getAll': return await getAll(event)
     case 'getPublic': return await getPublic(event)
+    case 'updateLeaderboardVisibility': return await updateLeaderboardVisibility(event)
     case 'save': return await save(event)
     default: return { code: -1, msg: '未知操作' }
   }
@@ -192,6 +197,46 @@ async function save(event) {
     })
 
     return { code: 0, msg: '设置保存成功' }
+  } catch (err) {
+    return { code: -1, msg: '保存失败' }
+  }
+}
+
+async function updateLeaderboardVisibility(event) {
+  var caller = await getBossUserByEvent(event)
+  if (!caller) {
+    return { code: -1, msg: '权限不足，仅管理员可修改设置' }
+  }
+
+  var orgId = getOrgId(caller)
+  var existing = {}
+  try {
+    var ex = await db.collection('factory_settings').doc(orgId).get()
+    existing = ex.data || {}
+  } catch (e) {}
+
+  var nextVisible = event.leaderboard_visible === true
+  var data = buildLeaderboardVisibilitySettingsData(existing, {
+    orgId: orgId,
+    leaderboardVisible: nextVisible,
+    updatedAt: db.serverDate()
+  })
+
+  try {
+    await db.collection('factory_settings').doc(orgId).set({ data: data })
+
+    await db.collection('audit_logs').add({
+      data: {
+        org_id: orgId,
+        operator_id: caller._id,
+        operator_name: caller.name,
+        action: 'update_leaderboard_visibility',
+        details: nextVisible ? '公开员工排行榜' : '关闭员工全员排行榜',
+        created_at: db.serverDate()
+      }
+    })
+
+    return { code: 0, msg: '排行榜设置已更新', data: { leaderboard_visible: nextVisible } }
   } catch (err) {
     return { code: -1, msg: '保存失败' }
   }

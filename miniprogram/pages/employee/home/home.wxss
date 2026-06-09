@@ -8,6 +8,92 @@
   margin-bottom: var(--sp-3);
 }
 
+.home-rank-card {
+  min-height: 148rpx;
+  margin-bottom: var(--sp-3);
+  padding: 24rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #FFFFFF 0%, var(--blue-50) 58%, var(--amber-50) 100%);
+  border: 1rpx solid var(--blue-100);
+  box-shadow: 0 12rpx 28rpx rgba(37,99,235,0.14);
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  box-sizing: border-box;
+}
+
+.home-rank-icon-wrap {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, var(--blue-600) 0%, var(--blue-500) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 24rpx rgba(37,99,235,0.22);
+  flex-shrink: 0;
+}
+
+.home-rank-icon {
+  width: 54rpx;
+  height: 54rpx;
+  filter: brightness(0) invert(1);
+}
+
+.home-rank-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-rank-label {
+  display: block;
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  color: var(--text-secondary);
+  font-weight: var(--fw-semibold);
+}
+
+.home-rank-value {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 42rpx;
+  line-height: 1.08;
+  color: var(--text-primary);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-rank-sub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.home-rank-side {
+  max-width: 180rpx;
+  flex-shrink: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-rank-side-label {
+  display: block;
+  font-size: 22rpx;
+  line-height: 1.25;
+  color: var(--text-secondary);
+}
+
+.home-rank-side-value {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 28rpx;
+  line-height: 1.15;
+  color: var(--blue-600);
+  font-weight: var(--fw-bold);
+}
+
 .home-hero-top {
   align-items: flex-start;
 }
