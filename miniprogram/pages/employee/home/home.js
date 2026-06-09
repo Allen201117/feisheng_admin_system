@@ -3,7 +3,7 @@ const { callCloud, showError, showSuccess, showLoading, hideLoading, formatTime,
 const { getStoredUser } = require('../../../utils/auth')
 const { requestBestLocation, sampleLocationAndPickBest, calculateDistanceMeters, isValidCoordinate, checkLocationPermission } = require('../../../utils/location')
 const { normalizeAssignedProcessForEmployee } = require('../worklog/worklog.logic')
-const { buildHomeProcessView } = require('./home.logic')
+const { buildHomeProcessView, buildHomeRankCard, pickHomeRankItem } = require('./home.logic')
 const app = getApp()
 
 const HOME_PROCESS_PREVIEW_LIMIT = 5
@@ -32,14 +32,15 @@ Page({
     hasMoreAssignedProcesses: false,
     homeProcessLoading: false,
     homeProcessError: '',
+    homeRankCard: null,
+    homeRankChecked: false,
+    homeRankLoading: false,
     // 修改密码
     showChangePwd: false,
     changePwdData: { oldPassword: '', newPassword: '', confirmPassword: '' },
     showOldPwd: false,
     showNewPwd: false,
-    changePwdLoading: false,
-    // 排行榜可见
-    leaderboardVisible: false
+    changePwdLoading: false
   },
 
   onLoad() {
@@ -70,7 +71,7 @@ Page({
     this.loadMonthlyHours()
     this.loadJoinDate()
     this.tryAutoClockInFromScan()
-    this.checkLeaderboardVisible()
+    this.loadHomeRank()
     // 定时更新时间
     this._timer = setInterval(() => this.updateTime(), 1000)
   },
@@ -413,11 +414,36 @@ Page({
     wx.navigateTo({ url: '/pages/employee/leaderboard/leaderboard' })
   },
 
-  checkLeaderboardVisible() {
+  loadHomeRank() {
     var that = this
-    callCloud('settings', { action: 'getPublic' }).then(function(res) {
-      that.setData({ leaderboardVisible: !!(res.data && res.data.leaderboard_visible) })
-    }).catch(function() {})
+    var bjTime = require('../../../utils/beijing-time')
+    var f = bjTime.getBeijingFields()
+    var month = f.year + '-' + String(f.month).padStart(2, '0')
+    this.setData({ homeRankLoading: true })
+    return callCloud('leaderboard', {
+      action: 'getMonthlyRank',
+      dimension: 'salary',
+      month: month
+    }).then(function(res) {
+      var data = res.data || {}
+      var item = pickHomeRankItem(data.list || [], that.data.userInfo && that.data.userInfo._id)
+      var displayValue = '¥' + Number(item.total_salary || 0).toFixed(2)
+      that.setData({
+        homeRankCard: buildHomeRankCard(Object.assign({}, item, {
+          displayValue: displayValue,
+          total_employees: data.total_employees || 0,
+          visibility: data.visibility || 'self'
+        })),
+        homeRankChecked: true
+      })
+    }).catch(function() {
+      that.setData({
+        homeRankCard: buildHomeRankCard({ total_employees: 0, visibility: 'self', displayValue: '¥0.00' }),
+        homeRankChecked: true
+      })
+    }).then(function() {
+      that.setData({ homeRankLoading: false })
+    })
   },
 
   // ========== 修改密码 ==========

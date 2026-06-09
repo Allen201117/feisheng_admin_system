@@ -74,9 +74,9 @@ docs/                               项目文档、验收报告、审计报告
 - 质检：待检/已检列表，记录合格数量、质检人、质检时间。
 - 工资：计件工资、奖惩、员工端脱敏、老板端工资明细、发薪标记、已发薪奖惩冲正；发薪机制可在系统设置中选择按月或按订单，旧工厂默认按月。
 - 数据中心：老板端 KPI 与订单/统计视图。
-- 排行榜：按月、按年、按订单等维度统计排行，受公开设置控制。
+- 排行榜：按月、按年、按订单等维度统计排行；老板始终可看完整榜单，员工/QC 始终可看本人排名，`leaderboard_visible` 仅控制是否向员工公开完整榜单。
 - 导出：按月/按年/按订单，汇总/明细报表预览与 Excel 文件导出。其中「按订单 · 明细」自 2026-05-31 起改为「计件核算矩阵表」——工序为行（工序名带工价括号）、每个员工一列、单元格仅报工数量、表头只写员工姓名，含最右合计列与最底合计行（接口仍为 `report_type=detail`，逻辑见 `cloudfunctions/export/order-matrix.logic.js`，纯函数保留 `includeAmount` 选项可拆数量/金额两列，当前未启用）。
-- 设置：工厂坐标、围栏半径、质检阈值、二维码有效期、排行榜可见、发薪机制、SMTP、审核模式等。
+- 设置：工厂坐标、围栏半径、质检阈值、二维码有效期、排行榜公开、发薪机制、SMTP、审核模式等。
 - 订阅一期：先试行试用版和标准版；试用版 7 天、最多 10 名员工，标准版开放全部功能；平台后台手动开通/延期，老板端查看服务状态与复制开通信息；到期后温和限制新增订单、工序、员工、报工和考勤码生成；飞盛 `A001/org_home` 默认为永久免费。
 
 ## 页面/路由清单
@@ -116,7 +116,7 @@ docs/                               项目文档、验收报告、审计报告
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
 - `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllOrderSalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getUserPaymentRecords`、`getAvailableMonths`。
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
-- `settings`：`getAll`、`getPublic`、`save`。
+- `settings`：`getAll`、`getPublic`、`save`、`updateLeaderboardVisibility`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
 - `export`：`salary`、`worklog`、`getTableData`、`getTableDataV2`、`exportToFile`、`exportToFileV2`、`getHistory`、`getOrderList`、`exportProcessSummary`。
 - `billing`：`getMySubscription`、`getOpenRequestInfo`、`listPlans`、`openSubscription`、`extendSubscription`、`changePlan`、`listBillingOrders`、`markManualPaymentPaid`。
@@ -192,6 +192,7 @@ docs/                               项目文档、验收报告、审计报告
 
 ## 近期迭代摘要
 
+- 2026-06-09：排行榜隐私语义调整为员工默认只看本人排名，老板可在老板端排行榜页开启完整榜单公开；员工首页新增“我的排名”醒目卡片。
 - 2026-06-09：复制订单时为副本工序写入可选 `Processes.process_sort_index`，订单详情优先按该索引排序，避免并发复制导致副本工序顺序与源订单不一致；旧订单缺省继续按时间排序。
 - 2026-05-31：按订单导出明细改为计件核算矩阵表（工序为行、每个员工一列仅数量、表头只写姓名、含行列合计、工价显示在工序括号内）；修复预览表格列宽错位；新增 `export/order-matrix.logic.js` 纯函数（保留 `includeAmount` 可选金额列）与单测，新增 `npm run test:unit`。
 - 2026-05-02：登录页隐私确认改为默认未勾选的行内勾选框，替换订阅联系管理员微信二维码。

@@ -8,6 +8,8 @@ Page({
   data: {
     visible: false,
     checked: false,
+    leaderboardVisible: false,
+    visibility: 'self',
     myUserId: '',
     periodTab: 'monthly',
     periodTabs: [
@@ -60,11 +62,12 @@ Page({
   checkVisibility: function() {
     var that = this
     callCloud('settings', { action: 'getPublic' }).then(function(res) {
-      var visible = !!(res.data && res.data.leaderboard_visible)
-      that.setData({ visible: visible, checked: true })
-      if (visible) that.loadRank()
+      var publicVisible = !!(res.data && res.data.leaderboard_visible)
+      that.setData({ visible: true, leaderboardVisible: publicVisible, checked: true })
+      that.loadRank()
     }).catch(function() {
-      that.setData({ visible: false, checked: true })
+      that.setData({ visible: true, checked: true })
+      that.loadRank()
     })
   },
 
@@ -129,7 +132,9 @@ Page({
       })
       that.setData({
         rankList: list,
-        totalEmployees: data.total_employees || list.length
+        totalEmployees: data.total_employees || list.length,
+        visibility: data.visibility || 'self',
+        leaderboardVisible: !!data.leaderboard_visible
       })
     }).catch(function() {
       showError('加载排行榜失败')

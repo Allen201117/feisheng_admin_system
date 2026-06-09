@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
+const { filterRankListForViewer } = require('./privacy.logic')
 
 function toDateStr(val) {
   if (!val) return ''
@@ -86,19 +87,16 @@ exports.main = async function(event, context) {
 async function getRank(event, period) {
   var dimension = event.dimension || 'hours'
 
-  // 鉴权：boss直接放行；employee/qc需检查排行榜可见设置
+  // 鉴权：boss看完整榜单；employee/qc始终可看自己的排名，公开开关只控制是否返回全榜。
   var caller = await getCallerUserByEvent(event)
   if (!caller) return { code: -1, msg: '请先登录' }
 
-  if (caller.role !== 'boss') {
-    try {
-      var settingsRes = await db.collection('factory_settings').doc(getOrgId(caller)).get()
-      if (!settingsRes.data || !settingsRes.data.leaderboard_visible) {
-        return { code: -1, msg: '排行榜未开放' }
-      }
-    } catch (e) {
-      return { code: -1, msg: '排行榜未开放' }
-    }
+  var leaderboardVisible = false
+  try {
+    var settingsRes = await db.collection('factory_settings').doc(getOrgId(caller)).get()
+    leaderboardVisible = !!(settingsRes.data && settingsRes.data.leaderboard_visible)
+  } catch (e) {
+    leaderboardVisible = false
   }
 
   // 确定日期范围
@@ -226,13 +224,20 @@ async function getRank(event, period) {
       rankList[j].rank = currentRank
     }
 
+    var viewerRank = filterRankListForViewer(rankList, {
+      caller: caller,
+      leaderboardVisible: leaderboardVisible
+    })
+
     return {
       code: 0,
       data: {
-        list: rankList,
+        list: viewerRank.list,
         period: period,
         dimension: dimension,
-        total_employees: rankList.length
+        total_employees: viewerRank.total_employees,
+        visibility: viewerRank.visibility,
+        leaderboard_visible: leaderboardVisible
       }
     }
   } catch (err) {

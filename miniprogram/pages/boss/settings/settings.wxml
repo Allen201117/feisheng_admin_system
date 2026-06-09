@@ -114,18 +114,6 @@
     </view>
   </view>
 
-  <!-- 排行榜设置 -->
-  <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">排行榜设置</text>
-    <view class="list-row">
-      <view class="flex-1">
-        <text class="list-row-title">员工可见排行榜</text>
-        <text class="list-row-subtitle">开启后员工可在首页查看排行榜，关闭则仅老板可见</text>
-      </view>
-      <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onSwitchChange" color="#2563EB" />
-    </view>
-  </view>
-
   <!-- 协议与隐私 -->
   <view class="card-bento" style="margin-top:var(--sp-2);">
     <text class="menu-group-title" style="margin-bottom:var(--sp-1);">协议与隐私</text>

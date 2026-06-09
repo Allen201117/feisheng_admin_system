@@ -54,6 +54,32 @@ function buildHomeProcessView(processes, limit = 5) {
   }
 }
 
+function buildHomeRankCard(rankData = {}) {
+  const rank = toNumber(rankData.rank)
+  const total = toNumber(rankData.total_employees)
+  const visibility = rankData.visibility || 'self'
+  const valueText = rankData.displayValue || (
+    rankData.total_salary !== undefined
+      ? `¥${Number(rankData.total_salary || 0).toFixed(2)}`
+      : String(rankData.rank_value || 0)
+  )
+
+  return {
+    rankText: rank > 0 ? `第 ${rank} 名` : '暂无排名',
+    valueText,
+    totalText: total > 0 ? `共 ${total} 人` : '暂无参评',
+    scopeText: visibility === 'public' || visibility === 'boss' ? '全员榜公开' : '仅自己可见'
+  }
+}
+
+function pickHomeRankItem(rankList, userId) {
+  const source = Array.isArray(rankList) ? rankList : []
+  const targetId = String(userId || '')
+  return source.find((item) => String(item && item.user_id) === targetId) || source[0] || {}
+}
+
 module.exports = {
-  buildHomeProcessView
+  buildHomeProcessView,
+  buildHomeRankCard,
+  pickHomeRankItem
 }
