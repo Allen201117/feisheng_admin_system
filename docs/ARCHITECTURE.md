@@ -60,11 +60,12 @@
 
 ### 工资 -> 发薪锁定
 
-1. 老板在 `pages/boss/salary/salary` 查看工资汇总。
-2. `salary.markPaid` 写入或更新 `SalaryPayments`，用确定性 ID `${user_id}_${month}` 降低重复创建风险。
-3. `WorkLogs` 修改/撤销会检查对应月份是否已发薪。
-4. 已发薪月份的奖惩修改/删除不直接改原记录，而是写入冲正记录。
-5. 员工端查看已发薪月份工资时，后端会脱敏明细、工件数和工价等字段。
+1. 老板在 `pages/boss/settings/settings` 选择发薪机制：`salary_payroll_mode=monthly` 按月发薪，`salary_payroll_mode=order` 按订单发薪；缺省为按月。
+2. 老板在 `pages/boss/salary/salary` 查看工资汇总。按月模式走月份切换；按订单模式走订单切换。
+3. `salary.markPaid` 写入或更新 `SalaryPayments`。按月记录用确定性 ID `${org_id}_${user_id}_${month}`；按订单记录用 `${org_id}_${user_id}_order_${order_id}`。
+4. `WorkLogs` 修改/撤销会检查对应发薪锁定。员工端日常报工记录、今日收入和未发薪预估会过滤已完成订单，避免继续暴露该订单工价和报工信息。
+5. 已发薪月份的奖惩修改/删除不直接改原记录，而是写入冲正记录；订单发薪奖惩通过 `SalaryAdjustments.order_id` 归属到订单。
+6. 员工端查看已发薪月份工资时，后端会脱敏明细、工件数和工价等字段；员工端历史发薪记录只返回订单/月、金额、发薪时间等发放摘要。
 
 ### 统计 -> 导出
 
@@ -179,15 +180,16 @@
 
 发薪标记与锁定依据。
 
-- 核心字段：`user_id`、`user_name`、`month`、`paid`、`paid_at`、`operator_id`、`operator_name`、`created_at`。
+- 核心字段：`user_id`、`user_name`、`month`、`paid`、`paid_at`、`operator_id`、`operator_name`、`created_at`。订单发薪记录可选 `order_id`、`order_name`、`payroll_type=order`、`total_amount`。
 - 主要写入：`salary.markPaid`。
 - 主要读取：`salary`、`worklog`、`order`。
+- 兼容规则：缺少 `order_id` 的历史记录继续视为按月发薪记录；缺少 `salary_payroll_mode` 的工厂默认按月发薪。
 
 ### factory_settings
 
 工厂级配置，固定文档通常为 `main`。
 
-- 核心字段：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`coordinate_system`、`location_source`、`location_confirmed`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_host`、`smtp_port`、`smtp_user`、`smtp_pass`、`updated_at`。
+- 核心字段：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`coordinate_system`、`location_source`、`location_confirmed`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`salary_payroll_mode`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_host`、`smtp_port`、`smtp_user`、`smtp_pass`、`updated_at`。
 - 主要写入：`settings`、`init`、迁移脚本。
 - 主要读取：`attendance`、`settings`、`leaderboard`、`qrcode`。
 

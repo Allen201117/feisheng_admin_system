@@ -15,7 +15,8 @@ const {
 const {
   canSaveSettings,
   createCheckpointDraft,
-  buildCheckpointPayload
+  buildCheckpointPayload,
+  normalizePayrollMode
 } = require('./settings.logic')
 
 Page({
@@ -28,6 +29,7 @@ Page({
     qrcode_expire_days: '1',
     allow_home_checkin: false,
     leaderboard_visible: false,
+    salary_payroll_mode: 'monthly',
     smtp_host: '',
     smtp_port: '465',
     smtp_user: '',
@@ -67,6 +69,7 @@ Page({
           qrcode_expire_days: String(settings.qrcode_expire_days || 1),
           allow_home_checkin: !!settings.allow_home_checkin,
           leaderboard_visible: !!settings.leaderboard_visible,
+          salary_payroll_mode: normalizePayrollMode(settings.salary_payroll_mode),
           smtp_host: settings.smtp_host || '',
           smtp_port: String(settings.smtp_port || 465),
           smtp_user: settings.smtp_user || '',
@@ -91,6 +94,11 @@ Page({
   onSwitchChange(e) {
     const field = e.currentTarget.dataset.field
     this.setData({ [field]: e.detail.value })
+  },
+
+  onPayrollModeTap(e) {
+    const mode = normalizePayrollMode(e.currentTarget.dataset.mode)
+    this.setData({ salary_payroll_mode: mode })
   },
 
   quickAddCheckpoint() {
@@ -196,6 +204,7 @@ Page({
       qrcode_expire_days: parseInt(this.data.qrcode_expire_days, 10) || 1,
       allow_home_checkin: this.data.allow_home_checkin,
       leaderboard_visible: this.data.leaderboard_visible,
+      salary_payroll_mode: normalizePayrollMode(this.data.salary_payroll_mode),
       smtp_host: this.data.smtp_host,
       smtp_port: parseInt(this.data.smtp_port, 10) || 465,
       smtp_user: this.data.smtp_user,

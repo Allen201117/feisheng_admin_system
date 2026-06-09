@@ -14,6 +14,12 @@ Page({
     currentMonthValue: '',
     availableMonths: [],
     monthLabels: [],
+    payrollMode: 'monthly',
+    orders: [],
+    orderLabels: [],
+    selectedOrderIndex: 0,
+    currentOrderId: '',
+    currentOrderName: '',
     selectedMonthIndex: 0,
     loading: false,
     paidMap: {},
@@ -30,7 +36,44 @@ Page({
   },
 
   onShow() {
-    this.loadAvailableMonths()
+    this.loadPayrollMode()
+  },
+
+  async loadPayrollMode() {
+    try {
+      const res = await callCloud('settings', { action: 'getAll' })
+      const mode = res.data && res.data.salary_payroll_mode === 'order' ? 'order' : 'monthly'
+      this.setData({ payrollMode: mode })
+      if (mode === 'order') this.loadOrders()
+      else this.loadAvailableMonths()
+    } catch (e) {
+      this.setData({ payrollMode: 'monthly' })
+      this.loadAvailableMonths()
+    }
+  },
+
+  async loadOrders() {
+    this.setData({ loading: true })
+    try {
+      const res = await callCloud('order', { action: 'list' })
+      const orders = res.data || []
+      const labels = orders.map(order => `${order.order_name}${order.status === 'completed' ? '（已完成）' : ''}`)
+      const selectedIdx = Math.min(this.data.selectedOrderIndex || 0, Math.max(orders.length - 1, 0))
+      const currentOrder = orders[selectedIdx] || null
+      this.setData({
+        orders,
+        orderLabels: labels,
+        selectedOrderIndex: selectedIdx,
+        currentOrderId: currentOrder ? currentOrder._id : '',
+        currentOrderName: currentOrder ? currentOrder.order_name : '',
+        currentMonth: currentOrder ? currentOrder.order_name : '请选择订单'
+      })
+      if (currentOrder) this.loadSalaryOverview()
+      else this.setData({ employees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0, loading: false })
+    } catch (e) {
+      this.setData({ loading: false })
+      showError('加载订单失败')
+    }
   },
 
   async loadAvailableMonths() {
@@ -65,6 +108,20 @@ Page({
     this.loadSalaryOverview()
   },
 
+  onOrderTap(e) {
+    const idx = e.currentTarget.dataset.idx
+    if (idx === this.data.selectedOrderIndex) return
+    const order = this.data.orders[idx]
+    if (!order) return
+    this.setData({
+      selectedOrderIndex: idx,
+      currentOrderId: order._id,
+      currentOrderName: order.order_name,
+      currentMonth: order.order_name
+    })
+    this.loadSalaryOverview()
+  },
+
   onPullDownRefresh() {
     this.loadSalaryOverview().finally(() => wx.stopPullDownRefresh())
   },
@@ -73,15 +130,20 @@ Page({
     this.setData({ loading: true })
     try {
       // 并行加载薪资列表和发放状态
+      const isOrderMode = this.data.payrollMode === 'order'
+      if (isOrderMode && !this.data.currentOrderId) {
+        this.setData({ employees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0 })
+        return
+      }
+      const salaryPayload = isOrderMode
+        ? { action: 'getAllOrderSalary', order_id: this.data.currentOrderId }
+        : { action: 'getAllMonthlySalary', month: this.data.currentMonthValue }
+      const paidPayload = isOrderMode
+        ? { action: 'getPaidStatus', order_id: this.data.currentOrderId }
+        : { action: 'getPaidStatus', month: this.data.currentMonthValue }
       const [salaryRes, paidRes] = await Promise.all([
-        callCloud('salary', {
-          action: 'getAllMonthlySalary',
-          month: this.data.currentMonthValue
-        }),
-        callCloud('salary', {
-          action: 'getPaidStatus',
-          month: this.data.currentMonthValue
-        })
+        callCloud('salary', salaryPayload),
+        callCloud('salary', paidPayload)
       ])
 
       const resData = salaryRes.data || {}
@@ -125,6 +187,8 @@ Page({
         user_id: userId,
         user_name: userName,
         month: this.data.currentMonthValue,
+        order_id: this.data.payrollMode === 'order' ? this.data.currentOrderId : '',
+        order_name: this.data.payrollMode === 'order' ? this.data.currentOrderName : '',
         paid: !currentPaid
       })
 
@@ -151,8 +215,11 @@ Page({
     const userId = e.currentTarget.dataset.id
     const userName = e.currentTarget.dataset.name
     const month = this.data.currentMonthValue
+    const orderQuery = this.data.payrollMode === 'order'
+      ? `&order_id=${this.data.currentOrderId}&order_name=${encodeURIComponent(this.data.currentOrderName)}`
+      : ''
     wx.navigateTo({
-      url: `/pages/boss/salary-detail/salary-detail?id=${userId}&name=${encodeURIComponent(userName)}&month=${month}`
+      url: `/pages/boss/salary-detail/salary-detail?id=${userId}&name=${encodeURIComponent(userName)}&month=${month}${orderQuery}`
     })
   }
 })

@@ -3,6 +3,7 @@
     "pages/login/login",
     "pages/employee/home/home",
     "pages/employee/worklog/worklog",
+    "pages/employee/worklog-history/worklog-history",
     "pages/employee/profile/profile",
     "pages/employee/leaderboard/leaderboard",
     "pages/qc/home/home",

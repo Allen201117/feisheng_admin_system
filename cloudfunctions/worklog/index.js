@@ -37,7 +37,10 @@ async function getCallerUserByEvent(event, wxContext) {
         }
         return user
       }
-    } catch (err) {}
+    } catch (err) {
+      return null
+    }
+    return null
   }
 
   const fallbackUser = await getCallerUser(wxContext)
@@ -45,15 +48,16 @@ async function getCallerUserByEvent(event, wxContext) {
   if (!authUserId) return fallbackUser
   if (String(fallbackUser._id) === String(authUserId)) return fallbackUser
 
+  // auth_user_id 不匹配时不能回退到同一 openid 的其他账号，避免老板端误识别为员工。
   try {
     const matchedRes = await db.collection('Users').where({
       openid: wxContext.OPENID,
       status: 'active'
     }).orderBy('last_login', 'desc').limit(20).get()
     const matched = matchedRes.data.find(item => String(item._id) === String(authUserId))
-    return matched || fallbackUser
+    return matched || null
   } catch (err) {
-    return fallbackUser
+    return null
   }
 }
 
@@ -63,6 +67,15 @@ function getOrgId(user) {
 
 function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
+async function getPayrollMode(orgId) {
+  try {
+    const res = await db.collection('factory_settings').doc(orgId || 'main').get()
+    return res.data && res.data.salary_payroll_mode === 'order' ? 'order' : 'monthly'
+  } catch (err) {
+    return 'monthly'
+  }
 }
 
 async function ensureWritableEntitlement(caller) {
@@ -112,6 +125,23 @@ async function getPeriodPaidRecord(userId, dateStr, orgId) {
     paid: true
   }).orderBy('paid_at', 'desc').limit(1).get()
   return (paidRes.data && paidRes.data[0]) || null
+}
+
+async function getOrderPaidRecord(userId, orderId, orgId) {
+  if (!orderId) return null
+  const paidRes = await db.collection('SalaryPayments').where({
+    org_id: orgId,
+    user_id: userId,
+    order_id: orderId,
+    paid: true
+  }).orderBy('paid_at', 'desc').limit(1).get()
+  return (paidRes.data && paidRes.data[0]) || null
+}
+
+async function getWorklogPaidRecord(log, orgId) {
+  const orderPaidRecord = await getOrderPaidRecord(log.user_id, log.order_id, orgId)
+  if (orderPaidRecord) return orderPaidRecord
+  return await getPeriodPaidRecord(log.user_id, log.date, orgId)
 }
 
 function toTimestamp(input) {
@@ -243,6 +273,9 @@ async function getProcessQuotaSnapshot(orderId, processId, excludeLogId = null, 
     }
 
     const orderTotal = getOrderTotalQuantity(orderRes.data)
+    if (orderRes.data.status === 'completed') {
+      return { ok: false, msg: '该订单已完成，员工不可再报工' }
+    }
     if (orderTotal <= 0) {
       return { ok: false, msg: '订单总量配置无效' }
     }
@@ -384,6 +417,7 @@ exports.main = async (event, context) => {
     case 'submit': return await submitWorkLog(event, wxContext)
     case 'getProcessQuota': return await getProcessQuota(event, wxContext)
     case 'getTodayEarnings': return await getTodayEarnings(event, wxContext)
+    case 'getUserPayrollLogs': return await getUserLogs({ ...event, include_payroll_meta: true }, wxContext)
     case 'getUserLogs': return await getUserLogs(event, wxContext)
     case 'getMonthLogs': return await getMonthLogs(event, wxContext)
     case 'getPeriodLogs': return await getPeriodLogs(event, wxContext)
@@ -400,7 +434,7 @@ exports.main = async (event, context) => {
   }
 }
 
-// 员工撤销自己的报工（防误报）
+// 员工删除自己的历史报工（防误报）
 async function cancelOwnWorkLog(event, wxContext) {
   const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller) {
@@ -416,36 +450,31 @@ async function cancelOwnWorkLog(event, wxContext) {
     if (!log) return { code: -1, msg: '报工记录不存在' }
     if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权撤销其他工厂报工记录' }
 
-    // 只允许撤销本人提交的记录，角色不做额外限制，避免账号角色标记差异导致误拦截
+    // 只允许删除本人提交的记录，角色不做额外限制，避免账号角色标记差异导致误拦截
     if (String(log.user_id) !== String(caller._id)) {
-      return { code: -1, msg: '只能撤销自己的报工记录' }
+      return { code: -1, msg: '只能删除自己的报工记录' }
     }
 
-    const todayStr = bjTime.getBeijingToday()
-    if (log.date !== todayStr) {
-      return { code: -1, msg: '仅支持撤销当日报工记录' }
-    }
-
-    // 已完成订单不可撤销
+    // 已完成订单不可删除
     try {
       const orderRes = await db.collection('Orders').doc(log.order_id).get()
       if (!ensureSameOrg(orderRes.data, caller)) {
         return { code: -1, msg: '订单状态校验失败' }
       }
       if (orderRes.data && orderRes.data.status === 'completed') {
-        return { code: -1, msg: '该订单已完成，员工不可撤销相关报工' }
+        return { code: -1, msg: '该订单已完成，员工不可删除相关报工' }
       }
     } catch (e) {
       return { code: -1, msg: '订单状态校验失败' }
     }
 
-    // 发薪锁定遵循时间顺序：报工时间晚于发薪时间时允许撤销
-    const paidRecord = await getPeriodPaidRecord(log.user_id, log.date, getOrgId(caller))
+    // 发薪锁定遵循时间顺序：报工时间晚于发薪时间时允许删除
+    const paidRecord = await getWorklogPaidRecord(log, getOrgId(caller))
     if (paidRecord) {
       const paidAtTs = toTimestamp(paidRecord.paid_at)
       const logCreatedTs = toTimestamp(log.created_at)
       if (paidAtTs > 0 && logCreatedTs > 0 && logCreatedTs <= paidAtTs) {
-        return { code: -1, msg: '该报工发生在发薪之前，已锁定，无法撤销' }
+        return { code: -1, msg: '该报工发生在发薪之前，已锁定，无法删除' }
       }
     }
 
@@ -461,15 +490,15 @@ async function cancelOwnWorkLog(event, wxContext) {
         operator_id: caller._id,
         operator_name: caller.name,
         operator_role: caller.role,
-        details: `${log.user_name || '员工'} 撤销当日报工 ${log.quantity || 0} 件`,
-        reason: reason || '员工误报撤销',
+        details: `${log.user_name || '员工'} 删除历史报工 ${log.quantity || 0} 件`,
+        reason: reason || '员工误报删除',
         created_at: db.serverDate()
       }
     })
 
-    return { code: 0, msg: '报工记录已撤销' }
+    return { code: 0, msg: '报工记录已删除' }
   } catch (err) {
-    return { code: -1, msg: '撤销失败: ' + err.message }
+    return { code: -1, msg: '删除失败: ' + err.message }
   }
 }
 
@@ -741,25 +770,33 @@ async function getTodayEarnings(event, wxContext) {
 
     // 批量查询相关订单的 price_hidden 状态
     const orderIds = [...new Set(res.data.map(r => r.order_id).filter(Boolean))]
-    const orderHiddenMap = {}
+    const orderMetaMap = {}
     if (orderIds.length > 0) {
       for (let i = 0; i < orderIds.length; i += 100) {
         const batch = orderIds.slice(i, i + 100)
         const orderRes = await db.collection('Orders').where({
           org_id: getOrgId(caller),
           _id: _.in(batch)
-        }).field({ _id: true, price_hidden: true }).get()
+        }).field({ _id: true, price_hidden: true, status: true }).get()
         orderRes.data.forEach(o => {
-          orderHiddenMap[o._id] = o.price_hidden === true
+          orderMetaMap[o._id] = {
+            price_hidden: o.price_hidden === true,
+            status: o.status || ''
+          }
         })
       }
     }
 
     let totalAmount = 0
     let totalQuantity = 0
-    res.data.forEach(r => {
+    const visibleLogs = res.data.filter(r => {
+      const meta = orderMetaMap[r.order_id] || {}
+      return caller.role === 'boss' || meta.status !== 'completed'
+    })
+    visibleLogs.forEach(r => {
       totalQuantity += r.quantity || 0
-      if (!orderHiddenMap[r.order_id]) {
+      const meta = orderMetaMap[r.order_id] || {}
+      if (!meta.price_hidden) {
         totalAmount += r.amount || 0
       }
     })
@@ -769,7 +806,7 @@ async function getTodayEarnings(event, wxContext) {
       data: {
         earnings: Math.round(totalAmount * 100) / 100,
         quantity: totalQuantity,
-        logs: res.data
+        logs: visibleLogs
       }
     }
   } catch (err) {
@@ -784,15 +821,19 @@ async function getUserLogs(event, wxContext) {
     return { code: -1, msg: '登录状态失效，请重新登录后再试' }
   }
 
-  const { user_id, month } = event
+  const { user_id, month, include_payroll_meta } = event
 
   if (String(caller._id) !== String(user_id) && caller.role !== 'boss') {
     return { code: -1, msg: '无权查看他人报工记录' }
   }
 
+  const payrollMode = await getPayrollMode(getOrgId(caller))
+  const useOrderMode = payrollMode === 'order' && !month
   let startDate, endDate, currentMonth
 
-  if (month) {
+  if (useOrderMode) {
+    currentMonth = bjTime.getBeijingMonth()
+  } else if (month) {
     var range = getMonthRange(month)
     startDate = range.start
     endDate = range.end
@@ -805,48 +846,79 @@ async function getUserLogs(event, wxContext) {
   }
 
   try {
-    const allLogs = sortDocsByFields(await fetchAllDocs('WorkLogs', {
+    const logWhere = {
       org_id: getOrgId(caller),
-      user_id,
-      date: _.gte(startDate).and(_.lt(endDate))
-    }), ['created_at', 'date'], 'desc')
+      user_id
+    }
+    if (!useOrderMode) {
+      logWhere.date = _.gte(startDate).and(_.lt(endDate))
+    }
+    const allLogs = sortDocsByFields(await fetchAllDocs('WorkLogs', logWhere), ['created_at', 'date'], 'desc')
 
-    // 检查该月发薪锁定状态
-    const paidRes = await db.collection('SalaryPayments').where({
+    // 检查发薪锁定状态：月发薪按月份，订单发薪按订单
+    const paidWhere = {
       org_id: getOrgId(caller),
       user_id: user_id,
-      month: currentMonth,
       paid: true
-    }).get()
-    const isPaidLocked = paidRes.data.length > 0
+    }
+    if (!useOrderMode) paidWhere.month = currentMonth
+    const paidRecords = await fetchAllDocs('SalaryPayments', paidWhere)
+    const paidMonthMap = {}
+    const paidOrderMap = {}
+    paidRecords.forEach(item => {
+      if (item.month) paidMonthMap[item.month] = true
+      if (item.order_id) paidOrderMap[item.order_id] = true
+    })
 
     // 批量查询相关订单的 price_hidden 状态
     const orderIds = [...new Set(allLogs.map(log => log.order_id).filter(Boolean))]
-    const orderHiddenMap = {}
+    const orderMetaMap = {}
     for (let i = 0; i < orderIds.length; i += 100) {
       const batch = orderIds.slice(i, i + 100)
       const orderRes = await db.collection('Orders').where({
         org_id: getOrgId(caller),
         _id: _.in(batch)
-      }).field({ _id: true, price_hidden: true }).get()
+      }).field({ _id: true, price_hidden: true, status: true }).get()
       orderRes.data.forEach(o => {
-        orderHiddenMap[o._id] = o.price_hidden === true
+        orderMetaMap[o._id] = {
+          price_hidden: o.price_hidden === true,
+          status: o.status || ''
+        }
       })
     }
 
     const todayStr = bjTime.getBeijingToday()
 
-    const data = allLogs.map(log => {
-      const priceHidden = orderHiddenMap[log.order_id] === true || isPaidLocked
+    const sourceLogs = caller.role === 'boss'
+      ? allLogs
+      : allLogs.filter(log => (orderMetaMap[log.order_id] || {}).status !== 'completed')
+
+    const data = sourceLogs.map(log => {
+      const logMonth = log.date ? String(log.date).substring(0, 7) : currentMonth
+      const isMonthPaidLocked = paidMonthMap[logMonth] === true
+      const isOrderPaidLocked = paidOrderMap[log.order_id] === true
+      const isLocked = isMonthPaidLocked || isOrderPaidLocked
+      const priceHidden = (orderMetaMap[log.order_id] || {}).price_hidden === true || isLocked
       return {
         ...log,
         report_time_text: formatWorkLogTime(log),
-        is_locked: isPaidLocked,
+        is_locked: isLocked,
         is_today: log.date === todayStr,
-        lock_reason: isPaidLocked ? '该月工资已发放' : '',
+        lock_reason: isOrderPaidLocked ? '该订单工资已发放' : (isMonthPaidLocked ? '该月工资已发放' : ''),
         price_hidden: priceHidden
       }
     })
+
+    if (include_payroll_meta) {
+      return {
+        code: 0,
+        data: {
+          logs: data,
+          payroll_mode: payrollMode,
+          period_label: useOrderMode ? '按订单' : currentMonth
+        }
+      }
+    }
 
     return { code: 0, data: data }
   } catch (err) {

@@ -12,3 +12,94 @@
 .icon-sm { width: 36rpx; height: 36rpx; }
 .icon-xs { width: 28rpx; height: 28rpx; }
 .block-mb-2 { display: block; margin-bottom: var(--sp-2); }
+
+.worklog-section-label {
+  display: block;
+  margin-bottom: var(--sp-2);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  line-height: 1.3;
+  font-weight: var(--fw-bold);
+}
+
+.worklog-detail-label { margin-top: var(--sp-3); }
+
+.worklog-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.worklog-overview-card {
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--bg-card-soft) 100%);
+  border: 1rpx solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+}
+
+.worklog-overview-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.worklog-overview-main { flex: 1; min-width: 0; }
+
+.worklog-overview-name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 34rpx;
+  line-height: 1.32;
+  font-weight: var(--fw-bold);
+  word-break: break-word;
+}
+
+.worklog-overview-order {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.worklog-overview-amount {
+  flex-shrink: 0;
+  max-width: 190rpx;
+  padding: 8rpx 14rpx;
+  border-radius: var(--r-full);
+  background: var(--amber-50);
+  color: var(--amber-600);
+  font-size: var(--fs-sm);
+  line-height: 1.2;
+  font-weight: var(--fw-bold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.worklog-overview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: var(--sp-2);
+}
+
+.worklog-overview-tag {
+  min-height: 50rpx;
+  padding: 0 16rpx;
+  border-radius: var(--r-full);
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.worklog-overview-tag.is-ready {
+  background: var(--green-50);
+  color: var(--green-600);
+}

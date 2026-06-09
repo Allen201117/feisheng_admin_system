@@ -1,0 +1,120 @@
+<view class="container">
+
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">历史报工记录</text>
+      <text class="page-header-subtitle">按工序总览，查看每条历史明细</text>
+    </view>
+  </view>
+
+  <view class="stat-card accent-blue">
+    <text class="stat-card-label">{{historySummaryLabel}}</text>
+    <text class="stat-card-value">{{historyTotal === '已隐藏' ? historyTotal : '¥' + historyTotal}}</text>
+    <text class="stat-card-footer">累计 {{historyQuantity}} 件 · {{historyCount}} 条明细</text>
+  </view>
+
+  <view class="card-bento">
+    <text class="menu-group-title block-mb-2">历史报工记录</text>
+
+    <view wx:if="{{historyLogs.length === 0}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
+      </view>
+      <text class="empty-title">暂无历史报工</text>
+      <text class="empty-desc">有报工后会按工序汇总，并在这里显示每条明细。</text>
+      <view class="empty-action secondary" bindtap="loadHistoryLogs" hover-class="tap-button-hover">刷新记录</view>
+    </view>
+
+    <view wx:else>
+      <text class="worklog-section-label">报工总览</text>
+      <view class="worklog-overview-list">
+        <view wx:for="{{overviewCards}}" wx:key="key" wx:for-item="card" class="worklog-overview-card">
+          <view class="worklog-overview-card-head">
+            <view class="worklog-overview-main">
+              <text class="worklog-overview-name">{{card.process_name}}</text>
+              <text class="worklog-overview-order">{{card.order_name}}</text>
+            </view>
+            <text class="worklog-overview-amount">{{card.amountText}}</text>
+          </view>
+          <view class="worklog-overview-tags">
+            <text class="worklog-overview-tag is-ready">{{card.quantityText}}</text>
+            <text class="worklog-overview-tag">{{card.detailText}}</text>
+            <text class="worklog-overview-tag">{{card.lastText}}</text>
+          </view>
+        </view>
+      </view>
+
+      <text class="worklog-section-label worklog-detail-label">明细</text>
+      <view wx:for="{{historyLogs}}" wx:key="_id" class="list-row worklog-list-row" hover-class="tap-row-hover" hover-stay-time="80">
+        <view class="flex-1">
+          <text class="font-semibold">{{item.process_name}}</text>
+          <text class="text-tertiary worklog-list-meta">{{item.order_name}}</text>
+        </view>
+        <text class="font-bold">{{item.quantity}}件</text>
+
+        <view class="flex-between worklog-full-width" style="margin-top:6rpx;">
+          <view class="flex-row worklog-gap-12">
+            <text wx:if="{{!item.price_hidden}}" class="text-accent font-bold num">¥{{item.quantity * item.snapshot_price}}</text>
+            <text wx:else class="text-tertiary text-xs">已隐藏</text>
+            <text class="badge {{item.status === 'inspected' ? 'badge-green' : 'badge-amber'}}">
+              {{item.status === 'inspected' ? '已质检' : '待质检'}}
+            </text>
+          </view>
+          <text class="text-tertiary text-xs">{{item.report_time_text}}</text>
+        </view>
+
+        <view wx:if="{{item.status === 'inspected'}}" class="text-xs text-secondary worklog-full-width" style="margin-top:4rpx;">
+          合格: {{item.passed_qty}}件
+        </view>
+
+        <view wx:if="{{!item.is_locked}}" class="flex-row worklog-full-width" style="gap:12rpx;margin-top:8rpx;">
+          <button class="btn-sm btn-sm-primary" bindtap="onEditLog" data-log="{{item}}" hover-class="tap-button-hover">编辑数量</button>
+          <button class="btn-sm btn-sm-danger" bindtap="onDeleteLog" data-log="{{item}}" hover-class="tap-button-hover">删除本条</button>
+        </view>
+        <view wx:elif="{{item.is_locked}}" class="flex-row worklog-full-width" style="gap:8rpx;margin-top:8rpx;">
+          <image src="/images/icons/lock.svg" mode="aspectFit" class="icon-xs" />
+          <text class="text-tertiary text-xs">{{item.lock_reason}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{showEditLog}}">
+    <view class="modal-overlay" bindtap="closeEditLog"></view>
+    <view class="modal-sheet" catchtap="true">
+      <view class="modal-sheet-title">修改报工记录</view>
+      <view class="modal-sheet-body worklog-modal-body">
+        <view class="notice notice-blue" style="margin-bottom:var(--sp-2);">
+          <text class="text-xs">工序：{{editLog.process_name}} | 订单：{{editLog.order_name}}</text>
+        </view>
+        <view class="field-group">
+          <text class="field-label">报工数量</text>
+          <input class="field-input" type="number" value="{{editQuantity}}" bindinput="onEditQtyInput" />
+        </view>
+        <view class="field-group">
+          <text class="field-label">备注</text>
+          <input class="field-input" placeholder="可选" value="{{editNote}}" bindinput="onEditNoteInput" />
+        </view>
+        <view class="field-group">
+          <text class="field-label">修改原因 *</text>
+          <picker mode="selector" range="{{editReasons}}" value="{{editReasonIndex}}" bindchange="onEditReasonChange">
+            <view class="picker-field" hover-class="tap-row-hover">
+              <text wx:if="{{editReasonIndex >= 0}}">{{editReasons[editReasonIndex]}}</text>
+              <text wx:else class="text-tertiary">请选择原因</text>
+              <text class="picker-arrow">&#x276F;</text>
+            </view>
+          </picker>
+        </view>
+        <view wx:if="{{editReasonIndex === 3}}" class="field-group">
+          <text class="field-label">详细原因</text>
+          <input class="field-input" placeholder="请输入具体原因" value="{{editReason}}" bindinput="onEditReasonInput" />
+        </view>
+      </view>
+      <view class="modal-sheet-footer">
+        <button class="modal-sheet-btn" bindtap="closeEditLog" hover-class="tap-row-hover">取消</button>
+        <button class="modal-sheet-btn" bindtap="onSaveEditLog" hover-class="tap-row-hover">保存</button>
+      </view>
+    </view>
+  </view>
+
+</view>

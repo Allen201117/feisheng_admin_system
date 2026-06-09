@@ -99,13 +99,17 @@
             <text class="home-process-name">{{item.process_name}}</text>
             <text class="home-process-order">{{item.order_name}}</text>
           </view>
-          <text class="home-process-price">{{item.priceText}}</text>
+          <view class="home-process-side">
+            <text wx:if="{{item.isMultiAssigned}}" class="home-process-multi-badge">{{item.multiAssignedText}}</text>
+            <text class="home-process-price">{{item.priceText}}</text>
+          </view>
         </view>
 
         <view class="home-process-tags">
           <text class="home-process-tag {{item.isComplete ? 'is-muted' : 'is-ready'}}">{{item.statusText}}</text>
           <text class="home-process-tag">{{item.quotaText}}</text>
-          <text class="home-process-tag">已报 {{item.current_total}} 件</text>
+          <text class="home-process-tag">{{item.myReportedText}}</text>
+          <text class="home-process-tag">{{item.progressText}}</text>
         </view>
 
         <view class="home-process-progress">
@@ -134,12 +138,12 @@
         <text class="quick-item-label">扫码打卡</text>
         <text class="quick-item-desc">管理员考勤码</text>
       </view>
-      <view class="quick-item" bindtap="goToWorklog" hover-class="tap-card-hover" hover-stay-time="80">
+      <view class="quick-item" bindtap="goToWorklogHistory" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon blue">
           <image src="/images/icons/edit.svg" mode="aspectFit" class="icon-sm" />
         </view>
-        <text class="quick-item-label">报工记录</text>
-        <text class="quick-item-desc">今日记录与修改</text>
+        <text class="quick-item-label">历史报工</text>
+        <text class="quick-item-desc">总览与明细</text>
       </view>
       <view class="quick-item" bindtap="goToProfile" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="quick-item-icon green">

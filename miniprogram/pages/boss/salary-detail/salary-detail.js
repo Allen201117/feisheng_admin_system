@@ -7,6 +7,8 @@ Page({
     userId: '',
     userName: '',
     month: '',
+    orderId: '',
+    orderName: '',
     salaryData: null,
     adjustments: [],
     workLogs: [],
@@ -39,7 +41,9 @@ Page({
     this.setData({
       userId: options.id,
       userName: decodeURIComponent(options.name || ''),
-      month: options.month || bjTime.getBeijingMonth()
+      month: options.month || bjTime.getBeijingMonth(),
+      orderId: options.order_id || '',
+      orderName: decodeURIComponent(options.order_name || '')
     })
     wx.setNavigationBarTitle({ title: `${this.data.userName} - 薪资详情` })
   },
@@ -53,7 +57,8 @@ Page({
       const res = await callCloud('salary', {
         action: 'getUserMonthlySalaryByBoss',
         user_id: this.data.userId,
-        month: this.data.month
+        month: this.data.month,
+        order_id: this.data.orderId
       })
       const data = res.data || {}
       const ws = data.work_stats || {}
@@ -132,7 +137,9 @@ Page({
         type: isReward ? 'reward' : 'penalty',
         amount: finalAmount,
         reason,
-        month: this.data.month
+        month: this.data.month,
+        order_id: this.data.orderId,
+        order_name: this.data.orderName
       })
       hideLoading()
       showSuccess('操作成功')

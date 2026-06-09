@@ -71,11 +71,12 @@ async function getPublic(event) {
     return {
       code: 0,
       data: {
-        leaderboard_visible: !!data.leaderboard_visible
+        leaderboard_visible: !!data.leaderboard_visible,
+        salary_payroll_mode: data.salary_payroll_mode === 'order' ? 'order' : 'monthly'
       }
     }
   } catch (err) {
-    return { code: 0, data: { leaderboard_visible: false } }
+    return { code: 0, data: { leaderboard_visible: false, salary_payroll_mode: 'monthly' } }
   }
 }
 
@@ -151,6 +152,7 @@ async function save(event) {
     face_recognition_enabled: !!event.face_recognition_enabled,
     allow_home_checkin: !!event.allow_home_checkin,
     leaderboard_visible: !!event.leaderboard_visible,
+    salary_payroll_mode: event.salary_payroll_mode === 'order' ? 'order' : 'monthly',
     smtp_host: event.smtp_host || '',
     smtp_port: event.smtp_port || '465',
     smtp_user: event.smtp_user || '',

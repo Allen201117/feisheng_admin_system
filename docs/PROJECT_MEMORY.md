@@ -72,11 +72,11 @@ docs/                               项目文档、验收报告、审计报告
 - 大工序订单承载：老板端订单详情首屏分批渲染工序，分配面板分批显示工序，分配保存使用 `order.batchAssignProcesses` 批量提交，目标支持单订单 150-200 道工序时页面不明显卡顿。
 - 报工：员工按分配工序报工，快照单价，订单总量防超，员工当日撤销/修改，老板报工管理；老板可从进度总览进入单道工序报工明细，代员工新增报工，或修改已有报工数量/备注帮助员工修正，所有变化写回同一条 `WorkLogs` 数据源。
 - 质检：待检/已检列表，记录合格数量、质检人、质检时间。
-- 工资：计件工资、奖惩、员工端脱敏、老板端工资明细、发薪标记、已发薪奖惩冲正。
+- 工资：计件工资、奖惩、员工端脱敏、老板端工资明细、发薪标记、已发薪奖惩冲正；发薪机制可在系统设置中选择按月或按订单，旧工厂默认按月。
 - 数据中心：老板端 KPI 与订单/统计视图。
 - 排行榜：按月、按年、按订单等维度统计排行，受公开设置控制。
 - 导出：按月/按年/按订单，汇总/明细报表预览与 Excel 文件导出。其中「按订单 · 明细」自 2026-05-31 起改为「计件核算矩阵表」——工序为行（工序名带工价括号）、每个员工一列、单元格仅报工数量、表头只写员工姓名，含最右合计列与最底合计行（接口仍为 `report_type=detail`，逻辑见 `cloudfunctions/export/order-matrix.logic.js`，纯函数保留 `includeAmount` 选项可拆数量/金额两列，当前未启用）。
-- 设置：工厂坐标、围栏半径、质检阈值、二维码有效期、排行榜可见、SMTP、审核模式等。
+- 设置：工厂坐标、围栏半径、质检阈值、二维码有效期、排行榜可见、发薪机制、SMTP、审核模式等。
 - 订阅一期：先试行试用版和标准版；试用版 7 天、最多 10 名员工，标准版开放全部功能；平台后台手动开通/延期，老板端查看服务状态与复制开通信息；到期后温和限制新增订单、工序、员工、报工和考勤码生成；飞盛 `A001/org_home` 默认为永久免费。
 
 ## 页面/路由清单
@@ -114,7 +114,7 @@ docs/                               项目文档、验收报告、审计报告
 - `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`。
 - `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`clearOrderWorklogs`、`getPriceChangeLogs`。
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
-- `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getAvailableMonths`。
+- `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllOrderSalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getUserPaymentRecords`、`getAvailableMonths`。
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
 - `settings`：`getAll`、`getPublic`、`save`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
@@ -135,8 +135,8 @@ docs/                               项目文档、验收报告、审计报告
 - `WorkLogs`：`user_id`、`user_name`、`order_id`、`order_name`、`process_id`、`process_name`、`quantity`、`snapshot_price`、`amount`、`date`、`status`、`qc_status`、`passed_qty`、`inspected_by`、`inspected_by_name`、`inspected_at`、`note`、`created_at`、`updated_at`。
 - `Attendances`：`user_id`、`user_name`、`date`、`clock_in_time`、`clock_out_time`、`clock_in_location`、`clock_out_location`、`status`、`source`、`qr_id`、`distance_meters`、`hours`、`quality_score`、`quality_level`、`created_at`。
 - `SalaryAdjustments`：`user_id`、`user_name`、`type`、`amount`、`reason`、`month`、`order_id`、`operator_id`、`operator_name`、`is_reversal`、`is_correction`、`original_id`、`created_at`、`updated_at`。
-- `SalaryPayments`：`user_id`、`user_name`、`month`、`paid`、`paid_at`、`operator_id`、`operator_name`、`created_at`。
-- `factory_settings`：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_*`、`updated_at`。
+- `SalaryPayments`：`user_id`、`user_name`、`month`、`paid`、`paid_at`、`operator_id`、`operator_name`、`created_at`；订单发薪记录可选 `order_id`、`order_name`、`payroll_type=order`、`total_amount`。
+- `factory_settings`：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`salary_payroll_mode`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_*`、`updated_at`。
 - `audit_logs`：`action`、`operator_id`、`operator_name`、`target_id`、`details`、`old_values`、`new_values`、`changes`、`created_at`。
 - `qr_codes`：打卡二维码 token、状态、有效期、创建时间等。
 - `export_history`：导出类型、月份/维度、文件 ID、文件名、操作者、状态、创建时间。
@@ -148,7 +148,7 @@ docs/                               项目文档、验收报告、审计报告
 - 考勤 -> 工资：员工签到/签退写入 `Attendances`，签退后计算 `hours`，工资汇总读取出勤天数和总工时。
 - 订单 -> 工序 -> 报工：老板创建订单和工序，分配员工，员工只能对可用工序报工；报工写入 `WorkLogs`，包含 `snapshot_price`；订单详情可清空该订单未发薪月份的全部报工。
 - 报工 -> 质检 -> 工资：报工初始为待检，QC 写入 `passed_qty` 和质检状态。当前工资计算主要按 `quantity * snapshot_price`，`passed_qty` 目前用于质量统计，不直接影响工资。
-- 工资 -> 发薪锁定：`SalaryPayments.paid = true` 后，部分报工修改被锁定；奖惩修改/删除对已发薪月份走冲正记录。
+- 工资 -> 发薪锁定：按月模式下 `SalaryPayments.month + paid=true` 锁定月份；按订单模式下 `SalaryPayments.order_id + paid=true` 标记订单发薪。奖惩修改/删除对已发薪月份仍走冲正记录。
 - 统计 -> 导出：`salary`、`worklog`、`export` 等云函数按日期、月份、年份、订单维度聚合数据，并生成 Excel 报表。
 - 订阅 -> 写操作限制：`billing` 维护 `Organizations` 上的订阅快照；到期且超过宽限期后，新增订单、复制订单、新增工序、创建员工、提交报工、生成考勤码会被拦截；历史查看和导出暂不拦。
 

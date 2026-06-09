@@ -4,6 +4,7 @@
       <text class="page-header-title">设置</text>
       <text class="page-header-subtitle">工厂、考勤与账号配置</text>
     </view>
+    <button class="settings-header-save btn-sm btn-sm-primary" bindtap="onSave" disabled="{{loading}}" hover-class="tap-button-hover">{{loading ? '保存中' : '保存'}}</button>
   </view>
 
   <!-- 服务与续费 -->
@@ -11,6 +12,22 @@
     <text class="menu-group-title" style="margin-bottom:var(--sp-1);">服务与续费</text>
     <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-1);display:block;">查看当前版本、到期时间，并复制开通信息发给平台管理员。</text>
     <button class="btn btn-outline btn-block" bindtap="goSubscription" hover-class="tap-button-hover">服务状态与续费</button>
+  </view>
+
+  <!-- 发薪机制 -->
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">发薪机制</text>
+    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-2);display:block;">选择薪酬管理默认按月份结算，还是按订单结算。</text>
+    <view class="settings-segment">
+      <view class="settings-segment-item {{salary_payroll_mode === 'monthly' ? 'active' : ''}}" data-mode="monthly" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
+        <text class="settings-segment-title">按月发薪</text>
+        <text class="settings-segment-desc">按月份汇总员工工资</text>
+      </view>
+      <view class="settings-segment-item {{salary_payroll_mode === 'order' ? 'active' : ''}}" data-mode="order" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
+        <text class="settings-segment-title">按订单发薪</text>
+        <text class="settings-segment-desc">订单完成后按订单结算</text>
+      </view>
+    </view>
   </view>
 
   <!-- 打卡点管理 -->
@@ -107,10 +124,6 @@
       </view>
       <switch checked="{{leaderboard_visible}}" data-field="leaderboard_visible" bindchange="onSwitchChange" color="#2563EB" />
     </view>
-  </view>
-
-  <view class="bottom-action-bar">
-    <button class="btn-primary btn-block btn-lg" bindtap="onSave" disabled="{{loading}}" hover-class="tap-button-hover">{{loading ? '保存中...' : '保存设置'}}</button>
   </view>
 
   <!-- 协议与隐私 -->

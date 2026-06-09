@@ -192,6 +192,16 @@ test('modal sheets stay above their blocking overlay', () => {
   assert.match(source, /\.modal-sheet\s*\{[^}]*z-index:\s*1001/s)
 })
 
+test('order detail bottom modals override centered modal transform', () => {
+  const appStyle = read('miniprogram/app.wxss')
+  const orderDetail = read('miniprogram/pages/boss/order-detail/order-detail.wxml')
+
+  assert.match(orderDetail, /modal-sheet\s+modal-bottom-sheet/)
+  assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*transform:\s*none/s)
+  assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*left:\s*0/s)
+  assert.match(appStyle, /\.modal-bottom-sheet\s*\{[^}]*right:\s*0/s)
+})
+
 test('login consent starts unchecked for new users and remembers manual choice', () => {
   const source = read('miniprogram/pages/login/login.js')
 

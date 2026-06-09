@@ -7,9 +7,14 @@ function sanitizeSettingsRecord(data) {
   if (!normalized.qrcode_expire_days) normalized.qrcode_expire_days = 1
   if (normalized.face_recognition_enabled === undefined) normalized.face_recognition_enabled = false
   if (normalized.allow_home_checkin === undefined) normalized.allow_home_checkin = false
+  normalized.salary_payroll_mode = normalizePayrollMode(normalized.salary_payroll_mode)
   normalized.checkpoints = normalizeCheckpoints(normalized)
 
   return normalized
+}
+
+function normalizePayrollMode(value) {
+  return value === 'order' ? 'order' : 'monthly'
 }
 
 function normalizeCheckpoints(data) {
@@ -75,5 +80,6 @@ function canSaveSettings(state) {
 module.exports = {
   sanitizeSettingsRecord,
   canSaveSettings,
-  normalizeCheckpoints
+  normalizeCheckpoints,
+  normalizePayrollMode
 }
