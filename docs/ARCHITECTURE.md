@@ -146,9 +146,10 @@
 
 订单下的工序与工价、分配关系。
 
-- 核心字段：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`status`、`created_at`、`updated_at`。
+- 核心字段：`order_id`、`process_name`、`current_price`、`note`、`assigned_user_ids`、`process_sort_index`、`status`、`created_at`、`updated_at`。
 - 主要写入：`order`。
 - 主要读取：`order`、`worklog`。
+- 兼容规则：`process_sort_index` 为复制订单时写入的可选展示顺序字段；旧数据缺失时订单详情继续按创建/更新时间回退排序。
 - 性能规则：订单详情页和分配面板不得一次性渲染全部大工序卡片；单订单 150-200 道工序场景应使用分批显示和批量保存。
 
 ### WorkLogs

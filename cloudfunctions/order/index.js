@@ -8,7 +8,8 @@ const {
   collectAssignedUserIds,
   buildUserNameMap,
   attachAssignedNamesToProcesses,
-  findInvalidAssignedUserIdProcesses
+  findInvalidAssignedUserIdProcesses,
+  sortProcessesForDetail
 } = require('./detail.logic')
 const { copyProcessDocsInChunks } = require('./copy-order.logic')
 const {
@@ -196,9 +197,8 @@ async function getOrderDetail(event, caller) {
     if (!ensureSameOrg(orderRes.data, caller)) {
       return { code: -1, msg: '无权访问该订单' }
     }
-    const allProcessData = sortDocsByTime(
-      await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id }),
-      'asc'
+    const allProcessData = sortProcessesForDetail(
+      await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id })
     )
 
     const invalidAssigned = findInvalidAssignedUserIdProcesses(allProcessData)
@@ -345,7 +345,9 @@ async function copyOrder(event, caller) {
     const newOrderId = newOrderRes._id
 
     // 复制所有工序及分配
-    const processes = await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id: source_order_id })
+    const processes = sortProcessesForDetail(
+      await fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id: source_order_id })
+    )
     const copyResult = await copyProcessDocsInChunks(processes, {
       orgId: getOrgId(caller),
       newOrderId,
