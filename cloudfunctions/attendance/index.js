@@ -94,46 +94,12 @@ async function getFactorySettings(orgId) {
 }
 
 // 鉴权
-async function getCallerUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID,
-    status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
-}
 
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-
-  if (authUserId && authSessionToken) {
-    try {
-      const exactRes = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (exactRes.data.length > 0) {
-        const user = exactRes.data[0]
-        if (user.org_id) {
-          try {
-            const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-            if (!orgRes.data || orgRes.data.status !== 'active') return null
-          } catch (e) {
-            return null
-          }
-        }
-        return user
-      }
-    } catch (err) {}
-  }
-
-  const fallbackUser = await getCallerUser(wxContext)
-  if (!fallbackUser) return null
-  if (!authUserId) return fallbackUser
-  if (String(fallbackUser._id) === String(authUserId)) return fallbackUser
-
-  return null
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
@@ -901,13 +867,21 @@ async function checkAbnormalAttendances() {
       allRecords = allRecords.concat(batch.data || [])
     } while (batchLen === 100)
 
-    for (const record of allRecords) {
-      await db.collection('Attendances').doc(record._id).update({
-        data: { status: 'abnormal' }
-      })
+    // 按批并发更新（每批10条），替代逐条串行 update，降低大数据量下定时任务超时风险。
+    // 注：本任务是平台级定时扫描（无调用者上下文），不按 org 过滤是有意为之；
+    // 每条记录仅依据自身字段判定，读侧 getAbnormalRecords 仍按 org_id 隔离。
+    let marked = 0
+    for (let i = 0; i < allRecords.length; i += 10) {
+      const chunk = allRecords.slice(i, i + 10)
+      await Promise.all(chunk.map(async (record) => {
+        await db.collection('Attendances').doc(record._id).update({
+          data: { status: 'abnormal' }
+        })
+        marked += 1
+      }))
     }
 
-    return { code: 0, msg: `已标记 ${allRecords.length} 条异常记录` }
+    return { code: 0, msg: `已标记 ${marked} 条异常记录` }
   } catch (err) {
     return { code: -1, msg: '检查异常失败' }
   }

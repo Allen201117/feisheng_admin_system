@@ -10,6 +10,8 @@ const PERMANENT_HOME_FACTORY_CODE = 'A001'
 const ACTIVE_PLAN_IDS = ['trial', 'standard_year']
 const DEPRECATED_PLAN_IDS = ['basic_year', 'pro_year']
 
+// ⚠️ 套餐定义与 init/index.js 的 DEFAULT_BILLING_PLANS 是两份副本（两边都会 upsert 同一 Plans 集合，
+// 谁后跑谁覆盖）。改价格/限额/特性时必须同步两处，否则套餐口径会随执行顺序翻转。
 const DEFAULT_PLANS = [
   {
     plan_id: 'trial',
@@ -303,7 +305,11 @@ async function upsertPermanentSubscriptionForOrg(org) {
         updated_at: db.serverDate()
       }
     })
-  } catch (err) {}
+  } catch (err) {
+    // Subscriptions 写入失败时不能继续把组织标记 permanent，否则两边状态不一致且无任何线索
+    console.error('[billing] 永久订阅记录写入失败，中止 permanent 标记', org._id, err)
+    return null
+  }
 
   await db.collection('Organizations').doc(org._id).update({
     data: {
@@ -331,7 +337,9 @@ async function ensurePermanentHomeFactory() {
         return await upsertPermanentSubscriptionForOrg(homeRes.data)
       }
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error('[billing] ensurePermanentHomeFactory 按 doc 查询失败', err)
+  }
 
   try {
     const codeRes = await db.collection('Organizations')
@@ -341,7 +349,9 @@ async function ensurePermanentHomeFactory() {
     if (codeRes.data && codeRes.data.length) {
       return await upsertPermanentSubscriptionForOrg(codeRes.data[0])
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error('[billing] ensurePermanentHomeFactory 按工厂码查询失败', err)
+  }
 
   return null
 }

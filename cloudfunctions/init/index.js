@@ -666,6 +666,8 @@ async function migrateMultiTenant() {
   return { code: 0, msg: '多工厂基础迁移完成', data: results }
 }
 
+// ⚠️ 与 billing/index.js 的 DEFAULT_PLANS 是两份副本（两边都会 upsert 同一 Plans 集合），
+// 改价格/限额/特性时必须同步两处。
 const DEFAULT_BILLING_PLANS = [
   {
     plan_id: 'trial',
