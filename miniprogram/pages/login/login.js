@@ -46,6 +46,7 @@ Page({
     password: '',
     loading: false,
     showPassword: false,
+    showForgotTip: false,
     // 强制改密弹窗
     showChangePwd: false,
     changePwdData: {
@@ -222,6 +223,10 @@ Page({
 
   togglePassword: function() {
     this.setData({ showPassword: !this.data.showPassword })
+  },
+
+  toggleForgotTip: function() {
+    this.setData({ showForgotTip: !this.data.showForgotTip })
   },
 
   onLogin: function() {
