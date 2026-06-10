@@ -171,7 +171,8 @@ function callCloud(name, data, _retryCount) {
       name: name,
       data: payload
     }).then(function(res) {
-      console.log('[callCloud] ' + name + ' result:', JSON.stringify(res.result))
+      // 只记录调用结果状态码，不打印完整返回体（含 session_token/openid/手机号 等敏感字段）
+      console.log('[callCloud] ' + name + ' code:', res.result && res.result.code)
       try {
         resolve(resolveCloudCallResult(res.result))
       } catch (err) {
