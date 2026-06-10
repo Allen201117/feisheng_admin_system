@@ -5,7 +5,7 @@ const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
-const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData } = require('./payment-record.logic')
+const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid } = require('./payment-record.logic')
 
 async function fetchAllByWhere(collectionName, where, options = {}) {
   const orderBy = options.orderBy || null
@@ -28,34 +28,12 @@ async function fetchAllByWhere(collectionName, where, options = {}) {
   return all
 }
 
-async function getCallerUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID, status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
-}
 
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-  if (authUserId && authSessionToken) {
-    try {
-      const res = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (res.data.length > 0) {
-        const user = res.data[0]
-        if (user.org_id) {
-          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-          if (!orgRes.data || orgRes.data.status !== 'active') return null
-        }
-        return user
-      }
-    } catch (e) {}
-  }
-  return await getCallerUser(wxContext)
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
@@ -71,8 +49,34 @@ async function getPayrollMode(orgId) {
     const res = await db.collection('factory_settings').doc(orgId || 'main').get()
     return res.data && res.data.salary_payroll_mode === 'order' ? 'order' : 'monthly'
   } catch (err) {
+    console.error('[salary] 读取发薪模式失败，回退按月', err)
     return 'monthly'
   }
+}
+
+// 老板视角实时工价（CLAUDE.md §2.9）：批量 join Processes.current_price 到报工明细。
+// 结算金额仍按 snapshot_price；current_price 仅作展示，price_changed 标记两者不一致。
+async function attachCurrentPriceToLogs(logs, orgId) {
+  const list = logs || []
+  const processIds = Array.from(new Set(list.map(l => l.process_id).filter(Boolean)))
+  if (processIds.length === 0) return list
+  const priceMap = {}
+  for (let i = 0; i < processIds.length; i += 50) {
+    const chunk = processIds.slice(i, i + 50)
+    const procs = await fetchAllByWhere('Processes', {
+      org_id: orgId,
+      _id: _.in(chunk)
+    }, { field: { _id: true, current_price: true } })
+    procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
+  }
+  return list.map(l => {
+    const currentPrice = l.process_id != null ? priceMap[String(l.process_id)] : null
+    return {
+      ...l,
+      current_price: currentPrice,
+      price_changed: currentPrice != null && Number(currentPrice) !== Number(l.snapshot_price)
+    }
+  })
 }
 
 function getMonthRange(monthStr) {
@@ -153,7 +157,7 @@ async function calcUserSalary(userId, month, orgId) {
       user_id: userId,
       date: _.gte(startDate).and(_.lt(endDate))
     }, {
-      field: { user_id: true, order_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
+      field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
     }),
     fetchAllByWhere('SalaryAdjustments', {
       org_id: orgId,
@@ -216,7 +220,7 @@ async function calcUserOrderSalary(userId, orderId, orgId) {
       user_id: userId,
       order_id: orderId
     }, {
-      field: { user_id: true, order_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
+      field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
     }),
     fetchAllByWhere('SalaryAdjustments', {
       org_id: orgId,
@@ -308,7 +312,7 @@ async function getOrderModeSalaryData(userId, orgId) {
     org_id: orgId,
     user_id: userId
   }, {
-    field: { user_id: true, order_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
+    field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true, process_name: true, order_name: true }
   })
 
   const orderIds = [...new Set(logs.map(log => log.order_id).filter(Boolean))]
@@ -544,8 +548,9 @@ async function getUserMonthlySalary(event, wxContext) {
       }
     }
 
-    // 对隐藏了工价的订单脱敏 snapshot_price / amount
-    let visiblePieceRate = 0
+    // 对隐藏了工价的订单脱敏 snapshot_price / amount。
+    // 注意口径：顶层 piece_rate/total 仍包含隐藏订单金额（员工实得工资必须含它们），
+    // 仅明细行打码；has_hidden_orders 标记供前端提示「总额含未公开工价订单」。
     const maskedLogs = (data.logs || []).map(function(log) {
       if (orderHiddenMap[log.order_id]) {
         return {
@@ -555,7 +560,6 @@ async function getUserMonthlySalary(event, wxContext) {
           price_hidden: true
         }
       }
-      visiblePieceRate += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
       return { ...log, price_hidden: false }
     })
 
@@ -589,6 +593,8 @@ async function getUserMonthlySalaryByBoss(event, wxContext) {
     var data = order_id
       ? await calcUserOrderSalary(user_id, order_id, getOrgId(caller))
       : await calcUserSalary(user_id, month, getOrgId(caller))
+    // 老板明细附带实时工价（CLAUDE.md §2.9）
+    data.logs = await attachCurrentPriceToLogs(data.logs, getOrgId(caller))
     // 检查发薪状态
     const paidWhere = {
       org_id: getOrgId(caller),
@@ -1228,10 +1234,12 @@ async function markPaid(event, wxContext) {
     if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '无权操作其他工厂员工工资' }
     let resolvedOrderName = order_name || ''
     let totalAmount
+    let orderStatus = ''
     if (order_id) {
       const orderRes = await db.collection('Orders').doc(order_id).get()
       if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单工资' }
       resolvedOrderName = resolvedOrderName || orderRes.data.order_name || ''
+      orderStatus = orderRes.data.status || ''
       const orderSalary = await calcUserOrderSalary(user_id, order_id, getOrgId(caller))
       totalAmount = orderSalary.total
     } else {
@@ -1297,7 +1305,36 @@ async function markPaid(event, wxContext) {
       }
     }
 
-    return { code: 0, msg: paid ? '已标记为已发工资' : '已取消发放标记' }
+    // 发薪即完成（CLAUDE.md §2.3）：订单模式标记发薪后，检查该订单是否已全员发薪，
+    // 返回标志供前端弹窗提醒老板把订单状态改为「已完成」。
+    let orderFullyPaid = false
+    if (paid && order_id) {
+      const participants = await fetchAllByWhere('WorkLogs', {
+        org_id: getOrgId(caller),
+        order_id
+      }, { field: { user_id: true } })
+      const participantUserIds = Array.from(new Set(participants.map(w => w.user_id).filter(Boolean)))
+      const paidRows = await fetchAllByWhere('SalaryPayments', {
+        org_id: getOrgId(caller),
+        order_id,
+        paid: true
+      }, { field: { user_id: true } })
+      orderFullyPaid = isOrderFullyPaid({
+        participantUserIds,
+        paidUserIds: paidRows.map(p => p.user_id)
+      })
+    }
+
+    return {
+      code: 0,
+      msg: paid ? '已标记为已发工资' : '已取消发放标记',
+      data: {
+        order_fully_paid: orderFullyPaid,
+        order_id: order_id || '',
+        order_name: resolvedOrderName,
+        order_status: orderStatus
+      }
+    }
   } catch (err) {
     return { code: -1, msg: '操作失败: ' + err.message }
   }

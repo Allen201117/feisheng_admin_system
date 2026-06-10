@@ -6,59 +6,12 @@ const db = cloud.database()
 const _ = db.command
 const MAX_TX_RETRIES = 3
 
-async function getCallerUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID,
-    status: 'active'
-  }).orderBy('last_login', 'desc').limit(20).get()
-  return res.data.length > 0 ? res.data[0] : null
-}
 
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-
-  if (authUserId && authSessionToken) {
-    try {
-      const exactRes = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (exactRes.data.length > 0) {
-        const user = exactRes.data[0]
-        if (user.org_id) {
-          try {
-            const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-            if (!orgRes.data || orgRes.data.status !== 'active') return null
-          } catch (e) {
-            return null
-          }
-        }
-        return user
-      }
-    } catch (err) {
-      return null
-    }
-    return null
-  }
-
-  const fallbackUser = await getCallerUser(wxContext)
-  if (!fallbackUser) return null
-  if (!authUserId) return fallbackUser
-  if (String(fallbackUser._id) === String(authUserId)) return fallbackUser
-
-  // auth_user_id 不匹配时不能回退到同一 openid 的其他账号，避免老板端误识别为员工。
-  try {
-    const matchedRes = await db.collection('Users').where({
-      openid: wxContext.OPENID,
-      status: 'active'
-    }).orderBy('last_login', 'desc').limit(20).get()
-    const matched = matchedRes.data.find(item => String(item._id) === String(authUserId))
-    return matched || null
-  } catch (err) {
-    return null
-  }
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
@@ -102,18 +55,6 @@ async function ensureWritableEntitlement(caller) {
   } catch (err) {
     return { ok: false, msg: '服务状态校验失败，请稍后重试' }
   }
-}
-
-// 检查某用户某月是否已发薪锁定
-async function isPeriodLocked(userId, dateStr, orgId) {
-  const month = dateStr.substring(0, 7) // YYYY-MM
-  const paidRes = await db.collection('SalaryPayments').where({
-    org_id: orgId,
-    user_id: userId,
-    month: month,
-    paid: true
-  }).get()
-  return paidRes.data.length > 0
 }
 
 async function getPeriodPaidRecord(userId, dateStr, orgId) {
@@ -353,6 +294,8 @@ async function submitWorkLogWithQuotaGuard(payload) {
         }
       }
 
+      // 这次 Orders update 的目的是制造写-写冲突、让并发的同订单报工事务串行化重试，
+      // 从而保证配额校验正确——report_lock_version 本身从不被读取，但这条 update 不能删。
       await transaction.collection('Orders').doc(order_id).update({
         data: {
           report_lock_version: _.inc(1),
@@ -589,7 +532,24 @@ async function getManageLogs(event, wxContext) {
       'desc'
     )
 
-    return { code: 0, data: allLogs }
+    // 老板视角实时工价（CLAUDE.md §2.9）：批量 join Processes.current_price，结算仍按 snapshot_price
+    const processIds = Array.from(new Set(allLogs.map(l => l.process_id).filter(Boolean)))
+    const priceMap = {}
+    for (let i = 0; i < processIds.length; i += 50) {
+      const chunk = processIds.slice(i, i + 50)
+      const procs = await fetchAllDocs('Processes', { org_id: getOrgId(caller), _id: _.in(chunk) }, { field: { _id: true, current_price: true } })
+      procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
+    }
+    const logsWithPrice = allLogs.map(l => {
+      const currentPrice = l.process_id != null ? priceMap[String(l.process_id)] : null
+      return {
+        ...l,
+        current_price: currentPrice,
+        price_changed: currentPrice != null && Number(currentPrice) !== Number(l.snapshot_price)
+      }
+    })
+
+    return { code: 0, data: logsWithPrice }
   } catch (err) {
     return { code: -1, msg: '获取报工记录失败: ' + err.message }
   }
@@ -1055,6 +1015,24 @@ async function deleteWorkLog(event, wxContext) {
     if (!log) return { code: -1, msg: '报工记录不存在' }
     if (!ensureSameOrg(log, caller)) return { code: -1, msg: '无权删除其他工厂报工记录' }
 
+    // 完成订单锁（CLAUDE.md §2.4）：completed 订单的报工不可删除
+    if (log.order_id) {
+      try {
+        const orderRes = await db.collection('Orders').doc(log.order_id).get()
+        if (orderRes.data && orderRes.data.status === 'completed') {
+          return { code: -1, msg: '订单已完成，相关报工不可删除' }
+        }
+      } catch (e) {
+        // 订单已不存在时不阻塞删除（孤儿报工允许清理）
+      }
+    }
+
+    // 发薪锁（CLAUDE.md §2.3/§2.4）：已发薪（按月或按订单）报工不可删除
+    const paidRecord = await getWorklogPaidRecord(log, getOrgId(caller))
+    if (paidRecord) {
+      return { code: -1, msg: '该报工对应工资已发放，记录已锁定，无法删除。请先取消发薪标记。' }
+    }
+
     await db.collection('WorkLogs').doc(log_id).remove()
 
     await db.collection('audit_logs').add({
@@ -1162,10 +1140,22 @@ async function updateWorkLog(event, wxContext) {
       return { code: -1, msg: '无权修改报工记录' }
     }
 
-    // 发薪锁定检查
-    const locked = await isPeriodLocked(log.user_id, log.date, getOrgId(caller))
-    if (locked) {
-      return { code: -1, msg: '该月工资已发放，报工记录已锁定，无法修改' }
+    // 完成订单锁（CLAUDE.md §2.4）：completed 订单的报工不可修改（含仅改备注）
+    if (log.order_id) {
+      try {
+        const orderRes = await db.collection('Orders').doc(log.order_id).get()
+        if (orderRes.data && orderRes.data.status === 'completed') {
+          return { code: -1, msg: '订单已完成，相关报工不可修改' }
+        }
+      } catch (e) {
+        return { code: -1, msg: '订单状态校验失败，请稍后重试' }
+      }
+    }
+
+    // 发薪锁定检查（覆盖按月与按订单两种发薪模式，CLAUDE.md §2.3）
+    const paidRecord = await getWorklogPaidRecord(log, getOrgId(caller))
+    if (paidRecord) {
+      return { code: -1, msg: '该报工对应工资已发放，记录已锁定，无法修改' }
     }
 
     // 构建更新数据及审计记录

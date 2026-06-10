@@ -182,7 +182,7 @@ Page({
     const currentPaid = this.data.employees[idx].paid
 
     try {
-      await callCloud('salary', {
+      const res = await callCloud('salary', {
         action: 'markPaid',
         user_id: userId,
         user_name: userName,
@@ -205,10 +205,38 @@ Page({
         title: !currentPaid ? '已标记发放' : '已取消标记',
         icon: 'success'
       })
+
+      // 发薪即完成（CLAUDE.md §2.3）：订单全员发薪后提醒老板把订单标记为已完成
+      const flag = (res && res.data) || {}
+      if (flag.order_fully_paid && flag.order_id && flag.order_status !== 'completed') {
+        this.promptCompleteOrder(flag.order_id, flag.order_name)
+      }
     } catch (e) {
       console.error('标记发薪失败', e)
       showError(e.message || '操作失败')
     }
+  },
+
+  promptCompleteOrder(orderId, orderName) {
+    wx.showModal({
+      title: '订单已全员发薪',
+      content: `订单「${orderName || ''}」所有参与员工都已发薪，是否将订单标记为已完成？完成后该订单数据将被锁定，不可再修改。`,
+      confirmText: '标记完成',
+      cancelText: '暂不',
+      success: async (modalRes) => {
+        if (!modalRes.confirm) return
+        try {
+          await callCloud('order', {
+            action: 'updateStatus',
+            order_id: orderId,
+            status: 'completed'
+          })
+          wx.showToast({ title: '订单已完成', icon: 'success' })
+        } catch (err) {
+          showError(err.message || '订单状态更新失败')
+        }
+      }
+    })
   },
 
   goDetail(e) {

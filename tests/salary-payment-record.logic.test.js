@@ -60,3 +60,12 @@ test('buildSalaryPaymentCreateData stores order payroll context', () => {
   assert.equal(result.order_name, '8号1楼')
   assert.equal(result.payroll_type, 'order')
 })
+
+const { isOrderFullyPaid } = require('../cloudfunctions/salary/payment-record.logic')
+
+test('isOrderFullyPaid true only when every participant is paid', () => {
+  assert.equal(isOrderFullyPaid({ participantUserIds: ['u1', 'u2'], paidUserIds: ['u1', 'u2'] }), true)
+  assert.equal(isOrderFullyPaid({ participantUserIds: ['u1', 'u2'], paidUserIds: ['u1'] }), false)
+  assert.equal(isOrderFullyPaid({ participantUserIds: [], paidUserIds: [] }), false)
+  assert.equal(isOrderFullyPaid({ participantUserIds: ['u1'], paidUserIds: ['u1', 'u9'] }), true)
+})
