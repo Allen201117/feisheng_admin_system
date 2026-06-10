@@ -1,5 +1,6 @@
 // pages/boss/export/export.js — V2: 按月/按年/按订单 × 汇总/细节
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
+const { buildTableColumnMeta } = require('../../../utils/table-meta.logic')
 
 Page({
   data: {
@@ -29,6 +30,7 @@ Page({
     tableTitle: '',
     tableHeaders: [],
     tableRows: [],
+    tableColMeta: [],
     tableLoaded: false,
 
     // 导出历史
@@ -220,6 +222,7 @@ Page({
         tableTitle: data.title || '',
         tableHeaders: data.headers || [],
         tableRows: data.rows || [],
+        tableColMeta: buildTableColumnMeta(data.headers || [], data.rows || []),
         tableLoaded: true
       })
 

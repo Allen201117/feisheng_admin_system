@@ -81,6 +81,7 @@ test('getEmptyTableState clears table preview state', () => {
     tableTitle: '',
     tableHeaders: [],
     tableRows: [],
+    tableColMeta: [],
     tableLoaded: false
   })
 })

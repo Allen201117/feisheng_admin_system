@@ -70,14 +70,14 @@
       <scroll-view scroll-x="true" style="width:100%;" wx:if="{{tableRows.length > 0}}">
         <view style="display:inline-flex;flex-direction:column;min-width:100%;">
           <view style="display:flex;">
-            <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header" style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;background:var(--text-primary);color:#fff;font-weight:var(--fw-bold);">
-              <text style="width:100%;word-break:break-all;line-height:1.3;">{{header}}</text>
+            <view wx:for="{{tableHeaders}}" wx:key="index" wx:for-item="header" style="flex:0 0 {{tableColMeta[index].width || 200}}rpx;width:{{tableColMeta[index].width || 200}}rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;background:var(--text-primary);color:#fff;font-weight:var(--fw-bold);">
+              <text style="width:100%;word-break:break-all;line-height:1.3;text-align:{{tableColMeta[index].align || 'center'}};">{{header}}</text>
             </view>
           </view>
 
           <view wx:for="{{tableRows}}" wx:for-item="row" wx:for-index="rowIdx" style="display:flex;">
-            <view wx:for="{{row}}" wx:for-item="cell" wx:for-index="colIdx" style="flex:0 0 auto;min-width:180rpx;max-width:360rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;{{rowIdx % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
-              <text style="width:100%;word-break:break-all;line-height:1.3;">{{cell}}</text>
+            <view wx:for="{{row}}" wx:for-item="cell" wx:for-index="colIdx" style="flex:0 0 {{tableColMeta[colIdx].width || 200}}rpx;width:{{tableColMeta[colIdx].width || 200}}rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;{{rowIdx % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
+              <text class="{{tableColMeta[colIdx].isPrice ? 'price-strong' : ''}}" style="width:100%;word-break:break-all;line-height:1.3;text-align:{{tableColMeta[colIdx].align || 'center'}};">{{cell}}</text>
             </view>
           </view>
         </view>
@@ -109,53 +109,69 @@
       <view class="card-bento">
         <view class="stats-grid">
           <view class="stats-card blue">
-            <text class="stats-card-value text-accent">{{orderSummary.logCount || 0}}</text>
-            <text class="stats-card-label">报工条数</text>
+            <text class="stats-card-value text-accent">{{orderProgress.length}}</text>
+            <text class="stats-card-label">工序数</text>
           </view>
           <view class="stats-card green">
-            <text class="stats-card-value text-green">{{orderSummary.totalQty || 0}}</text>
-            <text class="stats-card-label">总数量</text>
+            <text class="stats-card-value text-green">{{orderTotalReported}}</text>
+            <text class="stats-card-label">总报工量</text>
           </view>
           <view class="stats-card amber">
-            <text class="stats-card-value text-red">¥{{orderSummary.totalCost || '0.00'}}</text>
-            <text class="stats-card-label">总成本</text>
+            <text class="stats-card-value text-accent">{{orderOverallProgress}}%</text>
+            <text class="stats-card-label">整体进度</text>
           </view>
         </view>
       </view>
 
-      <view wx:if="{{orderSummary.processes.length > 0}}" class="card-bento">
-        <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">工序进度</text>
-        <view wx:for="{{orderSummary.processes}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
+      <view wx:if="{{orderProgress.length > 0}}" class="card-bento">
+        <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">工序进度（实时工价）</text>
+        <view wx:for="{{orderProgress}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
           <view class="flex-col gap-1" style="width:180rpx;flex-shrink:0;">
             <text class="list-row-title text-xs">{{item.process_name}}</text>
-            <text class="list-row-subtitle">¥{{item.current_price}}/件</text>
+            <text wx:if="{{item.current_price === null || item.current_price === undefined}}" class="list-row-subtitle">工价未设置</text>
+            <text wx:else class="price-strong">¥{{item.current_price}}/件</text>
           </view>
           <view class="progress-bar" style="flex:1;">
-            <view class="progress-bar-fill" style="width: {{item.completion || 0}}%;"></view>
+            <view class="progress-bar-fill" style="width: {{item.progress_percent || 0}}%;"></view>
           </view>
-          <text class="text-accent font-semibold text-xs" style="width:80rpx;text-align:right;flex-shrink:0;">{{item.completion || 0}}%</text>
+          <text class="text-accent font-semibold text-xs" style="width:80rpx;text-align:right;flex-shrink:0;">{{item.progress_percent || 0}}%</text>
         </view>
       </view>
 
-      <view class="card-bento">
-        <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-2);">报工明细</text>
-        <view wx:if="{{orderWorklogs.length === 0 && !loading}}" class="empty" style="padding:var(--sp-3) 0;">
+      <view class="filter-chips" style="margin:var(--sp-2) 0;">
+        <view class="filter-chip {{orderReportType === 'detail' ? 'filter-chip-active' : ''}}" bindtap="switchOrderReportType" data-type="detail" hover-class="tap-chip-hover">报工核算表</view>
+        <view class="filter-chip {{orderReportType === 'summary' ? 'filter-chip-active' : ''}}" bindtap="switchOrderReportType" data-type="summary" hover-class="tap-chip-hover">工资核算表</view>
+      </view>
+
+      <view wx:if="{{orderTableLoaded}}" class="card-bento">
+        <view class="flex-row gap-1" style="margin-bottom:var(--sp-2);">
+          <text class="menu-group-title">{{orderTableTitle}}</text>
+          <text class="badge badge-blue">预览</text>
+        </view>
+
+        <scroll-view scroll-x="true" style="width:100%;" wx:if="{{orderTableRows.length > 0}}">
+          <view style="display:inline-flex;flex-direction:column;min-width:100%;">
+            <view style="display:flex;">
+              <view wx:for="{{orderTableHeaders}}" wx:key="index" wx:for-item="header" style="flex:0 0 {{orderTableColMeta[index].width || 200}}rpx;width:{{orderTableColMeta[index].width || 200}}rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;background:var(--text-primary);color:#fff;font-weight:var(--fw-bold);">
+                <text style="width:100%;word-break:break-all;line-height:1.3;text-align:{{orderTableColMeta[index].align || 'center'}};">{{header}}</text>
+              </view>
+            </view>
+
+            <view wx:for="{{orderTableRows}}" wx:for-item="row" wx:for-index="rowIdx" style="display:flex;">
+              <view wx:for="{{row}}" wx:for-item="cell" wx:for-index="colIdx" style="flex:0 0 {{orderTableColMeta[colIdx].width || 200}}rpx;width:{{orderTableColMeta[colIdx].width || 200}}rpx;padding:18rpx 16rpx;border:1rpx solid var(--border);font-size:var(--fs-xs);display:flex;align-items:center;box-sizing:border-box;{{rowIdx % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
+                <text class="{{orderTableColMeta[colIdx].isPrice ? 'price-strong' : ''}}" style="width:100%;word-break:break-all;line-height:1.3;text-align:{{orderTableColMeta[colIdx].align || 'center'}};">{{cell}}</text>
+              </view>
+            </view>
+          </view>
+        </scroll-view>
+
+        <view wx:if="{{orderTableRows.length === 0}}" class="empty" style="padding:var(--sp-3) 0;">
           <view class="empty-icon">
             <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
           </view>
           <text class="empty-title">此订单暂无报工</text>
           <text class="empty-desc">返回订单列表查看其他订单。</text>
           <view class="empty-action secondary" bindtap="onBackToOrders" hover-class="tap-button-hover">返回订单列表</view>
-        </view>
-        <view wx:for="{{orderWorklogs}}" wx:for-item="item" wx:key="_id" class="list-row">
-          <view class="flex-1">
-            <text class="list-row-title">{{item.user_name || '未知'}}</text>
-            <text class="list-row-subtitle">{{item.process_name}} · {{item.date}}</text>
-          </view>
-          <view style="text-align:right;">
-            <text class="list-row-subtitle">×{{item.quantity}}</text>
-            <text class="font-bold text-amber text-sm" style="display:block;">¥{{item.amount}}</text>
-          </view>
         </view>
       </view>
     </block>
@@ -180,8 +196,8 @@
           <text class="badge {{item.status === 'completed' ? 'badge-green' : item.status === 'cancelled' ? 'badge-red' : 'badge-blue'}}">{{item.statusText}}</text>
         </view>
         <view class="flex-between" style="margin-top:var(--sp-1);">
-          <text class="list-row-subtitle">金额: ¥{{item.displayAmount}}</text>
-          <text class="text-accent text-xs">查看详情 ▼</text>
+          <text class="list-row-subtitle">总量 {{item.totalQuantity}} 件 · {{item.processCount}} 道工序</text>
+          <text class="text-accent text-xs">查看核算表 ▼</text>
         </view>
       </view>
     </block>
