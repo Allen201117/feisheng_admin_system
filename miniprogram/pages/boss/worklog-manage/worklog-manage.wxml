@@ -152,6 +152,7 @@
             <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
           </view>
           <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+          <text class="list-row-subtitle">结算价 <text class="price-strong">¥{{item.snapshot_price}}</text><text wx:if="{{item.price_changed}}"> · 当前价 <text class="price-strong">¥{{item.current_price}}</text></text></text>
           <text class="list-row-subtitle">备注：{{item.note || '无'}}</text>
         </view>
         <view class="worklog-log-actions">
@@ -256,6 +257,7 @@
           </view>
           <text class="list-row-subtitle">{{item.order_name || '未知订单'}} · {{item.process_name || '未知工序'}}</text>
           <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
+          <text class="list-row-subtitle">结算价 <text class="price-strong">¥{{item.snapshot_price}}</text><text wx:if="{{item.price_changed}}"> · 当前价 <text class="price-strong">¥{{item.current_price}}</text></text></text>
         </view>
         <view class="worklog-log-actions">
           <view class="worklog-log-action primary" bindtap="onEditWorkLog" data-log="{{item}}" hover-class="tap-button-hover">编辑</view>

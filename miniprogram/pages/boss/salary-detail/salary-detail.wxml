@@ -103,6 +103,7 @@
       <view class="flex-1">
         <text class="list-row-title">{{item.process_name}}</text>
         <text class="list-row-subtitle">{{item.order_name}} | {{item.date}}</text>
+        <text class="list-row-subtitle">结算价 <text class="price-strong">¥{{item.snapshot_price}}</text><text wx:if="{{item.price_changed}}"> · 当前价 <text class="price-strong">¥{{item.current_price}}</text></text></text>
       </view>
       <view style="text-align:right;">
         <text class="list-row-subtitle">{{item.quantity}}件</text>
