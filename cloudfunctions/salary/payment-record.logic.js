@@ -26,7 +26,17 @@ function buildSalaryPaymentCreateData({ orgId, userId, userName, month, orderId,
   return data
 }
 
+// 订单是否已全员发薪（CLAUDE.md §2.3 发薪即完成）：
+// participantUserIds = 该订单所有报工过的员工；paidUserIds = 该订单已标记发薪的员工。
+function isOrderFullyPaid({ participantUserIds, paidUserIds }) {
+  const participants = (participantUserIds || []).filter(Boolean)
+  if (participants.length === 0) return false
+  const paidSet = new Set((paidUserIds || []).map(String))
+  return participants.every(id => paidSet.has(String(id)))
+}
+
 module.exports = {
   buildSalaryPaymentDocId,
-  buildSalaryPaymentCreateData
+  buildSalaryPaymentCreateData,
+  isOrderFullyPaid
 }

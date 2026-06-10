@@ -5,6 +5,12 @@ const db = cloud.database()
 const _ = db.command
 const { buildPaidMonthSet, selectRepriceableWorklogs } = require('./reprice-worklogs')
 const {
+  buildPaidSets,
+  findPaidWorklogs,
+  isOrderCompleted,
+  buildPaidConflictPreview
+} = require('./pay-lock.logic')
+const {
   collectAssignedUserIds,
   buildUserNameMap,
   attachAssignedNamesToProcesses,
@@ -19,41 +25,15 @@ const {
 } = require('./update-order.logic')
 const {
   collectClearableWorklogIds,
-  findPaidWorklogConflicts,
   buildClearOrderWorklogsDetails
 } = require('./clear-worklogs.logic')
 
-async function getCallerUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID,
-    status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
-}
 
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-
-  if (authUserId && authSessionToken) {
-    try {
-      const res = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (res.data.length > 0) {
-        const user = res.data[0]
-        if (user.org_id) {
-          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-          if (!orgRes.data || orgRes.data.status !== 'active') return null
-        }
-        return user
-      }
-    } catch (err) {}
-  }
-
-  return await getCallerUser(wxContext)
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
@@ -62,6 +42,38 @@ function getOrgId(user) {
 
 function ensureSameOrg(doc, caller) {
   return !!(doc && caller && getOrgId(caller) && doc.org_id === getOrgId(caller))
+}
+
+// 完成订单写锁（CLAUDE.md §2.4）：completed 订单禁止删改任何相关数据。
+async function ensureOrderNotCompleted(orderId, caller) {
+  if (!orderId) return { ok: true }
+  try {
+    const orderRes = await db.collection('Orders').doc(orderId).get()
+    if (orderRes.data && isOrderCompleted(orderRes.data)) {
+      return { ok: false, msg: '订单已完成，不可修改相关数据' }
+    }
+  } catch (err) {
+    return { ok: false, msg: '订单状态校验失败，请稍后重试' }
+  }
+  return { ok: true }
+}
+
+// 工序是否存在已发薪报工（按月或按订单），用于改价拦截（CLAUDE.md §2.2）。
+async function findProcessPaidWorklogConflicts(processId, orgId) {
+  const worklogs = await fetchAllDocs('WorkLogs', {
+    org_id: orgId,
+    process_id: processId
+  }, { field: { _id: true, user_id: true, user_name: true, date: true, order_id: true } })
+  if (worklogs.length === 0) return []
+  const userIds = Array.from(new Set(worklogs.map(l => l.user_id).filter(Boolean)))
+  const payments = userIds.length > 0
+    ? await fetchAllDocs('SalaryPayments', {
+      org_id: orgId,
+      user_id: _.in(userIds),
+      paid: true
+    }, { field: { user_id: true, month: true, order_id: true, paid: true } })
+    : []
+  return findPaidWorklogs(worklogs, buildPaidSets(payments))
 }
 
 async function ensureWritableEntitlement(caller) {
@@ -172,17 +184,18 @@ async function listOrders(caller) {
       'desc'
     )
 
-    // 获取每个订单的工序数量
-    const orders = []
-    for (const order of allOrderData) {
-      const processCount = await db.collection('Processes')
-        .where({ org_id: getOrgId(caller), order_id: order._id })
-        .count()
-      orders.push({
-        ...order,
-        process_count: processCount.total
-      })
-    }
+    // 一次性拉全部工序的 order_id 后内存计数，替代逐订单 count 的 N+1 查库
+    const allProcesses = await fetchAllDocs('Processes', { org_id: getOrgId(caller) }, { field: { _id: true, order_id: true } })
+    const processCountMap = {}
+    allProcesses.forEach((p) => {
+      const oid = String(p.order_id || '')
+      processCountMap[oid] = (processCountMap[oid] || 0) + 1
+    })
+
+    const orders = allOrderData.map(order => ({
+      ...order,
+      process_count: processCountMap[String(order._id)] || 0
+    }))
 
     return { code: 0, data: orders }
   } catch (err) {
@@ -383,7 +396,12 @@ async function updateOrderStatus(event, caller) {
 
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
-    if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权修改该订单' }
+    const order = orderRes.data
+    if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权修改该订单' }
+    // 完成订单为终态：已完成订单不可再变更状态（CLAUDE.md §2.4）
+    if (isOrderCompleted(order) && status !== 'completed') {
+      return { code: -1, msg: '订单已完成，状态不可再变更' }
+    }
     await db.collection('Orders').doc(order_id).update({
       data: { status, updated_at: db.serverDate() }
     })
@@ -509,12 +527,37 @@ async function deleteOrder(event, caller) {
       return { code: -1, msg: '订单不存在' }
     }
     if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权删除该订单' }
+    if (isOrderCompleted(order)) return { code: -1, msg: '订单已完成，不可删除' }
 
     const [processes, worklogs, adjustments] = await Promise.all([
       fetchAllDocs('Processes', { org_id: getOrgId(caller), order_id }, { field: { _id: true, process_name: true } }),
-      fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id }, { field: { _id: true } }),
+      fetchAllDocs('WorkLogs', { org_id: getOrgId(caller), order_id }, { field: { _id: true, user_id: true, user_name: true, date: true, order_id: true } }),
       fetchAllDocs('SalaryAdjustments', { org_id: getOrgId(caller), order_id }, { field: { _id: true } })
     ])
+
+    // 订单级发薪记录保护：该订单存在已发薪记录（按订单模式）即拒绝删除
+    const orderPaidRows = await fetchAllDocs('SalaryPayments', {
+      org_id: getOrgId(caller),
+      order_id,
+      paid: true
+    }, { field: { _id: true, user_name: true } })
+    if (orderPaidRows.length > 0) {
+      return { code: -1, msg: '该订单已有员工发薪记录，不能删除。请先取消对应发薪标记。', data: { lockedCount: orderPaidRows.length } }
+    }
+
+    // 已发薪报工保护：命中按月/按订单已发薪则拒绝删除（CLAUDE.md §2.4，与 clearOrderWorklogs 对齐）
+    const paidUserIds = Array.from(new Set(worklogs.map(l => l.user_id).filter(Boolean)))
+    const paidPayments = paidUserIds.length > 0
+      ? await fetchAllDocs('SalaryPayments', { org_id: getOrgId(caller), user_id: _.in(paidUserIds), paid: true }, { field: { user_id: true, month: true, order_id: true, paid: true } })
+      : []
+    const paidConflicts = findPaidWorklogs(worklogs, buildPaidSets(paidPayments))
+    if (paidConflicts.length > 0) {
+      return {
+        code: -1,
+        msg: `存在已发薪报工，不能删除订单：${buildPaidConflictPreview(paidConflicts)}。请先取消对应发薪标记。`,
+        data: { lockedCount: paidConflicts.length }
+      }
+    }
 
     const processIds = processes.map(item => item._id)
     const worklogIds = worklogs.map(item => item._id)
@@ -561,6 +604,7 @@ async function addProcess(event, caller) {
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权向该订单添加工序' }
+    if (isOrderCompleted(orderRes.data)) return { code: -1, msg: '订单已完成，不可新增工序' }
     await db.collection('Processes').add({
       data: {
         org_id: getOrgId(caller),
@@ -592,6 +636,19 @@ async function updateProcessPrice(event, caller) {
     const processData = processRes.data || {}
     if (!ensureSameOrg(processData, caller)) return { code: -1, msg: '无权修改该工序' }
 
+    const writable = await ensureOrderNotCompleted(processData.order_id, caller)
+    if (!writable.ok) return { code: -1, msg: writable.msg }
+
+    // 已发薪工序/订单禁止改价（CLAUDE.md §2.2）；未发薪则允许并同步重写未发薪报工
+    const priceConflicts = await findProcessPaidWorklogConflicts(process_id, getOrgId(caller))
+    if (priceConflicts.length > 0) {
+      return {
+        code: -1,
+        msg: `该工序已发薪，单价不可修改：${buildPaidConflictPreview(priceConflicts)}。已发薪报工不受改价影响。`,
+        data: { lockedCount: priceConflicts.length }
+      }
+    }
+
     const parsedPrice = parseFloat(new_price)
 
     await db.collection('Processes').doc(process_id).update({
@@ -620,7 +677,7 @@ async function updateProcessPrice(event, caller) {
       }
     })
 
-    return { code: 0, msg: '单价更新成功（不影响历史报工）' }
+    return { code: 0, msg: '单价更新成功（未发薪报工已同步为新单价）' }
   } catch (err) {
     return { code: -1, msg: '更新失败' }
   }
@@ -636,6 +693,22 @@ async function updateProcess(event, caller) {
     const oldRes = await db.collection('Processes').doc(process_id).get()
     const oldProcess = oldRes.data
     if (!ensureSameOrg(oldProcess, caller)) return { code: -1, msg: '无权修改该工序' }
+
+    const writable = await ensureOrderNotCompleted(oldProcess.order_id, caller)
+    if (!writable.ok) return { code: -1, msg: writable.msg }
+
+    // 改价拦截：已发薪工序禁止改价（CLAUDE.md §2.2），仅在单价变更时检查
+    const priceChanging = current_price !== undefined && parseFloat(current_price) !== oldProcess.current_price
+    if (priceChanging) {
+      const priceConflicts = await findProcessPaidWorklogConflicts(process_id, getOrgId(caller))
+      if (priceConflicts.length > 0) {
+        return {
+          code: -1,
+          msg: `该工序已发薪，单价不可修改：${buildPaidConflictPreview(priceConflicts)}。已发薪报工不受改价影响。`,
+          data: { lockedCount: priceConflicts.length }
+        }
+      }
+    }
 
     const updateData = { updated_at: db.serverDate() }
     const changes = []
@@ -691,7 +764,7 @@ async function updateProcess(event, caller) {
       }
     })
 
-    return { code: 0, msg: hasPrice ? '工序已更新（单价变更不影响历史报工）' : '工序已更新' }
+    return { code: 0, msg: hasPrice ? '工序已更新（未发薪报工已同步为新单价）' : '工序已更新' }
   } catch (err) {
     return { code: -1, msg: '更新失败' }
   }
@@ -702,6 +775,8 @@ async function deleteProcess(event, caller) {
   try {
     const processRes = await db.collection('Processes').doc(process_id).get()
     if (!ensureSameOrg(processRes.data, caller)) return { code: -1, msg: '无权删除该工序' }
+    const delWritable = await ensureOrderNotCompleted(processRes.data.order_id, caller)
+    if (!delWritable.ok) return { code: -1, msg: delWritable.msg }
     // 检查是否有关联的报工记录
     const logCount = await db.collection('WorkLogs')
       .where({ org_id: getOrgId(caller), process_id })
@@ -723,6 +798,8 @@ async function assignProcess(event, caller) {
     // 获取旧分配
     const oldProcess = await db.collection('Processes').doc(process_id).get()
     if (!ensureSameOrg(oldProcess.data, caller)) return { code: -1, msg: '无权分配该工序' }
+    const assignWritable = await ensureOrderNotCompleted(oldProcess.data ? oldProcess.data.order_id : '', caller)
+    if (!assignWritable.ok) return { code: -1, msg: assignWritable.msg }
     const oldIds = oldProcess.data ? (oldProcess.data.assigned_user_ids || []) : []
     const nextUserIds = Array.isArray(user_ids) ? user_ids : []
     if (nextUserIds.length > 0) {
@@ -784,12 +861,22 @@ async function batchAssignProcesses(event, caller) {
       const part = await fetchAllDocs('Processes', {
         org_id: orgId,
         _id: _.in(chunk)
-      }, { field: { _id: true, org_id: true } })
+      }, { field: { _id: true, org_id: true, order_id: true } })
       processes = processes.concat(part)
     }
     const foundProcessIds = new Set(processes.map(proc => String(proc._id)))
     if (processIds.some(id => !foundProcessIds.has(id))) {
       return { code: -1, msg: '存在不存在或不属于当前工厂的工序' }
+    }
+
+    // 完成订单写锁（CLAUDE.md §2.4）：涉及的订单不可处于 completed
+    const relatedOrderIds = Array.from(new Set(processes.map(p => p.order_id).filter(Boolean)))
+    for (const chunk of chunkArray(relatedOrderIds, 50)) {
+      const orders = await fetchAllDocs('Orders', { org_id: orgId, _id: _.in(chunk) }, { field: { _id: true, status: true, order_name: true } })
+      const completed = orders.find(o => isOrderCompleted(o))
+      if (completed) {
+        return { code: -1, msg: `订单"${completed.order_name || completed._id}"已完成，不可修改工序分配` }
+      }
     }
 
     const userIdSet = new Set()
@@ -859,60 +946,59 @@ async function getAssignedProcesses(event, caller) {
       allAssignedProcesses = allAssignedProcesses.concat(res.data || [])
     } while (assignBatchLen === 100)
 
-    // 关联订单名
-    const processes = []
-    for (const p of allAssignedProcesses) {
-      let orderName = ''
-      try {
-        const orderRes = await db.collection('Orders').doc(p.order_id).get()
-        if (ensureSameOrg(orderRes.data, caller) && orderRes.data.status === 'active') {
-          orderName = orderRes.data.order_name
-
-          // 统计该订单该工序累计报工数量（所有员工）
-          let allLogs = []
-          let batchLen = 0
-          do {
-            const logRes = await db.collection('WorkLogs').where({
-              org_id: getOrgId(caller),
-              order_id: p.order_id,
-              process_id: p._id
-            }).skip(allLogs.length).limit(100).get()
-            batchLen = logRes.data.length
-            allLogs = allLogs.concat(logRes.data)
-          } while (batchLen === 100)
-
-          let currentTotal = 0
-          let userCurrentTotal = 0
-          allLogs.forEach((log) => {
-            const quantity = parseInt(log.quantity || 0, 10) || 0
-            currentTotal += quantity
-            if (String(log.user_id) === String(user_id)) userCurrentTotal += quantity
-          })
-
-          const orderTotal = parseInt(orderRes.data.total_quantity || orderRes.data.order_total_quantity || 0, 10) || 0
-
-          const isPriceHidden = orderRes.data.price_hidden === true
-          const assignedUserCount = Array.isArray(p.assigned_user_ids) ? p.assigned_user_ids.length : 0
-
-          processes.push({
-            _id: p._id,
-            order_id: p.order_id,
-            order_name: orderName,
-            process_name: p.process_name,
-            current_price: isPriceHidden ? 0 : (p.current_price == null ? 0 : p.current_price),
-            price_hidden: isPriceHidden,
-            order_total_quantity: orderTotal,
-            current_total: currentTotal,
-            remaining_quantity: Math.max(orderTotal - currentTotal, 0),
-            user_current_total: userCurrentTotal,
-            user_remaining_quantity: Math.max(orderTotal - userCurrentTotal, 0),
-            assigned_user_count: assignedUserCount
-          })
-        }
-      } catch (e) {
-        // 订单不存在则跳过
-      }
+    // 批量取相关订单与报工后内存聚合，替代逐工序「查订单 + 分页查报工」的 N+1 查库
+    const orderIds = Array.from(new Set(allAssignedProcesses.map(p => p.order_id).filter(Boolean)))
+    const orderMap = {}
+    for (const chunk of chunkArray(orderIds, 50)) {
+      const orders = await fetchAllDocs('Orders', { org_id: getOrgId(caller), _id: _.in(chunk) })
+      orders.forEach(o => { orderMap[String(o._id)] = o })
     }
+
+    // 只取活跃订单下这些工序的报工（仅需 quantity/user_id/process_id 三个字段）
+    const activeOrderIds = orderIds.filter(id => {
+      const o = orderMap[String(id)]
+      return o && o.status === 'active'
+    })
+    const totalsByProcess = {} // pid -> { total, userTotal }
+    for (const chunk of chunkArray(activeOrderIds, 50)) {
+      const logs = await fetchAllDocs('WorkLogs', {
+        org_id: getOrgId(caller),
+        order_id: _.in(chunk)
+      }, { field: { process_id: true, user_id: true, quantity: true } })
+      logs.forEach((log) => {
+        const pid = String(log.process_id || '')
+        if (!totalsByProcess[pid]) totalsByProcess[pid] = { total: 0, userTotal: 0 }
+        const quantity = parseInt(log.quantity || 0, 10) || 0
+        totalsByProcess[pid].total += quantity
+        if (String(log.user_id) === String(user_id)) totalsByProcess[pid].userTotal += quantity
+      })
+    }
+
+    const processes = []
+    allAssignedProcesses.forEach((p) => {
+      const order = orderMap[String(p.order_id)]
+      if (!order || order.status !== 'active') return
+
+      const totals = totalsByProcess[String(p._id)] || { total: 0, userTotal: 0 }
+      const orderTotal = parseInt(order.total_quantity || order.order_total_quantity || 0, 10) || 0
+      const isPriceHidden = order.price_hidden === true
+      const assignedUserCount = Array.isArray(p.assigned_user_ids) ? p.assigned_user_ids.length : 0
+
+      processes.push({
+        _id: p._id,
+        order_id: p.order_id,
+        order_name: order.order_name,
+        process_name: p.process_name,
+        current_price: isPriceHidden ? 0 : (p.current_price == null ? 0 : p.current_price),
+        price_hidden: isPriceHidden,
+        order_total_quantity: orderTotal,
+        current_total: totals.total,
+        remaining_quantity: Math.max(orderTotal - totals.total, 0),
+        user_current_total: totals.userTotal,
+        user_remaining_quantity: Math.max(orderTotal - totals.userTotal, 0),
+        assigned_user_count: assignedUserCount
+      })
+    })
 
     return { code: 0, data: processes }
   } catch (err) {
@@ -929,6 +1015,7 @@ async function togglePriceHidden(event, caller) {
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单' }
+    if (isOrderCompleted(orderRes.data)) return { code: -1, msg: '订单已完成，不可修改工价隐藏设置' }
     await db.collection('Orders').doc(order_id).update({
       data: {
         price_hidden: price_hidden,
@@ -964,6 +1051,7 @@ async function clearOrderPrices(event, caller) {
   try {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单' }
+    if (isOrderCompleted(orderRes.data)) return { code: -1, msg: '订单已完成，不可清空工价' }
     let allProcesses = []
     let clearBatchLen = 0
     do {
@@ -1031,12 +1119,13 @@ async function clearOrderWorklogs(event, caller) {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     const order = orderRes.data
     if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权操作该订单' }
+    if (isOrderCompleted(order)) return { code: -1, msg: '订单已完成，不可清空报工' }
 
     const worklogs = await fetchAllDocs('WorkLogs', {
       org_id: getOrgId(caller),
       order_id
     }, {
-      field: { _id: true, user_id: true, user_name: true, date: true }
+      field: { _id: true, user_id: true, user_name: true, date: true, order_id: true }
     })
 
     const worklogIds = collectClearableWorklogIds(worklogs)
@@ -1051,20 +1140,16 @@ async function clearOrderWorklogs(event, caller) {
         user_id: _.in(userIds),
         paid: true
       }, {
-        field: { user_id: true, month: true, paid: true }
+        field: { user_id: true, month: true, order_id: true, paid: true }
       })
       : []
 
-    const paidMonthSet = buildPaidMonthSet(payments)
-    const conflicts = findPaidWorklogConflicts({ worklogs, paidMonthSet })
+    // 同时覆盖按月与按订单发薪锁（CLAUDE.md §2.3/§2.4）
+    const conflicts = findPaidWorklogs(worklogs, buildPaidSets(payments))
     if (conflicts.length > 0) {
-      const preview = conflicts.slice(0, 3)
-        .map(item => `${item.user_name || item.user_id} ${item.month}`)
-        .join('、')
-      const suffix = conflicts.length > 3 ? `等 ${conflicts.length} 个已发薪员工月份` : ''
       return {
         code: -1,
-        msg: `存在已发薪月份报工，不能清空：${preview}${suffix}。请先取消对应月份发薪标记。`,
+        msg: `存在已发薪报工，不能清空：${buildPaidConflictPreview(conflicts)}。请先取消对应发薪标记。`,
         data: { lockedCount: conflicts.length }
       }
     }

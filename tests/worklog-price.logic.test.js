@@ -136,9 +136,11 @@ test('employee worklog history follows payroll mode from settings', () => {
   assert.match(cloud, /getUserPayrollLogs/)
 })
 
-test('worklog auth_user_id does not fall back to another account on the same openid', () => {
+test('worklog auth uses the strict shared guard with no openid fallback', () => {
   const source = read('cloudfunctions/worklog/index.js')
 
+  // 统一鉴权后不允许任何 openid 回退路径（auth-guard 强制 token 严格匹配）
   assert.doesNotMatch(source, /return\s+matched\s*\|\|\s*fallbackUser/)
-  assert.match(source, /auth_user_id[\s\S]*不匹配/)
+  assert.doesNotMatch(source, /openid:\s*wxContext\.OPENID/)
+  assert.match(source, /require\('\.\/auth-guard'\)/)
 })
