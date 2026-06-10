@@ -1120,6 +1120,13 @@ button[disabled] { opacity: 0.48; }
 .text-amber    { color: var(--amber-600); }
 .text-red      { color: var(--red-600); }
 
+/* 工价强调（老板侧统一样式，2026-06-11 老板指定）：绿色、比正文大一号、加粗醒目 */
+.price-strong {
+  color: var(--green-600);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
 .text-xs  { font-size: var(--fs-xs); }
 .text-sm  { font-size: var(--fs-sm); }
 .text-base { font-size: var(--fs-base); }

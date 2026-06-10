@@ -125,9 +125,9 @@
   flex-shrink: 0;
   padding: 8rpx 14rpx;
   border-radius: 999rpx;
-  background: #F5F8FF;
-  color: #007AFF;
-  font-size: 24rpx;
+  background: var(--green-50);
+  color: var(--green-600);
+  font-size: 28rpx;
   font-weight: 700;
 }
 

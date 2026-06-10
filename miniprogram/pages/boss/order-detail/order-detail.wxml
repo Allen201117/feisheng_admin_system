@@ -287,7 +287,7 @@
             <text class="field-label">单价（元/件）</text>
             <input class="field-input" type="digit" value="{{editProcessPrice}}" bindinput="onEditProcessPriceInput" />
           </view>
-          <view class="notice notice-amber" style="margin-top:var(--sp-1);">修改单价不影响历史报工记录</view>
+          <view class="notice notice-amber" style="margin-top:var(--sp-1);">已发薪的工序不可改价；改价后未发薪报工将同步按新单价重算</view>
           <button class="btn-primary btn-block" bindtap="onSaveEditProcess" style="margin-top:var(--sp-1);">保存修改</button>
         </scroll-view>
       </view>
@@ -384,7 +384,7 @@
         <view wx:for="{{processSummaryRows}}" wx:for-item="item" wx:key="idx" style="display:flex;{{index % 2 === 1 ? 'background:var(--bg-elevated);' : ''}}">
           <view class="ps-cell ps-cell-idx">{{item.idx}}</view>
           <view class="ps-cell ps-cell-name">{{item.name}}</view>
-          <view class="ps-cell ps-cell-price">{{item.price}}</view>
+          <view class="ps-cell ps-cell-price price-strong">{{item.price}}</view>
           <view class="ps-cell ps-cell-note">{{item.note}}</view>
         </view>
         <view wx:if="{{processSummaryRows.length === 0}}" class="empty" style="padding:60rpx 0;">
