@@ -8,6 +8,77 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-06-11
+
+### 老板侧工价绿色强调 + 报表表格行列对齐
+
+- 背景：老板要求①全平台工价显示用绿色文字、字号加大醒目；②数据中心和导出报表所有表格单元格行列对齐、宽度合适（旧实现一处用内容自适应宽导致列错位、一处固定 150rpx 过窄）。
+- 改动：`app.wxss` 新增语义类 `.price-strong`（`--green-600`、`--fs-sm` 28rpx、加粗，视觉 Token 体系内）；order-detail `process-price-pill` 与 worklog-manage `worklog-price-pill` 改绿底绿字 28rpx；worklog-manage/salary-detail 的「结算价/当前价」、data-center 工序进度工价、order-detail 工序汇总预览工价列全部套用 `.price-strong`。新增纯函数 `miniprogram/utils/table-meta.logic.js`：`buildTableColumnMeta(headers, rows)` 按每列最长内容（CJK=2 单位）统一计算列宽（150-460rpx 夹紧）、数字列右对齐/文本居中/首列左对齐、表头含「工价/单价」的列标记 isPrice；export 预览表、data-center 月年表与订单核算表三处表格全部接入（同列等宽=行列严格对齐，工价列绿色强调）。顺带修正 order-detail 编辑工序弹窗里过时的「修改单价不影响历史报工记录」提示为新口径。
+- 数据影响：无；纯前端展示。
+- 部署影响：仅前端包，重新预览/上传生效。
+- 验证：新增 `tests/table-meta.logic.test.js`（6 用例）；`npm run test:unit` 203 项全绿（含 ui-apple-style 视觉回归）。
+
+### 第1轮：P0 修复 + 改价拦截/发薪即完成/完成订单锁定（高风险区）
+
+- 背景：code review 确认两个 P0（deleteOrder 无发薪/完成保护、改价静默重写未发薪历史报工且文案矛盾）；老板确认的 §2.2/2.3/2.4 口径待落地。
+- 改动：新增 `order/pay-lock.logic.js` 纯函数（按月+按订单双模发薪集合、报工发薪命中、completed 判定、冲突预览文案）。`deleteOrder` 增加 completed 拒绝 + 订单级发薪记录拒绝 + 报工发薪冲突拒绝；`updateProcessPrice`/`updateProcess` 改价前命中任一已发薪报工整体拒绝（提示「该工序已发薪，单价不可修改」），未发薪同步重写并修正成功文案；`updateOrderStatus` 把 completed 设为终态；addProcess/deleteProcess/assignProcess/batchAssignProcesses/togglePriceHidden/clearOrderPrices/clearOrderWorklogs 统一拒绝 completed；`clearOrderWorklogs` 发薪检查升级为按月+按订单。`worklog.deleteWorkLog` 补 completed 锁+发薪锁；`updateWorkLog` 改用 `getWorklogPaidRecord`（覆盖订单发薪）+补 completed 锁；删除死代码 `isPeriodLocked`。`salary.markPaid` 返回 `order_fully_paid/order_status`（新纯函数 `isOrderFullyPaid`），老板工资页全员发薪后弹窗一键把订单置为已完成。
+- 数据影响：无新字段；行为变化=以上拦截全部生效。
+- 部署影响：需部署 `order`、`worklog`、`salary` 云函数 + 前端包。
+- 验证：新增 `tests/order-pay-lock.logic.test.js`（7 用例）、`isOrderFullyPaid` 用例；`npm run test:unit` 全绿。
+
+### 第2轮：导出报表重构 + 数据中心修复 + 实时工价（§2.9）
+
+- 背景：数据中心「按订单」读取 `order.getDetail` 不存在的 `worklogs/total_amount/completion` 字段，永远显示 0/空；导出口径分散且每员工 2 次查库；老板要求所有报工/工资明细显示实时工价。
+- 改动：`export` 月/年汇总改名「工资核算表」并加合计行、奖惩/考勤批量取数（消 N+1）；月/年明细加「结算单价/当前工价」两列（批量 join Processes）；订单汇总升级为「工资核算表」（数量/计件/奖励/处罚/应发+合计行，含仅奖惩员工）；订单明细标题改「报工核算表」；删除无前端调用的 legacy `getTableData`/`exportToFile`。数据中心「按订单」重写：订单卡片显示总量/工序数（替代恒为 0 的假金额），点入后用 `worklog.getOrderProgress` 渲染真实工序进度+实时工价+整体进度统计卡，「报工核算表/工资核算表」两个预览 chips 复用 `export.getTableDataV2`（与导出同一口径）。`worklog.getManageLogs`、`salary.getUserMonthlySalaryByBoss` 返回 `current_price/price_changed`；worklog-manage、salary-detail 明细行显示「结算价 · 当前价(不一致时)」。
+- 部署影响：需部署 `export`、`worklog`、`salary` 云函数 + 前端包。
+- 验证：`npm run test:unit` 全绿；数据中心/导出需真机回归（按订单两表、月/年表、Excel 导出）。
+
+### 第3轮：鉴权统一（auth-guard）+ 登录限流加固
+
+- 背景：鉴权逻辑 9 处手写副本分裂成三档强度，order/worklog/salary/export/qrcode/attendance 存在「缺凭证回退 openid」绕过踢下线，org 校验空 catch fail-open，platform 不校验调用者工厂状态；登录限流按姓名结尾正则（跨工厂误伤+可绕过）且 fail-open。
+- 改动：新增唯一真源 `cloudfunctions/common/auth-guard.js`（强制 auth_user_id+auth_session_token、无 openid 回退、Organizations.status fail-closed），10 个云函数目录持相同副本并统一接入（部署约束同 beijing-time 模式）；删除 user/settings 两份 `auth.logic.js`；platform 接入同口径并禁止停用 org_platform/org_home。登录失败日志新增结构化 `rate_key=(工厂码/姓名/手机号)`，限流改等值计数 + 计数失败 fail-closed。
+- 数据影响：audit_logs 新增 `rate_key` 字段（仅新日志）；**旧版本前端（本地无 session_token 的遗留登录态）将被要求重新登录**——这是有意的安全收口。
+- 部署影响：需部署全部 10 个云函数 + login；新增 `tests/auth-guard-copies.test.js` 防副本漂移。
+- 验证：`npm run test:unit` 全绿（197 项）。
+
+### 第4轮：静默失败修复 + 时间口径收口
+
+- 背景：callCloud 把完整云返回（含 session_token/openid/手机号）打进 console；app.js 启动恢复登录态时网络错误被空 catch 吞掉并强制登出（弱网冷启动被踢）；order-detail 工价变更时间用本地时区 new Date 且解析不了 serverDate 的 {$date}（显示空白）；订单时间线/超期、leaderboard 订单维度日期用设备/服务器本地时区。
+- 改动：callCloud 只记录 code 不打返回体；resumeSession 网络错误保留登录态降级进入（仅云端明确 code!==0 才清退）；order-detail 工价历史改用 `bjTime.toUTCTimestamp+formatBeijingDateTime`；order-detail/orders 时间线改为「北京时间整天差」（新 `dateStrToDayNumber`，删除两份 `parseSafeDate` 副本）；leaderboard `toDateStr` 改走 beijing-time；billing `upsertPermanentSubscriptionForOrg` 在 Subscriptions 写入失败时**中止 permanent 标记**（防两边状态不一致），ensurePermanentHomeFactory/qrcode/leaderboard 等空 catch 补 console.error。
+- 部署影响：需部署 `leaderboard`、`billing` 云函数 + 前端包。
+- 验证：`npm run test:unit` 全绿。
+
+### 第5轮：性能批量化 + 收尾
+
+- 背景：listOrders 逐订单 count、getAssignedProcesses 逐工序查订单+分页报工、leaderboard 每员工×分页查库（N+1）；checkAbnormal 逐条串行 update；qrcode fallback 漏写 org_id（降级码扫码必被拒）；leaderboard/qrcode 缺 factory_settings 'main' 回退；salary `visiblePieceRate` 死代码；`report_lock_version` 只写不读无说明。
+- 改动：listOrders/getAssignedProcesses/leaderboard 全部改为「一次批量拉取 + 内存分组聚合」；checkAbnormal 改 10 条/批并发更新（并注释说明全局扫描是有意设计）；qrcode fallback 补 `org_id`；qrcode/leaderboard 读 factory_settings 补 'main' 回退；删除 salary 死变量并注明「员工端总额含隐藏订单金额属有意口径」；report_lock_version 处注释「此 update 制造写冲突串行化并发报工，勿删」；billing/init 两份套餐种子互相加同步警示注释。
+- 部署影响：需部署 `order`、`leaderboard`、`attendance`、`qrcode`、`salary`、`billing`、`init` 云函数。
+- 验证：`npm run test:unit` 全绿（197 项）。剩余风险：session_token 无 TTL、callCloud 非幂等写重试、report_quantity 历史兜底、init 迁移脚本多租户化——均已记录在 CLAUDE.md §6。
+
+## 2026-06-10
+
+### 项目交接：重写 CLAUDE.md + 校正业务口径
+
+- 背景：老板将项目全权交付长期维护，并口头确认/补充了若干高风险口径。
+- 改动：按新结构重写根目录 `CLAUDE.md`（§2 高风险区集中收口业务口径，标注现状/目标/GAP）。新增/确认口径：①计件工资按 `quantity*snapshot_price`（确认，不按 `passed_qty`）；②改工序单价——已发薪工序/订单禁止改价并提示，未发薪改价同步重写该工序所有未发薪报工；③发薪即订单完成标志——订单全员发薪后弹窗提醒老板置为已完成；④已完成订单禁止删改任何相关数据；⑤老板侧所有报工/工资明细与统计需显示对应工序的实时工价 `Processes.current_price`。其中②③④⑤多为待补 GAP。
+- 数据影响：无字段改动；②③④⑤为后续迭代项。
+- 部署影响：仅文档；无需部署。
+
+### 全量 code review 救火清单
+
+- 背景：老板反馈代码有屎山味，要求做一次全量 code review 并救火（前端视觉风格不动）。
+- 改动：多 agent 分维度扫描 + 对抗式复核（剔除 9 条误报），确认 43 条真实缺陷，按 7 个根因聚类，产出 `docs/CODE_REVIEW_2026-06-10.md`（含 2 个 P0、P1/P2 表、救火执行顺序）。2 个 P0：①`order.deleteOrder` 无发薪/完成保护会静默删已发薪报工+奖惩；②`syncZeroPriceWorklogsForProcess` 改工序价会重写所有未发薪历史报工 snapshot_price/amount 却提示「不影响历史报工」。根因 B/C/F 与老板已提的改价拦截/发薪即完成/导出重构/实时工价需求重叠。
+- 数据影响：仅文档，未改代码。
+- 部署影响：无。
+
+### 登录页新增「忘记密码」入口
+
+- 背景：用户忘记密码时无引导，不清楚如何重置。
+- 改动：登录页密码框下新增右对齐「忘记密码？」入口，点击切换一个 on-brand 气泡，提示「忘记密码请联系工厂老板重置；若您是老板，请联系平台管理员协助」。复用既有 `#007AFF` 强调色与设计 Token，不改动整体视觉风格。
+- 数据影响：无。仅前端 `pages/login/login.{wxml,wxss,js}`，新增 `showForgotTip` 状态与 `toggleForgotTip` 方法。
+- 部署影响：前端需重新预览/上传小程序包；无云函数改动。
+- 验证：`node --check` 通过；模拟器待真机确认气泡显隐。
+
 ## 2026-06-09
 
 ### 排行榜支持员工仅看本人排名

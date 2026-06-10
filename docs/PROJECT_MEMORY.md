@@ -118,7 +118,7 @@ docs/                               项目文档、验收报告、审计报告
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
 - `settings`：`getAll`、`getPublic`、`save`、`updateLeaderboardVisibility`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
-- `export`：`salary`、`worklog`、`getTableData`、`getTableDataV2`、`exportToFile`、`exportToFileV2`、`getHistory`、`getOrderList`、`exportProcessSummary`。
+- `export`：`getTableDataV2`、`exportToFileV2`、`getHistory`、`getOrderList`、`exportProcessSummary`（2026-06-11 删除无调用的 legacy `getTableData`/`exportToFile`；月/年汇总=工资核算表含合计行，月/年明细含「结算单价/当前工价」两列，订单汇总=工资核算表（数量/计件/奖惩/应发），订单明细=报工核算表矩阵）。
 - `billing`：`getMySubscription`、`getOpenRequestInfo`、`listPlans`、`openSubscription`、`extendSubscription`、`changePlan`、`listBillingOrders`、`markManualPaymentPaid`。
 - `init`：默认初始化、`migrate_v2`、`migrate_multi_tenant`、`migrate_missing_org_batch`、`migrate_billing_v1`、`migrate_location`、`migrate_timezone`。
 
@@ -152,13 +152,22 @@ docs/                               项目文档、验收报告、审计报告
 - 统计 -> 导出：`salary`、`worklog`、`export` 等云函数按日期、月份、年份、订单维度聚合数据，并生成 Excel 报表。
 - 订阅 -> 写操作限制：`billing` 维护 `Organizations` 上的订阅快照；到期且超过宽限期后，新增订单、复制订单、新增工序、创建员工、提交报工、生成考勤码会被拦截；历史查看和导出暂不拦。
 
+## 2026-06-11 高风险区规则现状（已落地）
+
+- **改价拦截**：工序存在已发薪报工（按月或按订单）时 `updateProcessPrice`/`updateProcess` 整体拒绝改价；未发薪改价会同步重写该工序全部未发薪报工的 `snapshot_price/amount`。
+- **完成订单锁**：`completed` 为终态；order/worklog 全部写操作（删订单/工序增删改/分配/改价/隐藏工价/清空/报工增删改）对 completed 订单拒绝并返回原因。
+- **删除发薪锁**：`deleteOrder`、`deleteWorkLog`、`clearOrderWorklogs` 命中已发薪（按月或按订单）一律拒绝；员工 `cancelOwnWorkLog` 保留时间序口径。
+- **发薪即完成**：`salary.markPaid` 返回 `data.order_fully_paid/order_status`，订单全员发薪后老板端弹窗一键置为已完成。
+- **实时工价（老板侧）**：`worklog.getManageLogs`、`salary.getUserMonthlySalaryByBoss` 返回 `current_price/price_changed`（响应字段，非库字段）；export 明细带「当前工价」列。
+- **统一鉴权**：`auth-guard.js`（common 为真源，10 份相同副本，测试守护）强制 token + org active fail-closed，无 openid 回退；登录限流按 `rate_key=(工厂码/姓名/手机号)` 等值计数、fail-closed（audit_logs 新增 `rate_key` 字段）。
+
 ## 当前 P0/P1/P2 风险清单
 
 ### P0
 
-- 部分订单/工序读接口权限边界可能不足，存在订单、工价、分配信息泄漏风险。
-- `deleteOrder` 会删除订单关联的工序、报工、奖惩，需要确认已发薪或已统计数据是否允许删除；`clearOrderWorklogs` 会删除订单关联报工，但遇到已发薪月份会拒绝。
-- 业务目标包含“报工 -> 质检 -> 工资”，但当前工资计算主要按报工数量 `quantity`，不是合格数量 `passed_qty`，工资口径必须由业务确认。
+- ~~部分订单/工序读接口权限边界可能不足~~（2026-06-11 鉴权统一后全部接口强制登录态；`getAssignedProcesses` 仍限本人或 boss）。
+- ~~`deleteOrder` 无发薪保护~~（2026-06-11 已加完成锁+发薪锁，见上）。
+- 工资口径已由老板确认：按报工数量 `quantity`，不按 `passed_qty`（CLAUDE.md §2.1，勿再质疑）。
 
 ### P1
 
