@@ -66,6 +66,12 @@
           />
           <text class="login-pwd-toggle" bindtap="togglePassword" hover-class="tap-chip-hover">{{showPassword ? '隐藏' : '显示'}}</text>
         </view>
+        <view class="login-forgot-wrap">
+          <text class="login-forgot-link" catchtap="toggleForgotTip" hover-class="tap-chip-hover">忘记密码？</text>
+          <view wx:if="{{showForgotTip}}" class="login-forgot-bubble" catchtap="toggleForgotTip">
+            <text class="login-forgot-bubble-text">忘记密码请联系工厂老板重置；若您是老板，请联系平台管理员协助。</text>
+          </view>
+        </view>
       </view>
     </view>
 
