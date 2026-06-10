@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { buildStrictAuthWhere } = require('../cloudfunctions/user/auth.logic')
+const { buildStrictAuthWhere } = require('../cloudfunctions/user/auth-guard')
 
 test('buildStrictAuthWhere returns a strict session query only when both credentials exist', () => {
   assert.equal(buildStrictAuthWhere({}), null)
