@@ -1,13 +1,8 @@
 // pages/boss/order-detail/order-detail.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm, formatMoney } = require('../../../utils/util')
+const bjTime = require('../../../utils/beijing-time')
 const { buildDeleteOrderConfirmContent } = require('../orders/orders.logic')
 const { buildProcessListView } = require('../process-search.logic')
-
-function parseSafeDate(dateStr) {
-  if (!dateStr) return null
-  const parsed = new Date(dateStr.replace(/-/g, '/'))
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
 
 function clampPercent(value) {
   if (value < 0) return 0
@@ -15,27 +10,36 @@ function clampPercent(value) {
   return Math.round(value)
 }
 
+// 时间线/超期判断统一北京时间口径（CLAUDE.md §2.6）：
+// start_date/end_date 是北京时间业务日期串，用「今天(北京)」做整天差，避免设备时区影响。
+function dateStrToDayNumber(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return null
+  const ts = Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+  return Number.isNaN(ts) ? null : Math.floor(ts / 86400000)
+}
+
 function buildOrderTimeline(order) {
-  var nowTs = Date.now()
-  const start = parseSafeDate(order.start_date)
-  const end = parseSafeDate(order.end_date)
+  const todayDay = dateStrToDayNumber(bjTime.getBeijingToday())
+  const startDay = dateStrToDayNumber(order.start_date)
+  const endDay = dateStrToDayNumber(order.end_date)
 
   let timelineProgress = 0
   let daysLeftText = '未设置截止'
   let overdue = false
 
-  if (start && end) {
-    const totalMs = end.getTime() - start.getTime()
-    const passedMs = nowTs - start.getTime()
+  if (startDay != null && endDay != null && todayDay != null) {
+    const totalDays = endDay - startDay
+    const passedDays = todayDay - startDay
 
-    if (totalMs <= 0) {
-      timelineProgress = nowTs >= end.getTime() ? 100 : 0
+    if (totalDays <= 0) {
+      timelineProgress = todayDay >= endDay ? 100 : 0
     } else {
-      timelineProgress = clampPercent((passedMs / totalMs) * 100)
+      timelineProgress = clampPercent((passedDays / totalDays) * 100)
     }
 
-    const dayMs = 24 * 60 * 60 * 1000
-    const diffDays = Math.ceil((end.getTime() - nowTs) / dayMs)
+    const diffDays = endDay - todayDay
     if (diffDays < 0) {
       overdue = order.status === 'active'
       daysLeftText = `超期 ${Math.abs(diffDays)} 天`
@@ -734,13 +738,10 @@ Page({
       })
       hideLoading()
       const logs = (res.data || []).map(log => {
-        let timeStr = ''
-        if (log.created_at) {
-          const d = new Date(log.created_at)
-          if (!isNaN(d.getTime())) {
-            timeStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-          }
-        }
+        // beijing-time 的 toUTCTimestamp 能正确解析 serverDate 的 {$date} 形态，
+        // 之前手写 new Date(...) 会得到 Invalid Date 导致时间列空白
+        const ts = bjTime.toUTCTimestamp(log.created_at)
+        const timeStr = ts ? bjTime.formatBeijingDateTime(ts) : ''
         return { ...log, created_at_display: timeStr }
       })
       this.setData({ priceChangeLogs: logs })

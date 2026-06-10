@@ -71,7 +71,14 @@ App({
         this.globalData.isLoggedIn = true
         return true
       }
-    } catch (err) {}
+    } catch (err) {
+      // 网络/传输层错误 ≠ 登录失效：保留本地登录态降级进入，后续请求会再次校验 token。
+      // 只有云函数明确返回 code!==0（token 真失效）才走下面的清退逻辑。
+      console.error('[app] resumeSession 网络错误，保留登录态降级进入', err)
+      this.globalData.userInfo = user
+      this.globalData.isLoggedIn = true
+      return true
+    }
 
     clearUser()
     this.globalData.userInfo = null

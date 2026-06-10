@@ -2,11 +2,7 @@
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { buildDeleteOrderConfirmContent } = require('./orders.logic')
 
-function parseSafeDate(dateStr) {
-  if (!dateStr) return null
-  const parsed = new Date(dateStr.replace(/-/g, '/'))
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
+const bjTime = require('../../../utils/beijing-time')
 
 function clampPercent(value) {
   if (value < 0) return 0
@@ -14,28 +10,35 @@ function clampPercent(value) {
   return Math.round(value)
 }
 
+// 与 order-detail 同口径：业务日期按北京时间整天差，不依赖设备时区
+function dateStrToDayNumber(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return null
+  const ts = Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+  return Number.isNaN(ts) ? null : Math.floor(ts / 86400000)
+}
+
 function enrichOrder(order) {
-  var bjTime = require('../../../utils/beijing-time')
-  var nowTs = Date.now()
-  const start = parseSafeDate(order.start_date)
-  const end = parseSafeDate(order.end_date)
+  const todayDay = dateStrToDayNumber(bjTime.getBeijingToday())
+  const startDay = dateStrToDayNumber(order.start_date)
+  const endDay = dateStrToDayNumber(order.end_date)
 
   let timelineProgress = 0
   let daysLeftText = '未设置截止'
   let overdue = false
 
-  if (start && end) {
-    const totalMs = end.getTime() - start.getTime()
-    const passedMs = nowTs - start.getTime()
+  if (startDay != null && endDay != null && todayDay != null) {
+    const totalDays = endDay - startDay
+    const passedDays = todayDay - startDay
 
-    if (totalMs <= 0) {
-      timelineProgress = nowTs >= end.getTime() ? 100 : 0
+    if (totalDays <= 0) {
+      timelineProgress = todayDay >= endDay ? 100 : 0
     } else {
-      timelineProgress = clampPercent((passedMs / totalMs) * 100)
+      timelineProgress = clampPercent((passedDays / totalDays) * 100)
     }
 
-    const dayMs = 24 * 60 * 60 * 1000
-    const diffDays = Math.ceil((end.getTime() - nowTs) / dayMs)
+    const diffDays = endDay - todayDay
     if (diffDays < 0) {
       overdue = order.status === 'active'
       daysLeftText = `超期 ${Math.abs(diffDays)} 天`
