@@ -52,6 +52,7 @@ function getEmptyTableState() {
     tableTitle: '',
     tableHeaders: [],
     tableRows: [],
+    tableColMeta: [],
     tableLoaded: false
   }
 }
