@@ -22,21 +22,12 @@ function generateSalt() {
   return crypto.randomBytes(16).toString('hex')
 }
 
-async function getCaller(event) {
-  const userId = normalizeText(event && event.auth_user_id)
-  const token = normalizeText(event && event.auth_session_token)
-  if (!userId || !token) return null
+const authGuard = require('./auth-guard')
 
-  try {
-    const res = await db.collection('Users').where({
-      _id: userId,
-      session_token: token,
-      status: 'active'
-    }).limit(1).get()
-    return res.data && res.data.length ? res.data[0] : null
-  } catch (err) {
-    return null
-  }
+// 统一鉴权（见 auth-guard.js）：与业务云函数同口径，含调用者自身工厂 status=active 校验，
+// 平台组织 org_platform 被停用时平台管理员同样失效（修复历史上 platform 鉴权更弱的问题）。
+async function getCaller(event) {
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 async function requirePlatformAdmin(event) {
@@ -326,6 +317,11 @@ async function updateOrganizationStatus(event, status) {
 
   const orgId = normalizeText(event.org_id)
   if (!orgId) return { code: -1, msg: '缺少工厂ID' }
+
+  // 平台组织与永久工厂禁止停用：org_platform 被停用会冻结所有平台管理员（鉴权统一后同口径校验工厂状态）
+  if (status !== 'active' && (orgId === 'org_platform' || orgId === PERMANENT_HOME_ORG_ID)) {
+    return { code: -1, msg: '该组织为平台/永久工厂，不可停用' }
+  }
 
   try {
     await db.collection('Organizations').doc(orgId).update({

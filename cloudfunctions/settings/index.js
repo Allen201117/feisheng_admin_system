@@ -2,33 +2,17 @@
 const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
-const { buildStrictAuthWhere } = require('./auth.logic')
 const {
   sanitizeSettingsRecord,
   normalizeCheckpoints,
   buildLeaderboardVisibilitySettingsData
 } = require('./settings.logic')
 
-async function getCallerUserByEvent(event) {
-  const strictWhere = buildStrictAuthWhere(event)
-  if (!strictWhere) return null
+const authGuard = require('./auth-guard')
 
-  try {
-    const res = await db.collection('Users').where(strictWhere).limit(1).get()
-    if (res.data.length === 0) return null
-    const user = res.data[0]
-    if (user.org_id) {
-      try {
-        const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-        if (!orgRes.data || orgRes.data.status !== 'active') return null
-      } catch (e) {
-        return null
-      }
-    }
-    return user
-  } catch (err) {
-    return null
-  }
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
+async function getCallerUserByEvent(event, wxContext) {
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {

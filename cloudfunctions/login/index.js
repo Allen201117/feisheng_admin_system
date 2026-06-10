@@ -33,18 +33,25 @@ function isStrongPassword(pwd, phone) {
   return true
 }
 
-// 登录限流：5分钟内同一姓名最多10次失败
-async function checkLoginRateLimit(name, phone) {
+// 登录限流：5分钟内同一 (工厂码+姓名+手机号) 最多10次失败。
+// 用结构化 rate_key 等值计数（旧版按姓名结尾正则会跨工厂误伤同名账号且可被换名绕过）；
+// 计数查询失败时 fail-closed（拒绝登录），避免 DB 抖动期间限流形同虚设。
+function buildLoginRateKey(factoryCode, name, phone) {
+  return `${factoryCode}/${name}/${phone}`
+}
+
+async function checkLoginRateLimit(rateKey) {
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
   try {
     const res = await db.collection('audit_logs').where({
       action: 'login_failed',
-      details: _.regex(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$')),
+      rate_key: rateKey,
       created_at: _.gte(fiveMinAgo)
     }).count()
     return res.total < 10
   } catch (e) {
-    return true
+    console.error('[login] 限流计数失败，按限流处理', e)
+    return false
   }
 }
 
@@ -137,8 +144,9 @@ async function login(event, wxContext) {
     return { code: -1, msg: validation.msg }
   }
 
-  // 限流检查
-  const allowed = await checkLoginRateLimit(name, phone)
+  // 限流检查（按 工厂码+姓名+手机号 精确计数）
+  const rateKey = buildLoginRateKey(factoryCode, name, phone)
+  const allowed = await checkLoginRateLimit(rateKey)
   if (!allowed) {
     return { code: -1, msg: '登录尝试过于频繁，请稍后再试' }
   }
@@ -157,6 +165,7 @@ async function login(event, wxContext) {
       await db.collection('audit_logs').add({
         data: {
           action: 'login_failed',
+          rate_key: rateKey,
           details: `login failed - ${factoryCode}/${name}`,
           created_at: db.serverDate()
         }
@@ -181,6 +190,7 @@ async function login(event, wxContext) {
         data: {
           org_id: org._id,
           action: 'login_failed',
+          rate_key: rateKey,
           details: `login failed - ${factoryCode}/${name}`,
           created_at: db.serverDate()
         }
@@ -214,6 +224,7 @@ async function login(event, wxContext) {
         data: {
           org_id: org._id,
           action: 'login_failed',
+          rate_key: rateKey,
           details: `login failed - ${factoryCode}/${name}`,
           created_at: db.serverDate()
         }
