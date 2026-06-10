@@ -9,11 +9,9 @@ const { filterRankListForViewer } = require('./privacy.logic')
 function toDateStr(val) {
   if (!val) return ''
   if (typeof val === 'string') return val
-  if (val instanceof Date) {
-    return val.getFullYear() + '-' +
-      String(val.getMonth() + 1).padStart(2, '0') + '-' +
-      String(val.getDate()).padStart(2, '0')
-  }
+  // serverDate/Date 统一转北京时间日期串（之前用本地时区 getFullYear/getMonth 在 UTC 服务器上会偏移一天）
+  var ts = bjTime.toUTCTimestamp(val)
+  if (ts) return bjTime.formatBeijingDate(ts)
   return String(val)
 }
 
@@ -42,31 +40,26 @@ async function getOrderRange(orderId) {
   } catch (e) { return null }
 }
 
-async function getCallerUserByEvent(event) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-  if (authUserId && authSessionToken) {
-    try {
-      var res = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (res.data.length > 0) {
-        var user = res.data[0]
-        if (user.org_id) {
-          var orgRes = await db.collection('Organizations').doc(user.org_id).get()
-          if (!orgRes.data || orgRes.data.status !== 'active') return null
-        }
-        return user
-      }
-    } catch (e) {}
-  }
-  return null
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
+async function getCallerUserByEvent(event, wxContext) {
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
   return user && user.org_id ? user.org_id : ''
+}
+
+async function fetchAllDocs(collectionName, where) {
+  var all = []
+  var batchLen = 0
+  do {
+    var res = await db.collection(collectionName).where(where).skip(all.length).limit(100).get()
+    batchLen = (res.data || []).length
+    all = all.concat(res.data || [])
+  } while (batchLen === 100)
+  return all
 }
 
 exports.main = async function(event, context) {
@@ -91,11 +84,23 @@ async function getRank(event, period) {
   var caller = await getCallerUserByEvent(event)
   if (!caller) return { code: -1, msg: '请先登录' }
 
+  // 与 attendance 同口径：org 文档缺失时回退遗留 'main' 文档，避免老数据工厂开关永远为 false
   var leaderboardVisible = false
   try {
-    var settingsRes = await db.collection('factory_settings').doc(getOrgId(caller)).get()
-    leaderboardVisible = !!(settingsRes.data && settingsRes.data.leaderboard_visible)
+    var settingsData = null
+    try {
+      var settingsRes = await db.collection('factory_settings').doc(getOrgId(caller)).get()
+      settingsData = settingsRes.data || null
+    } catch (e) {
+      settingsData = null
+    }
+    if (!settingsData) {
+      var mainRes = await db.collection('factory_settings').doc('main').get()
+      settingsData = mainRes.data || null
+    }
+    leaderboardVisible = !!(settingsData && settingsData.leaderboard_visible)
   } catch (e) {
+    console.error('[leaderboard] 读取榜单公开开关失败，按不公开处理', e)
     leaderboardVisible = false
   }
 
@@ -130,75 +135,56 @@ async function getRank(event, period) {
       users = users.concat(usersRes.data)
     } while (batchLen === 100)
 
-    var rankList = []
+    // 一次性按 org+日期范围(+订单) 拉取记录后内存按 user_id 分组，
+    // 替代原先「每员工 × 分页」的 N+1 嵌套循环查库；薪资口径不变（quantity*snapshot_price）。
+    var groupMap = {}
+    function groupOf(userId) {
+      var key = String(userId)
+      if (!groupMap[key]) groupMap[key] = []
+      return groupMap[key]
+    }
 
-    for (var i = 0; i < users.length; i++) {
-      var user = users[i]
+    if (dimension === 'hours') {
+      // 注意：出勤不区分订单，订单周期只能用日期范围近似
+      var attQuery = { org_id: getOrgId(caller), date: _.gte(startDate).and(_.lt(endDate)) }
+      var attData = await fetchAllDocs('Attendances', attQuery)
+      attData.forEach(function(r) { if (r.user_id) groupOf(r.user_id).push(r) })
+    } else {
+      var logQuery = { org_id: getOrgId(caller), date: _.gte(startDate).and(_.lt(endDate)) }
+      if (dimension === 'quality') logQuery.status = 'inspected'
+      if (period === 'order' && event.order_id) logQuery.order_id = event.order_id
+      var logData = await fetchAllDocs('WorkLogs', logQuery)
+      logData.forEach(function(l) { if (l.user_id) groupOf(l.user_id).push(l) })
+    }
+
+    var rankList = users.map(function(user) {
       var item = {
         user_id: user._id,
         user_name: user.name,
         role: user.role,
         rank_value: 0
       }
+      var records = groupMap[String(user._id)] || []
 
       if (dimension === 'hours') {
-        // 工时维度
-        var attQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
-        if (period === 'order' && event.order_id) {
-          // 订单维度工时：取该时间段的出勤
-          // 注意：出勤不区分订单，故只能用日期范围
-        }
-        var attData = []
-        var attBatch = 0
-        do {
-          var attRes = await db.collection('Attendances').where(attQuery).skip(attData.length).limit(100).get()
-          attBatch = attRes.data.length
-          attData = attData.concat(attRes.data)
-        } while (attBatch === 100)
         var totalHours = 0, attendDays = 0
-        attData.forEach(function(r) {
+        records.forEach(function(r) {
           totalHours += r.hours || 0
           if (r.clock_in_time) attendDays++
         })
         item.rank_value = Math.round(totalHours * 10) / 10
         item.total_hours = item.rank_value
         item.attend_days = attendDays
-
       } else if (dimension === 'salary') {
-        // 薪资维度
-        var logQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)) }
-        if (period === 'order' && event.order_id) {
-          logQuery.order_id = event.order_id
-        }
-        var logData = []
-        var logBatch = 0
-        do {
-          var logRes = await db.collection('WorkLogs').where(logQuery).skip(logData.length).limit(100).get()
-          logBatch = logRes.data.length
-          logData = logData.concat(logRes.data)
-        } while (logBatch === 100)
         var totalSalary = 0
-        logData.forEach(function(log) {
+        records.forEach(function(log) {
           totalSalary += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
         })
         item.rank_value = Math.round(totalSalary * 100) / 100
         item.total_salary = item.rank_value
-
       } else if (dimension === 'quality') {
-        // 质量维度
-        var qLogQuery = { org_id: getOrgId(caller), user_id: user._id, date: _.gte(startDate).and(_.lt(endDate)), status: 'inspected' }
-        if (period === 'order' && event.order_id) {
-          qLogQuery.order_id = event.order_id
-        }
-        var qLogData = []
-        var qLogBatch = 0
-        do {
-          var qLogRes = await db.collection('WorkLogs').where(qLogQuery).skip(qLogData.length).limit(100).get()
-          qLogBatch = qLogRes.data.length
-          qLogData = qLogData.concat(qLogRes.data)
-        } while (qLogBatch === 100)
         var totalQty = 0, totalPassed = 0
-        qLogData.forEach(function(log) {
+        records.forEach(function(log) {
           totalQty += log.quantity || 0
           totalPassed += log.passed_qty || 0
         })
@@ -209,8 +195,8 @@ async function getRank(event, period) {
         item.pass_rate = passRate
       }
 
-      rankList.push(item)
-    }
+      return item
+    })
 
     // 降序排列
     rankList.sort(function(a, b) { return b.rank_value - a.rank_value })

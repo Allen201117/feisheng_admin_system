@@ -7,35 +7,12 @@ const db = cloud.database()
 
 const QR_COLLECTION = 'qr_codes'
 
-async function getCallerUser(wxContext) {
-  const res = await db.collection('Users').where({
-    openid: wxContext.OPENID,
-    status: 'active'
-  }).get()
-  return res.data.length > 0 ? res.data[0] : null
-}
 
+const authGuard = require('./auth-guard')
+
+// 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
-  const authUserId = event && event.auth_user_id
-  const authSessionToken = event && event.auth_session_token
-  if (authUserId && authSessionToken) {
-    try {
-      const res = await db.collection('Users').where({
-        _id: authUserId,
-        session_token: authSessionToken,
-        status: 'active'
-      }).limit(1).get()
-      if (res.data.length > 0) {
-        const user = res.data[0]
-        if (user.org_id) {
-          const orgRes = await db.collection('Organizations').doc(user.org_id).get()
-          if (!orgRes.data || orgRes.data.status !== 'active') return null
-        }
-        return user
-      }
-    } catch (e) {}
-  }
-  return await getCallerUser(wxContext)
+  return await authGuard.getCallerUserByEvent(db, event)
 }
 
 function getOrgId(user) {
@@ -234,10 +211,12 @@ async function generateFallbackQR({ qrId, scene, nonce, expireAt, expireDays, ca
   })
 
   // 保存记录（qr_type 设为 'fallback'，正式版生成的是 'image'）
+  // org_id 不能省：attendance.validateQrToken 按 {org_id, token} 校验，缺了会导致降级码扫码签到必被拒
   await db.collection(QR_COLLECTION).add({
     data: {
       qr_id: qrId,
       token: qrId,
+      org_id: getOrgId(caller),
       scene,
       page: 'pages/login/login',
       nonce,
@@ -285,18 +264,30 @@ async function generateQRCode(event, wxContext) {
   if (!entitlement.ok) return { code: -1, msg: entitlement.msg }
 
   try {
-    // 获取过期时间配置（天）
+    // 获取过期时间配置（天）；与 attendance 同口径：org 文档缺失时回退遗留 'main' 文档
     let expireDays = 1
     try {
-      const settings = await db.collection('factory_settings').doc(getOrgId(caller)).get()
-      if (settings.data) {
-        if (settings.data.qrcode_expire_days) {
-          expireDays = settings.data.qrcode_expire_days
-        } else if (settings.data.qrcode_expire_hours) {
-          expireDays = Math.round(settings.data.qrcode_expire_hours / 24) || 1
+      let settings = null
+      try {
+        const res = await db.collection('factory_settings').doc(getOrgId(caller)).get()
+        settings = res.data || null
+      } catch (e) {
+        settings = null
+      }
+      if (!settings) {
+        const mainRes = await db.collection('factory_settings').doc('main').get()
+        settings = mainRes.data || null
+      }
+      if (settings) {
+        if (settings.qrcode_expire_days) {
+          expireDays = settings.qrcode_expire_days
+        } else if (settings.qrcode_expire_hours) {
+          expireDays = Math.round(settings.qrcode_expire_hours / 24) || 1
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[qrcode] 读取二维码有效期配置失败，使用默认 1 天', e)
+    }
 
     const now = new Date()
     const qrId = buildShortQrId()
