@@ -13,6 +13,7 @@
 
 - 前端页面负责交互、展示、表单校验和调用云函数。
 - `miniprogram/utils/util.js` 的 `callCloud` 会读取本地登录态，并向云函数 payload 注入 `auth_user_id` 与 `auth_session_token`。
+- 鉴权统一（2026-06-11）：所有业务云函数经各自目录内 `auth-guard.js`（真源 `cloudfunctions/common/auth-guard.js`，副本一致性由 `tests/auth-guard-copies.test.js` 守护）校验 token + `Users.status=active` + `Organizations.status=active`，**无 openid 回退、org 校验 fail-closed**；缺凭证/失效一律返回「登录已失效」。
 - 登录页会本地记住上次工厂码、姓名、手机号和会话 token，不保存密码；隐私协议通过默认未勾选的行内勾选框确认，版本变化时保留 token，但要求用户重新手动确认协议后再恢复登录态。
 - 云函数负责核心业务校验、权限检查、数据读写、审计日志、统计聚合和导出。
 - 云数据库保存业务主数据、流水数据、配置、日志和导出历史。
