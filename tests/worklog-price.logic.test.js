@@ -144,3 +144,12 @@ test('worklog auth uses the strict shared guard with no openid fallback', () => 
   assert.doesNotMatch(source, /openid:\s*wxContext\.OPENID/)
   assert.match(source, /require\('\.\/auth-guard'\)/)
 })
+
+test('manage worklog price join does not pass query options as limit', () => {
+  const source = read('cloudfunctions/worklog/index.js')
+
+  assert.doesNotMatch(
+    source,
+    /fetchAllDocs\('Processes',\s*\{[\s\S]*?\},\s*\{\s*field:/
+  )
+})

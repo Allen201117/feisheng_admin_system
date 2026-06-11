@@ -46,6 +46,14 @@
     </view>
   </view>
 
+  <view class="card-bento">
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索订单、工序、日期、奖惩原因" value="{{salaryDetailSearchKeyword}}" bindinput="onSalaryDetailSearchInput" confirm-type="search" />
+      <view wx:if="{{salaryDetailSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearSalaryDetailSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{salaryDetailSearchKeyword}}" class="list-search-meta">奖惩 {{adjustments.length}} / {{rawAdjustments.length}}，报工 {{workLogs.length}} / {{rawWorkLogs.length}}</text>
+  </view>
+
   <!-- 奖惩管理 -->
   <view class="card-bento">
     <view class="flex-between" style="margin-bottom:var(--sp-2);">

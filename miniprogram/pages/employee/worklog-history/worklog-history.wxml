@@ -16,13 +16,26 @@
   <view class="card-bento">
     <text class="menu-group-title block-mb-2">历史报工记录</text>
 
-    <view wx:if="{{historyLogs.length === 0}}" class="empty">
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索订单、工序、日期" value="{{historySearchKeyword}}" bindinput="onHistorySearchInput" confirm-type="search" />
+      <view wx:if="{{historySearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearHistorySearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{historySearchKeyword}}" class="list-search-meta">匹配 {{historyLogs.length}} / {{rawHistoryLogs.length}} 条报工</text>
+
+    <view wx:if="{{rawHistoryLogs.length === 0}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
       </view>
       <text class="empty-title">暂无历史报工</text>
       <text class="empty-desc">有报工后会按工序汇总，并在这里显示每条明细。</text>
       <view class="empty-action secondary" bindtap="loadHistoryLogs" hover-class="tap-button-hover">刷新记录</view>
+    </view>
+    <view wx:elif="{{historyLogs.length === 0}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
+      </view>
+      <text class="empty-title">没有匹配的报工</text>
+      <text class="empty-desc">换个订单、工序或日期再试</text>
     </view>
 
     <view wx:else>

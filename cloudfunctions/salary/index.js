@@ -7,10 +7,18 @@ const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
 const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid } = require('./payment-record.logic')
 
+function normalizePageSize(value, fallback = 100) {
+  const parsed = parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
 async function fetchAllByWhere(collectionName, where, options = {}) {
-  const orderBy = options.orderBy || null
-  const field = options.field || null
-  const pageSize = options.pageSize || 100
+  const normalizedOptions = (typeof options === 'number' || typeof options === 'string')
+    ? { pageSize: options }
+    : (options || {})
+  const orderBy = normalizedOptions.orderBy || null
+  const field = normalizedOptions.field || null
+  const pageSize = normalizePageSize(normalizedOptions.pageSize)
 
   let all = []
   let batchLen = 0

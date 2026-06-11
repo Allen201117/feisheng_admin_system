@@ -24,6 +24,12 @@
   <view class="card-bento">
     <text class="menu-group-title" style="margin-bottom:var(--sp-1);">员工薪资明细</text>
 
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索员工姓名" value="{{salarySearchKeyword}}" bindinput="onSalarySearchInput" confirm-type="search" />
+      <view wx:if="{{salarySearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearSalarySearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{salarySearchKeyword}}" class="list-search-meta">匹配 {{filteredEmployees.length}} / {{employees.length}} 人</text>
+
     <view wx:if="{{employees.length === 0}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/salary.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
@@ -31,9 +37,16 @@
       <text class="empty-title">暂无薪资数据</text>
       <text class="empty-desc">{{payrollMode === 'order' ? '选择订单查看薪资明细' : '选择月份查看薪资明细'}}</text>
     </view>
+    <view wx:elif="{{filteredEmployees.length === 0}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/salary.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">没有匹配的员工</text>
+      <text class="empty-desc">换个员工姓名、金额或发放状态再试</text>
+    </view>
 
-    <view wx:for="{{employees}}" wx:for-item="item" wx:key="user_id" class="salary-row">
-      <view class="salary-check {{item.paid ? 'done' : ''}}" catchtap="onTogglePaid" data-id="{{item.user_id}}" data-name="{{item.user_name}}" data-idx="{{index}}">
+    <view wx:for="{{filteredEmployees}}" wx:for-item="item" wx:key="user_id" class="salary-row">
+      <view class="salary-check {{item.paid ? 'done' : ''}}" catchtap="onTogglePaid" data-id="{{item.user_id}}" data-name="{{item.user_name}}" data-idx="{{item._sourceIndex}}">
         <text wx:if="{{item.paid}}">✓</text>
       </view>
       <view class="salary-info tappable" bindtap="goDetail" data-id="{{item.user_id}}" data-name="{{item.user_name}}">

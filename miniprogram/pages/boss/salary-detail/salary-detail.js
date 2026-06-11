@@ -1,6 +1,20 @@
 // pages/boss/salary-detail/salary-detail.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatMoney, showConfirm } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
+const { filterListByKeyword } = require('../../../utils/list-search')
+
+const SALARY_DETAIL_SEARCH_FIELDS = [
+  'order_name',
+  'process_name',
+  'date',
+  'reason',
+  'note',
+  'type',
+  'amount',
+  'amount_display',
+  'quantity',
+  'snapshot_price'
+]
 
 Page({
   data: {
@@ -10,8 +24,11 @@ Page({
     orderId: '',
     orderName: '',
     salaryData: null,
+    rawAdjustments: [],
     adjustments: [],
+    rawWorkLogs: [],
     workLogs: [],
+    salaryDetailSearchKeyword: '',
     isPaidLocked: false,
     showAddAdj: false,
     newAdj: {
@@ -71,6 +88,10 @@ Page({
           is_locked: isPaid
         }
       })
+      const adjustments = (data.adjustments || []).map(a => ({
+        ...a,
+        is_locked: isPaid
+      }))
       this.setData({
         isPaidLocked: isPaid,
         salaryData: {
@@ -82,15 +103,29 @@ Page({
           totalPassed: ws.total_passed || 0,
           passRate: Number(ws.pass_rate || 0).toFixed(1)
         },
-        adjustments: (data.adjustments || []).map(a => ({
-          ...a,
-          is_locked: isPaid
-        })),
-        workLogs: logs
+        rawAdjustments: adjustments,
+        rawWorkLogs: logs
       })
+      this.refreshSalaryDetailSearch()
     } catch (e) {
       showError('加载失败')
     }
+  },
+
+  refreshSalaryDetailSearch() {
+    this.setData({
+      adjustments: filterListByKeyword(this.data.rawAdjustments, this.data.salaryDetailSearchKeyword, SALARY_DETAIL_SEARCH_FIELDS),
+      workLogs: filterListByKeyword(this.data.rawWorkLogs, this.data.salaryDetailSearchKeyword, SALARY_DETAIL_SEARCH_FIELDS)
+    })
+  },
+
+  onSalaryDetailSearchInput(e) {
+    this.setData({ salaryDetailSearchKeyword: e.detail.value }, () => this.refreshSalaryDetailSearch())
+  },
+
+  clearSalaryDetailSearch() {
+    if (!this.data.salaryDetailSearchKeyword) return
+    this.setData({ salaryDetailSearchKeyword: '' }, () => this.refreshSalaryDetailSearch())
   },
 
   toggleAddAdj() {

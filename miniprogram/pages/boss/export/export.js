@@ -1,6 +1,9 @@
 // pages/boss/export/export.js — V2: 按月/按年/按订单 × 汇总/细节
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { buildTableColumnMeta } = require('../../../utils/table-meta.logic')
+const { filterListByKeyword } = require('../../../utils/list-search')
+
+const EXPORT_HISTORY_SEARCH_FIELDS = ['title', 'filename', 'operator_name', 'row_count', 'created_at', 'dimension', 'report_type']
 
 Page({
   data: {
@@ -34,6 +37,8 @@ Page({
     tableLoaded: false,
 
     // 导出历史
+    rawHistoryList: [],
+    exportHistorySearchKeyword: '',
     historyList: []
   },
 
@@ -188,10 +193,26 @@ Page({
   async _loadHistory() {
     try {
       const res = await callCloud('export', { action: 'getHistory' })
-      this.setData({ historyList: res.data || [] })
+      this.setData({ rawHistoryList: res.data || [] })
+      this.refreshExportHistorySearch()
     } catch (err) {
       console.error('加载历史失败', err)
     }
+  },
+
+  refreshExportHistorySearch() {
+    this.setData({
+      historyList: filterListByKeyword(this.data.rawHistoryList, this.data.exportHistorySearchKeyword, EXPORT_HISTORY_SEARCH_FIELDS)
+    })
+  },
+
+  onExportHistorySearchInput(e) {
+    this.setData({ exportHistorySearchKeyword: e.detail.value }, () => this.refreshExportHistorySearch())
+  },
+
+  clearExportHistorySearch() {
+    if (!this.data.exportHistorySearchKeyword) return
+    this.setData({ exportHistorySearchKeyword: '' }, () => this.refreshExportHistorySearch())
   },
 
   // ========== 预览报表 ==========

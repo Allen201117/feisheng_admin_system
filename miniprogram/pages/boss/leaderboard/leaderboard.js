@@ -4,6 +4,9 @@ var util = require('../../../utils/util')
 var callCloud = util.callCloud
 var showError = util.showError
 var showSuccess = util.showSuccess
+var filterListByKeyword = require('../../../utils/list-search').filterListByKeyword
+
+var RANK_SEARCH_FIELDS = ['user_name', 'displaySub', 'displayValue', 'rank']
 
 Page({
   data: {
@@ -33,7 +36,9 @@ Page({
     selectedOrderIdx: 0,
     selectedOrderId: '',
     // 排行数据
+    rawRankList: [],
     rankList: [],
+    rankSearchKeyword: '',
     totalEmployees: 0,
     leaderboard_visible: false,
     visibilitySaving: false,
@@ -93,7 +98,7 @@ Page({
   // 切换周期
   switchPeriod: function(e) {
     var tab = e.currentTarget.dataset.key
-    this.setData({ periodTab: tab, rankList: [] })
+    this.setData({ periodTab: tab, rawRankList: [], rankList: [] })
     if (tab === 'order' && this.data.orderList.length === 0) {
       this.loadOrders()
     } else {
@@ -182,7 +187,7 @@ Page({
       params.year = this.data.year
     } else if (period === 'order') {
       if (!this.data.selectedOrderId) {
-        that.setData({ rankList: [], totalEmployees: 0 })
+        that.setData({ rawRankList: [], rankList: [], totalEmployees: 0 })
         return Promise.resolve()
       }
       params.order_id = this.data.selectedOrderId
@@ -207,13 +212,31 @@ Page({
         return item
       })
       that.setData({
-        rankList: list,
+        rawRankList: list,
         totalEmployees: data.total_employees || list.length
       })
+      that.refreshRankSearch()
     }).catch(function() {
       showError('加载排行榜失败')
     }).then(function() {
       that.setData({ loading: false })
     })
+  },
+
+  refreshRankSearch: function() {
+    this.setData({
+      rankList: filterListByKeyword(this.data.rawRankList, this.data.rankSearchKeyword, RANK_SEARCH_FIELDS)
+    })
+  },
+
+  onRankSearchInput: function(e) {
+    this.setData({ rankSearchKeyword: e.detail.value })
+    this.refreshRankSearch()
+  },
+
+  clearRankSearch: function() {
+    if (!this.data.rankSearchKeyword) return
+    this.setData({ rankSearchKeyword: '' })
+    this.refreshRankSearch()
   }
 })

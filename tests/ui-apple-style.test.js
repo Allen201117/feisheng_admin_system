@@ -86,6 +86,15 @@ test('global neutral text tokens stay readable on white cards', () => {
   assert.ok(contrastRatio(getCssVariable(source, '--text-placeholder'), '#FFFFFF') >= 7)
 })
 
+test('small text scale stays readable for dense production lists', () => {
+  const source = read('miniprogram/app.wxss')
+
+  assert.match(source, /--fs-2xs:\s*2[6-9]rpx/)
+  assert.match(source, /--fs-xs:\s*(2[8-9]|3[0-2])rpx/)
+  assert.match(source, /\.list-row-subtitle\s*\{[^}]*line-height:\s*1\.45/s)
+  assert.match(source, /\.text-xs\s*\{[^}]*line-height:\s*1\.45/s)
+})
+
 test('page styles do not use low-contrast hardcoded gray text colors', () => {
   const files = [
     'miniprogram/app.wxss',
@@ -168,6 +177,63 @@ test('screenshot-critical pages use compact grouped action layouts', () => {
   assert.match(worklog, /\bworklog-progress-card\b/)
   assert.match(worklog, /\bworklog-log-actions\b/)
   assert.doesNotMatch(worklog, /btn-primary btn-block"[^>]*openAddWorkLog/)
+})
+
+test('worklog details render key facts as reusable info tiles', () => {
+  const appStyle = read('miniprogram/app.wxss')
+  const worklog = read('miniprogram/pages/boss/worklog-manage/worklog-manage.wxml')
+
+  for (const className of ['info-grid', 'info-tile', 'info-tile-label', 'info-tile-value']) {
+    assert.match(appStyle, new RegExp(`\\.${className}\\b`), `missing ${className}`)
+    assert.match(worklog, new RegExp(`\\b${className}\\b`), `worklog page does not use ${className}`)
+  }
+
+  for (const label of ['报工日期', '订单名称', '工序名称', '报工数量', '报工金额', '结算单价']) {
+    assert.match(worklog, new RegExp(label), `worklog details missing ${label}`)
+  }
+})
+
+test('long list pages expose keyword search when no specialized search exists', () => {
+  const pages = [
+    ['miniprogram/pages/boss/worklog-manage/worklog-manage.wxml', 'onLogSearchInput', 'clearLogSearch', '搜索员工、订单、工序、日期、备注'],
+    ['miniprogram/pages/boss/employees/employees.wxml', 'onEmployeeSearchInput', 'clearEmployeeSearch', '搜索姓名、手机号、角色'],
+    ['miniprogram/pages/boss/orders/orders.wxml', 'onOrderSearchInput', 'clearOrderSearch', '搜索订单名称、日期、状态'],
+    ['miniprogram/pages/boss/salary/salary.wxml', 'onSalarySearchInput', 'clearSalarySearch', '搜索员工姓名'],
+    ['miniprogram/pages/boss/data-center/data-center.wxml', 'onOrderSearchInput', 'clearOrderSearch', '搜索订单名称、状态'],
+    ['miniprogram/pages/platform/home/home.wxml', 'onOrgSearchInput', 'clearOrgSearch', '搜索工厂名称、工厂码、联系人'],
+    ['miniprogram/pages/employee/worklog-history/worklog-history.wxml', 'onHistorySearchInput', 'clearHistorySearch', '搜索订单、工序、日期']
+  ]
+
+  for (const [file, inputHandler, clearHandler, placeholder] of pages) {
+    const source = read(file)
+
+    assert.match(source, /\blist-search-row\b/, `${file} missing shared search row`)
+    assert.match(source, new RegExp(`bindinput="${inputHandler}"`), `${file} missing ${inputHandler}`)
+    assert.match(source, new RegExp(`bindtap="${clearHandler}"`), `${file} missing ${clearHandler}`)
+    assert.match(source, new RegExp(`placeholder="${placeholder}"`), `${file} missing search placeholder`)
+  }
+})
+
+test('secondary long list pages also expose keyword search', () => {
+  const pages = [
+    ['miniprogram/pages/boss/attendance/attendance.wxml', 'onAttendanceSearchInput', 'clearAttendanceSearch', '搜索姓名、日期、状态'],
+    ['miniprogram/pages/boss/salary-detail/salary-detail.wxml', 'onSalaryDetailSearchInput', 'clearSalaryDetailSearch', '搜索订单、工序、日期、奖惩原因'],
+    ['miniprogram/pages/boss/export/export.wxml', 'onExportHistorySearchInput', 'clearExportHistorySearch', '搜索导出文件、类型、时间'],
+    ['miniprogram/pages/boss/leaderboard/leaderboard.wxml', 'onRankSearchInput', 'clearRankSearch', '搜索员工姓名'],
+    ['miniprogram/pages/employee/leaderboard/leaderboard.wxml', 'onRankSearchInput', 'clearRankSearch', '搜索员工姓名'],
+    ['miniprogram/pages/qc/home/home.wxml', 'onQcLogSearchInput', 'clearQcLogSearch', '搜索员工、订单、工序'],
+    ['miniprogram/pages/employee/profile/profile.wxml', 'onProfileDetailSearchInput', 'clearProfileDetailSearch', '搜索订单、奖惩、发薪、考勤'],
+    ['miniprogram/pages/boss/order-detail/order-detail.wxml', 'onAssignEmployeeSearchInput', 'clearAssignEmployeeSearch', '搜索员工姓名、手机号、角色']
+  ]
+
+  for (const [file, inputHandler, clearHandler, placeholder] of pages) {
+    const source = read(file)
+
+    assert.match(source, /\blist-search-row\b/, `${file} missing shared search row`)
+    assert.match(source, new RegExp(`bindinput="${inputHandler}"`), `${file} missing ${inputHandler}`)
+    assert.match(source, new RegExp(`bindtap="${clearHandler}"`), `${file} missing ${clearHandler}`)
+    assert.match(source, new RegExp(`placeholder="${placeholder}"`), `${file} missing search placeholder`)
+  }
 })
 
 test('login keeps the primary action reachable without scrolling', () => {

@@ -1,6 +1,7 @@
 const { callCloud, showError, showLoading, hideLoading } = require('../../../utils/util')
 const { buildTableColumnMeta } = require('../../../utils/table-meta.logic')
 const { getStoredUser } = require('../../../utils/auth')
+const { filterListByKeyword } = require('../../../utils/list-search')
 const {
   getInitialPeriodState,
   isPeriodMode,
@@ -9,6 +10,13 @@ const {
   getPeriodPathHint,
   getEmptyTableState
 } = require('./data-center.logic')
+
+const DATA_CENTER_ORDER_SEARCH_FIELDS = [
+  'order_name',
+  'statusText',
+  'totalQuantity',
+  'processCount'
+]
 
 Page({
   data: {
@@ -32,6 +40,8 @@ Page({
     orderTableColMeta: [],
     orderTableLoaded: false,
     orderProgress: [],
+    filteredOrderList: [],
+    orderSearchKeyword: '',
     orderOverallProgress: 0,
     orderTotalReported: 0,
     loading: false
@@ -194,12 +204,29 @@ Page({
       }))
 
       this.setData({ orderList })
+      this.refreshFilteredOrders()
     } catch (err) {
       hideLoading()
       showError(err.message || '加载订单失败')
+      this.setData({ orderList: [], filteredOrderList: [] })
     } finally {
       this.setData({ loading: false })
     }
+  },
+
+  refreshFilteredOrders() {
+    this.setData({
+      filteredOrderList: filterListByKeyword(this.data.orderList, this.data.orderSearchKeyword, DATA_CENTER_ORDER_SEARCH_FIELDS)
+    })
+  },
+
+  onOrderSearchInput(e) {
+    this.setData({ orderSearchKeyword: e.detail.value }, () => this.refreshFilteredOrders())
+  },
+
+  clearOrderSearch() {
+    if (!this.data.orderSearchKeyword) return
+    this.setData({ orderSearchKeyword: '' }, () => this.refreshFilteredOrders())
   },
 
   onOrderTap(e) {

@@ -54,6 +54,12 @@
     </view>
   </view>
 
+  <view class="list-search-row">
+    <input class="field-input list-search-input" placeholder="搜索订单、奖惩、发薪、考勤" value="{{profileDetailSearchKeyword}}" bindinput="onProfileDetailSearchInput" confirm-type="search" />
+    <view wx:if="{{profileDetailSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearProfileDetailSearch" hover-class="tap-button-hover">清除</view>
+  </view>
+  <text wx:if="{{profileDetailSearchKeyword}}" class="list-search-meta">订单 {{orderSummaries.length}} / {{rawOrderSummaries.length}}，奖惩 {{adjustments.length}} / {{rawAdjustments.length}}，发薪 {{paymentRecords.length}} / {{rawPaymentRecords.length}}，考勤 {{attendanceRecords.length}} / {{rawAttendanceRecords.length}}</text>
+
   <!-- 订单工资明细 -->
   <view class="card-bento" wx:if="{{payrollMode === 'order'}}">
     <text class="menu-group-title block-mb-2">订单工资明细</text>

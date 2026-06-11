@@ -200,9 +200,15 @@
       <text class="assign-clear-btn" bindtap="clearAssignment">清空</text>
     </view>
 
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索员工姓名、手机号、角色" value="{{assignEmployeeSearchKeyword}}" bindinput="onAssignEmployeeSearchInput" confirm-type="search" />
+      <view wx:if="{{assignEmployeeSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearAssignEmployeeSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{assignEmployeeSearchKeyword}}" class="list-search-meta">匹配 {{filteredAssignEmployees.length}} / {{allEmployees.length}} 名员工</text>
+
     <scroll-view scroll-y class="assign-list-scroll">
       <view class="assign-card-grid">
-        <view wx:for="{{allEmployees}}" wx:for-item="item" wx:key="_id" class="assign-emp-card {{_currentProcessUserIds.indexOf(item._id) >= 0 ? 'assign-emp-card-selected' : ''}}" bindtap="toggleAssignUser" data-id="{{item._id}}" bindlongpress="onLongPressEmployee" data-id="{{item._id}}">
+        <view wx:for="{{filteredAssignEmployees}}" wx:for-item="item" wx:key="_id" class="assign-emp-card {{_currentProcessUserIds.indexOf(item._id) >= 0 ? 'assign-emp-card-selected' : ''}}" bindtap="toggleAssignUser" data-id="{{item._id}}" bindlongpress="onLongPressEmployee" data-id="{{item._id}}">
           <view class="assign-card-check" wx:if="{{_currentProcessUserIds.indexOf(item._id) >= 0}}">✓</view>
           <view class="assign-card-avatar">{{item.name[0] || ''}}</view>
           <text class="assign-card-name">{{item.name}}</text>
@@ -211,6 +217,9 @@
       </view>
       <view wx:if="{{allEmployees.length === 0}}" class="empty" style="padding:60rpx 0;">
         <text class="empty-title">暂无可分配的员工</text>
+      </view>
+      <view wx:elif="{{filteredAssignEmployees.length === 0}}" class="empty" style="padding:60rpx 0;">
+        <text class="empty-title">没有匹配的员工</text>
       </view>
     </scroll-view>
 

@@ -7,10 +7,15 @@ var showLoading = util.showLoading
 var hideLoading = util.hideLoading
 var showConfirm = util.showConfirm
 var config = require('../../../utils/config')
+var filterListByKeyword = require('../../../utils/list-search').filterListByKeyword
+
+var EMPLOYEE_SEARCH_FIELDS = ['name', 'phone', 'role_name', 'status_text', 'join_date']
 
 Page({
   data: {
     employees: [],
+    filteredEmployees: [],
+    employeeSearchKeyword: '',
     loading: false,
     filterRole: 'all'
   },
@@ -42,11 +47,29 @@ Page({
         }
       })
       that.setData({ employees: employees })
+      that.refreshFilteredEmployees()
     }).catch(function() {
       showError('加载员工列表失败')
     }).then(function() {
       that.setData({ loading: false })
     })
+  },
+
+  refreshFilteredEmployees: function() {
+    this.setData({
+      filteredEmployees: filterListByKeyword(this.data.employees, this.data.employeeSearchKeyword, EMPLOYEE_SEARCH_FIELDS)
+    })
+  },
+
+  onEmployeeSearchInput: function(e) {
+    this.setData({ employeeSearchKeyword: e.detail.value })
+    this.refreshFilteredEmployees()
+  },
+
+  clearEmployeeSearch: function() {
+    if (!this.data.employeeSearchKeyword) return
+    this.setData({ employeeSearchKeyword: '' })
+    this.refreshFilteredEmployees()
   },
 
   goAddEmployee: function() {

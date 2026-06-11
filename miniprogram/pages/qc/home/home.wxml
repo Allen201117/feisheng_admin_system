@@ -26,6 +26,12 @@
     <view class="tab-item {{activeTab === 'inspected' ? 'tab-item-active' : ''}}" bindtap="switchTab" data-tab="inspected" hover-class="tap-chip-hover">今日已质检 ({{inspectedLogs.length}})</view>
   </view>
 
+  <view class="list-search-row">
+    <input class="field-input list-search-input" placeholder="搜索员工、订单、工序" value="{{qcLogSearchKeyword}}" bindinput="onQcLogSearchInput" confirm-type="search" />
+    <view wx:if="{{qcLogSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearQcLogSearch" hover-class="tap-button-hover">清除</view>
+  </view>
+  <text wx:if="{{qcLogSearchKeyword}}" class="list-search-meta">待质检 {{pendingLogs.length}} / {{rawPendingLogs.length}}，已质检 {{inspectedLogs.length}} / {{rawInspectedLogs.length}}</text>
+
   <!-- Pending List -->
   <view wx:if="{{activeTab === 'pending'}}">
     <view wx:if="{{pendingLogs.length === 0}}" class="empty">

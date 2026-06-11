@@ -1,8 +1,19 @@
 // pages/boss/orders/orders.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { buildDeleteOrderConfirmContent } = require('./orders.logic')
+const { filterListByKeyword } = require('../../../utils/list-search')
 
 const bjTime = require('../../../utils/beijing-time')
+
+const ORDER_SEARCH_FIELDS = [
+  'order_name',
+  'status_text',
+  'start_date',
+  'end_date',
+  'days_left_text',
+  'total_quantity',
+  'process_count'
+]
 
 function clampPercent(value) {
   if (value < 0) return 0
@@ -70,6 +81,7 @@ Page({
     filteredOrders: [],
     loading: false,
     activeFilter: 'all',
+    orderSearchKeyword: '',
     statCards: [
       { key: 'total', label: '全部订单', value: 0, className: 'stat-neutral' },
       { key: 'active', label: '进行中', value: 0, className: 'stat-active' },
@@ -125,10 +137,11 @@ Page({
   },
 
   refreshDerivedData() {
-    const { orders, activeFilter, statCards } = this.data
-    const filteredOrders = activeFilter === 'all'
+    const { orders, activeFilter, statCards, orderSearchKeyword } = this.data
+    const statusFilteredOrders = activeFilter === 'all'
       ? orders
       : orders.filter(item => item.status === activeFilter)
+    const filteredOrders = filterListByKeyword(statusFilteredOrders, orderSearchKeyword, ORDER_SEARCH_FIELDS)
 
     const total = orders.length
     const active = orders.filter(item => item.status === 'active').length
@@ -147,6 +160,15 @@ Page({
       filteredOrders,
       statCards: nextCards
     })
+  },
+
+  onOrderSearchInput(e) {
+    this.setData({ orderSearchKeyword: e.detail.value }, () => this.refreshDerivedData())
+  },
+
+  clearOrderSearch() {
+    if (!this.data.orderSearchKeyword) return
+    this.setData({ orderSearchKeyword: '' }, () => this.refreshDerivedData())
   },
 
   onInputOrderName(e) {

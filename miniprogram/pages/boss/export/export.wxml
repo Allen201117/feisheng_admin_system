@@ -128,8 +128,16 @@
   </view>
 
   <!-- ===== 导出历史 ===== -->
-  <view class="card-bento" wx:if="{{historyList.length > 0}}">
+  <view class="card-bento" wx:if="{{rawHistoryList.length > 0}}">
     <text class="menu-group-title" style="display:block;margin-bottom:var(--sp-1);">最近导出记录</text>
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索导出文件、类型、时间" value="{{exportHistorySearchKeyword}}" bindinput="onExportHistorySearchInput" confirm-type="search" />
+      <view wx:if="{{exportHistorySearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearExportHistorySearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{exportHistorySearchKeyword}}" class="list-search-meta">匹配 {{historyList.length}} / {{rawHistoryList.length}} 条记录</text>
+    <view wx:if="{{historyList.length === 0}}" class="empty">
+      <text class="empty-desc">没有匹配的导出记录</text>
+    </view>
     <view wx:for="{{historyList}}" wx:for-item="item" wx:key="_id" class="list-row">
       <view class="flex-1">
         <text class="list-row-title">{{item.title || item.filename}}</text>

@@ -70,6 +70,12 @@
       <text class="text-secondary text-xs">共 {{totalEmployees}} 名员工</text>
     </view>
 
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索员工姓名" value="{{rankSearchKeyword}}" bindinput="onRankSearchInput" confirm-type="search" />
+      <view wx:if="{{rankSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearRankSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{rankSearchKeyword}}" class="list-search-meta">匹配 {{rankList.length}} / {{rawRankList.length}} 名员工</text>
+
     <view wx:if="{{rankList.length === 0 && !loading}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/leaderboard.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
