@@ -1,5 +1,14 @@
 // pages/boss/salary/salary.js
 const { callCloud, showError, formatMoney } = require('../../../utils/util')
+const { filterListByKeyword } = require('../../../utils/list-search')
+
+const SALARY_SEARCH_FIELDS = [
+  'user_name',
+  'baseSalary',
+  'adjustmentTotal',
+  'finalSalary',
+  (employee) => employee.paid ? '已发' : '未发'
+]
 
 function formatMonthLabel(monthValue) {
   const parts = monthValue.split('-')
@@ -9,6 +18,8 @@ function formatMonthLabel(monthValue) {
 Page({
   data: {
     employees: [],
+    filteredEmployees: [],
+    salarySearchKeyword: '',
     totalSalary: '0.00',
     currentMonth: '',
     currentMonthValue: '',
@@ -69,7 +80,7 @@ Page({
         currentMonth: currentOrder ? currentOrder.order_name : '请选择订单'
       })
       if (currentOrder) this.loadSalaryOverview()
-      else this.setData({ employees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0, loading: false })
+      else this.setData({ employees: [], filteredEmployees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0, loading: false })
     } catch (e) {
       this.setData({ loading: false })
       showError('加载订单失败')
@@ -132,7 +143,7 @@ Page({
       // 并行加载薪资列表和发放状态
       const isOrderMode = this.data.payrollMode === 'order'
       if (isOrderMode && !this.data.currentOrderId) {
-        this.setData({ employees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0 })
+        this.setData({ employees: [], filteredEmployees: [], totalSalary: '0.00', paidMap: {}, paidCount: 0 })
         return
       }
       const salaryPayload = isOrderMode
@@ -168,6 +179,7 @@ Page({
         paidMap,
         paidCount
       })
+      this.refreshFilteredEmployees()
     } catch (e) {
       showError('加载薪资数据失败')
     } finally {
@@ -175,10 +187,29 @@ Page({
     }
   },
 
+  refreshFilteredEmployees() {
+    const filteredEmployees = filterListByKeyword(this.data.employees, this.data.salarySearchKeyword, SALARY_SEARCH_FIELDS)
+      .map((employee) => ({
+        ...employee,
+        _sourceIndex: this.data.employees.findIndex(item => item.user_id === employee.user_id)
+      }))
+    this.setData({ filteredEmployees })
+  },
+
+  onSalarySearchInput(e) {
+    this.setData({ salarySearchKeyword: e.detail.value }, () => this.refreshFilteredEmployees())
+  },
+
+  clearSalarySearch() {
+    if (!this.data.salarySearchKeyword) return
+    this.setData({ salarySearchKeyword: '' }, () => this.refreshFilteredEmployees())
+  },
+
   async onTogglePaid(e) {
     const userId = e.currentTarget.dataset.id
     const userName = e.currentTarget.dataset.name
-    const idx = e.currentTarget.dataset.idx
+    const idx = Number(e.currentTarget.dataset.idx)
+    if (!this.data.employees[idx]) return
     const currentPaid = this.data.employees[idx].paid
 
     try {
@@ -200,6 +231,7 @@ Page({
       let paidCount = 0
       employees.forEach(emp => { if (emp.paid) paidCount++ })
       this.setData({ employees, paidCount })
+      this.refreshFilteredEmployees()
 
       wx.showToast({
         title: !currentPaid ? '已标记发放' : '已取消标记',

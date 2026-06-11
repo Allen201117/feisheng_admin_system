@@ -181,6 +181,12 @@
         <text class="font-bold text-primary text-md">全部订单</text>
       </view>
 
+      <view class="list-search-row">
+        <input class="field-input list-search-input" placeholder="搜索订单名称、状态" value="{{orderSearchKeyword}}" bindinput="onOrderSearchInput" confirm-type="search" />
+        <view wx:if="{{orderSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearOrderSearch" hover-class="tap-button-hover">清除</view>
+      </view>
+      <text wx:if="{{orderSearchKeyword}}" class="list-search-meta">匹配 {{filteredOrderList.length}} / {{orderList.length}} 个订单</text>
+
       <view wx:if="{{orderList.length === 0 && !loading}}" class="empty">
         <view class="empty-icon">
           <image src="/images/icons/orders.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
@@ -189,8 +195,15 @@
         <text class="empty-desc">当前工厂还没有订单数据，刷新后可再次确认。</text>
         <view class="empty-action secondary" bindtap="loadOrders" hover-class="tap-button-hover">刷新订单</view>
       </view>
+      <view wx:elif="{{filteredOrderList.length === 0 && !loading}}" class="empty">
+        <view class="empty-icon">
+          <image src="/images/icons/orders.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+        </view>
+        <text class="empty-title">没有匹配的订单</text>
+        <text class="empty-desc">换个订单名称或状态再试</text>
+      </view>
 
-      <view wx:for="{{orderList}}" wx:for-item="item" wx:key="_id" class="order-card" bindtap="onOrderTap" data-order="{{item}}" hover-class="tap-card-hover" hover-stay-time="80">
+      <view wx:for="{{filteredOrderList}}" wx:for-item="item" wx:key="_id" class="order-card" bindtap="onOrderTap" data-order="{{item}}" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="order-card-head">
           <text class="order-card-name">{{item.order_name}}</text>
           <text class="badge {{item.status === 'completed' ? 'badge-green' : item.status === 'cancelled' ? 'badge-red' : 'badge-blue'}}">{{item.statusText}}</text>

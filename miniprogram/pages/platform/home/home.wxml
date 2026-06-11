@@ -46,11 +46,20 @@
       </view>
     </view>
 
+    <view class="list-search-row">
+      <input class="field-input list-search-input" placeholder="搜索工厂名称、工厂码、联系人" value="{{orgSearchKeyword}}" bindinput="onOrgSearchInput" confirm-type="search" />
+      <view wx:if="{{orgSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearOrgSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+    <text wx:if="{{orgSearchKeyword}}" class="list-search-meta">匹配 {{filteredOrganizations.length}} / {{organizations.length}} 家工厂</text>
+
     <view wx:if="{{organizations.length === 0 && !loading}}" class="empty">
       <text class="empty-desc">暂无工厂，请先创建</text>
     </view>
+    <view wx:elif="{{filteredOrganizations.length === 0 && !loading}}" class="empty">
+      <text class="empty-desc">没有匹配的工厂，换个名称、工厂码或联系人再试</text>
+    </view>
 
-    <view wx:for="{{organizations}}" wx:key="_id" class="org-card {{selectedOrgId === item._id ? 'org-card-selected' : ''}}" data-index="{{index}}" bindtap="selectOrganization">
+    <view wx:for="{{filteredOrganizations}}" wx:key="_id" class="org-card {{selectedOrgId === item._id ? 'org-card-selected' : ''}}" data-id="{{item._id}}" bindtap="selectOrganization">
       <view class="flex-between">
         <text class="font-semibold">{{item.org_name}}</text>
         <text class="badge {{item.status === 'active' ? 'badge-green' : 'badge-red'}}">{{item.status === 'active' ? '启用中' : '已停用'}}</text>

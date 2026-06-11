@@ -12,6 +12,12 @@
     <view class="tab-item {{activeTab === 'abnormal' ? 'tab-item-active' : ''}}" bindtap="switchTab" data-tab="abnormal" hover-class="tap-chip-hover">异常记录 ({{abnormalRecords.length}})</view>
   </view>
 
+  <view class="list-search-row">
+    <input class="field-input list-search-input" placeholder="搜索姓名、日期、状态" value="{{attendanceSearchKeyword}}" bindinput="onAttendanceSearchInput" confirm-type="search" />
+    <view wx:if="{{attendanceSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearAttendanceSearch" hover-class="tap-button-hover">清除</view>
+  </view>
+  <text wx:if="{{attendanceSearchKeyword}}" class="list-search-meta">每日匹配 {{records.length}} / {{rawRecords.length}}，异常匹配 {{abnormalRecords.length}} / {{rawAbnormalRecords.length}}</text>
+
   <!-- 每日考勤 -->
   <view wx:if="{{activeTab === 'today'}}">
     <view class="card-bento">

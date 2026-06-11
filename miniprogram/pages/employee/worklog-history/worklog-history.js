@@ -2,11 +2,24 @@
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatMoney } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
 const { buildWorklogHistoryView } = require('../worklog/worklog.logic')
+const { filterListByKeyword } = require('../../../utils/list-search')
+
+const HISTORY_SEARCH_FIELDS = [
+  'order_name',
+  'process_name',
+  'date',
+  'report_time_text',
+  'note',
+  'quantity',
+  (log) => log.status === 'inspected' ? '已质检' : '待质检'
+]
 
 Page({
   data: {
     userInfo: null,
+    rawHistoryLogs: [],
     historyLogs: [],
+    historySearchKeyword: '',
     overviewCards: [],
     payrollMode: 'monthly',
     historySummaryLabel: '本月报工金额',
@@ -48,19 +61,46 @@ Page({
       const payload = res.data || {}
       const logs = Array.isArray(payload) ? payload : (payload.logs || [])
       const payrollMode = payload.payroll_mode === 'order' ? 'order' : 'monthly'
-      const view = buildWorklogHistoryView(logs)
       this.setData({
-        historyLogs: logs,
-        overviewCards: view.overviewCards,
+        rawHistoryLogs: logs,
         payrollMode,
-        historySummaryLabel: payrollMode === 'order' ? '订单报工金额' : '本月报工金额',
-        historyTotal: view.hasHiddenAmount ? '已隐藏' : formatMoney(view.totalAmount || 0),
-        historyQuantity: view.totalQuantity || 0,
-        historyCount: view.totalCount || 0
+        historySummaryLabel: payrollMode === 'order' ? '订单报工金额' : '本月报工金额'
       })
+      this.applyHistorySearch(this.data.historySearchKeyword, logs)
     } catch (e) {
       console.error('加载历史报工失败', e)
+      this.setData({
+        rawHistoryLogs: [],
+        historyLogs: [],
+        overviewCards: [],
+        historyTotal: '0.00',
+        historyQuantity: 0,
+        historyCount: 0
+      })
     }
+  },
+
+  applyHistorySearch(keyword, sourceLogs) {
+    const rawLogs = Array.isArray(sourceLogs) ? sourceLogs : this.data.rawHistoryLogs
+    const historyLogs = filterListByKeyword(rawLogs, keyword, HISTORY_SEARCH_FIELDS)
+    const view = buildWorklogHistoryView(historyLogs)
+    this.setData({
+      historySearchKeyword: keyword,
+      historyLogs,
+      overviewCards: view.overviewCards,
+      historyTotal: view.hasHiddenAmount ? '已隐藏' : formatMoney(view.totalAmount || 0),
+      historyQuantity: view.totalQuantity || 0,
+      historyCount: view.totalCount || 0
+    })
+  },
+
+  onHistorySearchInput(e) {
+    this.applyHistorySearch(e.detail.value)
+  },
+
+  clearHistorySearch() {
+    if (!this.data.historySearchKeyword) return
+    this.applyHistorySearch('')
   },
 
   onEditLog(e) {

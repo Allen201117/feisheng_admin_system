@@ -145,7 +145,13 @@ function sortDocsByFields(list, fields, direction) {
   })
 }
 
-async function fetchAllDocs(collectionName, where, pageSize = 100) {
+function normalizePageSize(value, fallback = 100) {
+  const parsed = parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+async function fetchAllDocs(collectionName, where, pageSizeValue = 100) {
+  const pageSize = normalizePageSize(pageSizeValue)
   const all = []
   let batchLen = 0
   do {

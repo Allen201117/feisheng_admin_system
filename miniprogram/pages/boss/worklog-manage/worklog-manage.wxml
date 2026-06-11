@@ -131,6 +131,14 @@
       </view>
     </view>
 
+    <view class="card-bento">
+      <view class="list-search-row">
+        <input class="field-input list-search-input" placeholder="搜索员工、订单、工序、日期、备注" value="{{logSearchKeyword}}" bindinput="onLogSearchInput" confirm-type="search" />
+        <view wx:if="{{logSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearLogSearch" hover-class="tap-button-hover">清除</view>
+      </view>
+      <text wx:if="{{logSearchKeyword}}" class="list-search-meta">匹配 {{summary.count}} / {{rawLogs.length}} 条报工</text>
+    </view>
+
     <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
@@ -151,9 +159,40 @@
             <text class="list-row-title">{{item.user_name || '未知员工'}}</text>
             <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
           </view>
-          <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
-          <text class="list-row-subtitle">结算价 <text class="price-strong">¥{{item.snapshot_price}}</text><text wx:if="{{item.price_changed}}"> · 当前价 <text class="price-strong">¥{{item.current_price}}</text></text></text>
-          <text class="list-row-subtitle">备注：{{item.note || '无'}}</text>
+          <view class="info-grid worklog-info-grid">
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">报工日期</text>
+              <text class="info-tile-value">{{item.date || group.date || '未知日期'}}</text>
+            </view>
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">订单名称</text>
+              <text class="info-tile-value">{{item.order_name || processDetail.order_name || '未知订单'}}</text>
+            </view>
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">工序名称</text>
+              <text class="info-tile-value">{{item.process_name || processDetail.process_name || '未知工序'}}</text>
+            </view>
+            <view class="info-tile info-tile-blue">
+              <text class="info-tile-label">报工数量</text>
+              <text class="info-tile-value num">{{item.quantity || 0}}件</text>
+            </view>
+            <view class="info-tile info-tile-green">
+              <text class="info-tile-label">报工金额</text>
+              <text class="info-tile-value num">¥{{item.amountDisplay}}</text>
+            </view>
+            <view class="info-tile info-tile-amber">
+              <text class="info-tile-label">结算单价</text>
+              <text class="info-tile-value"><text class="price-strong">¥{{item.snapshot_price}}</text></text>
+            </view>
+            <view wx:if="{{item.price_changed}}" class="info-tile">
+              <text class="info-tile-label">当前单价</text>
+              <text class="info-tile-value"><text class="price-strong">¥{{item.current_price}}</text></text>
+            </view>
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">备注</text>
+              <text class="info-tile-value">{{item.note || '无'}}</text>
+            </view>
+          </view>
         </view>
         <view class="worklog-log-actions">
           <view class="worklog-log-action primary" bindtap="onEditWorkLog" data-log="{{item}}" hover-class="tap-button-hover">编辑</view>
@@ -235,6 +274,14 @@
       </view>
     </view>
 
+    <view class="card-bento">
+      <view class="list-search-row">
+        <input class="field-input list-search-input" placeholder="搜索员工、订单、工序、日期、备注" value="{{logSearchKeyword}}" bindinput="onLogSearchInput" confirm-type="search" />
+        <view wx:if="{{logSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearLogSearch" hover-class="tap-button-hover">清除</view>
+      </view>
+      <text wx:if="{{logSearchKeyword}}" class="list-search-meta">匹配 {{summary.count}} / {{rawLogs.length}} 条报工</text>
+    </view>
+
     <view wx:if="{{groupedLogs.length === 0 && !loading}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
@@ -255,9 +302,36 @@
             <text class="list-row-title">{{item.user_name || '未知员工'}}</text>
             <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
           </view>
-          <text class="list-row-subtitle">{{item.order_name || '未知订单'}} · {{item.process_name || '未知工序'}}</text>
-          <text class="list-row-subtitle">数量：{{item.quantity || 0}}件  金额：¥{{item.amountDisplay}}</text>
-          <text class="list-row-subtitle">结算价 <text class="price-strong">¥{{item.snapshot_price}}</text><text wx:if="{{item.price_changed}}"> · 当前价 <text class="price-strong">¥{{item.current_price}}</text></text></text>
+          <view class="info-grid worklog-info-grid">
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">报工日期</text>
+              <text class="info-tile-value">{{item.date || group.date || '未知日期'}}</text>
+            </view>
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">订单名称</text>
+              <text class="info-tile-value">{{item.order_name || '未知订单'}}</text>
+            </view>
+            <view class="info-tile info-tile-full">
+              <text class="info-tile-label">工序名称</text>
+              <text class="info-tile-value">{{item.process_name || '未知工序'}}</text>
+            </view>
+            <view class="info-tile info-tile-blue">
+              <text class="info-tile-label">报工数量</text>
+              <text class="info-tile-value num">{{item.quantity || 0}}件</text>
+            </view>
+            <view class="info-tile info-tile-green">
+              <text class="info-tile-label">报工金额</text>
+              <text class="info-tile-value num">¥{{item.amountDisplay}}</text>
+            </view>
+            <view class="info-tile info-tile-amber">
+              <text class="info-tile-label">结算单价</text>
+              <text class="info-tile-value"><text class="price-strong">¥{{item.snapshot_price}}</text></text>
+            </view>
+            <view wx:if="{{item.price_changed}}" class="info-tile">
+              <text class="info-tile-label">当前单价</text>
+              <text class="info-tile-value"><text class="price-strong">¥{{item.current_price}}</text></text>
+            </view>
+          </view>
         </view>
         <view class="worklog-log-actions">
           <view class="worklog-log-action primary" bindtap="onEditWorkLog" data-log="{{item}}" hover-class="tap-button-hover">编辑</view>

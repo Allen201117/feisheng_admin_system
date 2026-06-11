@@ -1,11 +1,23 @@
 const { callCloud, showError, showSuccess, showLoading, hideLoading, trim } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
+const { filterListByKeyword } = require('../../../utils/list-search')
 const app = getApp()
+
+const ORG_SEARCH_FIELDS = [
+  'org_name',
+  'factory_code',
+  'contact_name',
+  'contact_phone',
+  'billing_status_label',
+  'plan_name_view'
+]
 
 Page({
   data: {
     userInfo: null,
     organizations: [],
+    filteredOrganizations: [],
+    orgSearchKeyword: '',
     selectedOrgId: '',
     selectedOrg: null,
     factoryAdmins: [],
@@ -63,6 +75,7 @@ Page({
       const currentId = this.data.selectedOrgId
       const selected = organizations.find(item => item._id === currentId) || organizations[0] || null
       this.setData({ organizations })
+      this.refreshFilteredOrganizations()
       if (selected) {
         this.applySelectedOrganization(selected, false)
         this.loadFactoryAdmins(selected._id)
@@ -71,6 +84,7 @@ Page({
         this.setData({
           selectedOrgId: '',
           selectedOrg: null,
+          filteredOrganizations: [],
           factoryAdmins: [],
           billingOrders: [],
           editForm: { org_name: '', factory_code: '', contact_name: '', contact_phone: '' },
@@ -79,9 +93,25 @@ Page({
       }
     } catch (err) {
       showError(err.message || '加载工厂失败')
+      this.setData({ organizations: [], filteredOrganizations: [] })
     } finally {
       this.setData({ loading: false })
     }
+  },
+
+  refreshFilteredOrganizations() {
+    this.setData({
+      filteredOrganizations: filterListByKeyword(this.data.organizations, this.data.orgSearchKeyword, ORG_SEARCH_FIELDS)
+    })
+  },
+
+  onOrgSearchInput(e) {
+    this.setData({ orgSearchKeyword: e.detail.value }, () => this.refreshFilteredOrganizations())
+  },
+
+  clearOrgSearch() {
+    if (!this.data.orgSearchKeyword) return
+    this.setData({ orgSearchKeyword: '' }, () => this.refreshFilteredOrganizations())
   },
 
   async loadPlans() {
@@ -185,8 +215,8 @@ Page({
   },
 
   selectOrganization(e) {
-    const index = Number(e.currentTarget.dataset.index)
-    const org = this.data.organizations[index]
+    const id = e.currentTarget.dataset.id
+    const org = this.data.organizations.find(item => item._id === id)
     if (!org) return
     this.applySelectedOrganization(this.decorateOrganization(org), true)
     this.loadFactoryAdmins(org._id)

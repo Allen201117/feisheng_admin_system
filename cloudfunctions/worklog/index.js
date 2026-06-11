@@ -121,15 +121,23 @@ function sortDocsByFields(list, fields, direction) {
   })
 }
 
-async function fetchAllDocs(collectionName, where, pageSize = 100) {
+function normalizePageSize(value, fallback = 100) {
+  const parsed = parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+async function fetchAllDocs(collectionName, where, options = {}) {
+  const normalizedOptions = (typeof options === 'number' || typeof options === 'string')
+    ? { pageSize: options }
+    : (options || {})
+  const field = normalizedOptions.field || null
+  const pageSize = normalizePageSize(normalizedOptions.pageSize)
   const all = []
   let batchLen = 0
   do {
-    const res = await db.collection(collectionName)
-      .where(where)
-      .skip(all.length)
-      .limit(pageSize)
-      .get()
+    let query = db.collection(collectionName).where(where)
+    if (field) query = query.field(field)
+    const res = await query.skip(all.length).limit(pageSize).get()
     batchLen = (res.data || []).length
     all.push(...(res.data || []))
   } while (batchLen === pageSize)
@@ -537,7 +545,7 @@ async function getManageLogs(event, wxContext) {
     const priceMap = {}
     for (let i = 0; i < processIds.length; i += 50) {
       const chunk = processIds.slice(i, i + 50)
-      const procs = await fetchAllDocs('Processes', { org_id: getOrgId(caller), _id: _.in(chunk) }, { field: { _id: true, current_price: true } })
+      const procs = await fetchAllDocs('Processes', { org_id: getOrgId(caller), _id: _.in(chunk) })
       procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
     }
     const logsWithPrice = allLogs.map(l => {

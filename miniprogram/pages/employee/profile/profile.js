@@ -8,6 +8,24 @@ var showLoading = util.showLoading
 var hideLoading = util.hideLoading
 var auth = require('../../../utils/auth')
 var getStoredUser = auth.getStoredUser
+var filterListByKeyword = require('../../../utils/list-search').filterListByKeyword
+
+var PROFILE_DETAIL_SEARCH_FIELDS = [
+  'order_name',
+  'quantity_display',
+  'detail_display',
+  'amount_display',
+  'reason',
+  'date',
+  'label',
+  'paid_at',
+  'clock_in_display',
+  'clock_out_display',
+  'hours',
+  function(item) {
+    return item.status === 'normal' ? '正常' : (item.status === 'abnormal' ? '异常' : (item.status === 'supplemented' ? '已补签' : ''))
+  }
+]
 
 Page({
   data: {
@@ -23,11 +41,16 @@ Page({
     monthlyHours: '0.0',
     monthlyOutput: 0,
     passRate: '0',
+    profileDetailSearchKeyword: '',
+    rawAdjustments: [],
     adjustments: [],
     totalAdjustment: '0.00',
     finalSalary: '0.00',
+    rawAttendanceRecords: [],
     attendanceRecords: [],
+    rawPaymentRecords: [],
     paymentRecords: [],
+    rawOrderSummaries: [],
     orderSummaries: [],
     showAttendance: false,
     // 已发薪隐私标记
@@ -98,10 +121,11 @@ Page({
           monthlySalary: '--',
           monthlyOutput: '--',
           passRate: '--',
-          orderSummaries: orderSummaries,
-          adjustments: data.adjustments || [],
+          rawOrderSummaries: orderSummaries,
+          rawAdjustments: data.adjustments || [],
           totalAdjustment: formatMoney((data.reward || 0) - (data.penalty || 0))
         })
+        that.refreshProfileDetailSearch()
       } else {
         // 未发薪 — 完整数据
         var pieceRate = data.piece_rate || 0
@@ -121,11 +145,12 @@ Page({
           monthlyHours: (ws2.total_hours || 0).toFixed(1),
           monthlyOutput: ws2.total_quantity || 0,
           passRate: (ws2.pass_rate || 0).toFixed(1),
-          orderSummaries: orderSummaries,
-          adjustments: data.adjustments || [],
+          rawOrderSummaries: orderSummaries,
+          rawAdjustments: data.adjustments || [],
           totalAdjustment: formatMoney(reward - penalty),
           finalSalary: formatMoney(data.total || 0)
         })
+        that.refreshProfileDetailSearch()
       }
     }).catch(function(e) {
       console.error('加载薪资数据失败', e)
@@ -148,7 +173,8 @@ Page({
           amount_display: item.total_amount === undefined || item.total_amount === null ? '--' : formatMoney(item.total_amount)
         }
       })
-      that.setData({ paymentRecords: records })
+      that.setData({ rawPaymentRecords: records })
+      that.refreshProfileDetailSearch()
     }).catch(function(e) {
       console.error('加载历史发薪记录失败', e)
     })
@@ -160,7 +186,8 @@ Page({
       action: 'getUserMonthlyRecords',
       user_id: this.data.userInfo._id
     }).then(function(res) {
-      that.setData({ attendanceRecords: res.data || [] })
+      that.setData({ rawAttendanceRecords: res.data || [] })
+      that.refreshProfileDetailSearch()
     }).catch(function(e) {
       console.error('加载考勤失败', e)
     })
@@ -168,6 +195,26 @@ Page({
 
   toggleAttendance: function() {
     this.setData({ showAttendance: !this.data.showAttendance })
+  },
+
+  refreshProfileDetailSearch: function() {
+    this.setData({
+      orderSummaries: filterListByKeyword(this.data.rawOrderSummaries, this.data.profileDetailSearchKeyword, PROFILE_DETAIL_SEARCH_FIELDS),
+      adjustments: filterListByKeyword(this.data.rawAdjustments, this.data.profileDetailSearchKeyword, PROFILE_DETAIL_SEARCH_FIELDS),
+      paymentRecords: filterListByKeyword(this.data.rawPaymentRecords, this.data.profileDetailSearchKeyword, PROFILE_DETAIL_SEARCH_FIELDS),
+      attendanceRecords: filterListByKeyword(this.data.rawAttendanceRecords, this.data.profileDetailSearchKeyword, PROFILE_DETAIL_SEARCH_FIELDS)
+    })
+  },
+
+  onProfileDetailSearchInput: function(e) {
+    this.setData({ profileDetailSearchKeyword: e.detail.value })
+    this.refreshProfileDetailSearch()
+  },
+
+  clearProfileDetailSearch: function() {
+    if (!this.data.profileDetailSearchKeyword) return
+    this.setData({ profileDetailSearchKeyword: '' })
+    this.refreshProfileDetailSearch()
   },
 
   // ========== 修改密码 ==========

@@ -20,6 +20,12 @@
     </view>
   </view>
 
+  <view class="list-search-row">
+    <input class="field-input list-search-input" placeholder="搜索订单名称、日期、状态" value="{{orderSearchKeyword}}" bindinput="onOrderSearchInput" confirm-type="search" />
+    <view wx:if="{{orderSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearOrderSearch" hover-class="tap-button-hover">清除</view>
+  </view>
+  <text wx:if="{{orderSearchKeyword}}" class="list-search-meta">匹配 {{filteredOrders.length}} / {{orders.length}} 个订单</text>
+
   <!-- 新建订单表单 -->
   <view wx:if="{{showAddForm}}" class="card-bento">
     <text class="menu-group-title" style="margin-bottom:var(--sp-1);">新建订单</text>

@@ -67,9 +67,9 @@ page {
   --hairline-strong:      rgba(194,202,214,0.92);
 
   /* ── 字号 · 中老年友好 ── */
-  --fs-2xs:               22rpx;
-  --fs-xs:                24rpx;
-  --fs-sm:                28rpx;
+  --fs-2xs:               26rpx;
+  --fs-xs:                28rpx;
+  --fs-sm:                30rpx;
   --fs-base:              32rpx;
   --fs-md:                36rpx;
   --fs-lg:                42rpx;
@@ -472,6 +472,30 @@ button[disabled] { opacity: 0.48; }
 .field-hint  { font-size: var(--fs-2xs); color: var(--text-tertiary); margin-top: 4rpx; }
 .field-error { font-size: var(--fs-2xs); color: var(--red-600); margin-top: 4rpx; }
 
+.list-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-2);
+}
+
+.list-search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.list-search-clear {
+  flex-shrink: 0;
+  min-width: 96rpx;
+}
+
+.list-search-meta {
+  display: block;
+  margin: -12rpx 0 var(--sp-2);
+  font-size: var(--fs-2xs);
+  color: var(--text-secondary);
+}
+
 /* picker */
 .picker-field {
   display: flex; justify-content: space-between; align-items: center;
@@ -672,8 +696,55 @@ button[disabled] { opacity: 0.48; }
 .list-row:last-child { border-bottom: none; }
 
 .list-row-title    { font-size: var(--fs-base); font-weight: var(--fw-medium); color: var(--text-primary); }
-.list-row-subtitle { font-size: var(--fs-2xs); color: var(--text-secondary); margin-top: 4rpx; }
+.list-row-subtitle { font-size: var(--fs-2xs); line-height: 1.45; color: var(--text-secondary); margin-top: 6rpx; }
 .list-row-extra    { font-size: var(--fs-sm); color: var(--text-secondary); text-align: right; flex-shrink: 0; }
+
+/* 可复用信息块：把密集业务字段拆成易扫读的标签 + 数值 */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 16rpx;
+  width: 100%;
+}
+
+.info-tile {
+  min-width: 0;
+  padding: 14rpx 16rpx;
+  border-radius: 18rpx;
+  background: var(--surface-strong);
+  border: 1rpx solid var(--hairline);
+  box-sizing: border-box;
+}
+
+.info-tile-full { grid-column: 1 / -1; }
+.info-tile-blue { background: var(--blue-50); border-color: var(--blue-100); }
+.info-tile-green { background: var(--green-50); border-color: var(--green-100); }
+.info-tile-amber { background: var(--amber-50); border-color: var(--amber-100); }
+
+.info-tile-label {
+  display: block;
+  margin-bottom: 6rpx;
+  font-size: var(--fs-2xs);
+  line-height: 1.25;
+  color: var(--text-secondary);
+  font-weight: var(--fw-medium);
+}
+
+.info-tile-value {
+  display: block;
+  min-width: 0;
+  font-size: var(--fs-base);
+  line-height: 1.35;
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+  word-break: break-all;
+}
+
+.info-tile-value.num {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+}
 
 /* ═══════════ 员工行 ═══════════ */
 
@@ -1127,10 +1198,10 @@ button[disabled] { opacity: 0.48; }
   font-weight: 700;
 }
 
-.text-xs  { font-size: var(--fs-xs); }
-.text-sm  { font-size: var(--fs-sm); }
-.text-base { font-size: var(--fs-base); }
-.text-md  { font-size: var(--fs-md); }
+.text-xs  { font-size: var(--fs-xs); line-height: 1.45; }
+.text-sm  { font-size: var(--fs-sm); line-height: 1.4; }
+.text-base { font-size: var(--fs-base); line-height: 1.4; }
+.text-md  { font-size: var(--fs-md); line-height: 1.35; }
 
 .font-medium   { font-weight: var(--fw-medium); }
 .font-semibold { font-weight: var(--fw-semibold); }

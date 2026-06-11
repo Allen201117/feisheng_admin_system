@@ -1,6 +1,20 @@
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatMoney, getToday } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
+const { filterListByKeyword } = require('../../../utils/list-search')
 const { filterProcessesByKeyword } = require('../process-search.logic')
+
+const WORKLOG_SEARCH_FIELDS = [
+  'user_name',
+  'order_name',
+  'process_name',
+  'date',
+  'note',
+  (log) => log.status === 'inspected' ? '已质检' : '待质检',
+  (log) => log.quantity,
+  (log) => log.snapshot_price,
+  (log) => log.current_price,
+  (log) => formatMoney(Math.round((Number(log.quantity || 0) * Number(log.snapshot_price || 0)) * 100) / 100)
+]
 
 Page({
   data: {
@@ -12,6 +26,8 @@ Page({
     orders: [],
     orderIndex: -1,
     selectedOrder: null,
+    rawLogs: [],
+    logSearchKeyword: '',
     groupedLogs: [],
     summary: {
       count: 0,
@@ -182,6 +198,22 @@ Page({
     this.applyProgressProcessSearch('')
   },
 
+  applyLogSearch(keyword, sourceLogs) {
+    const rawLogs = Array.isArray(sourceLogs) ? sourceLogs : this.data.rawLogs
+    const filteredLogs = filterListByKeyword(rawLogs, keyword, WORKLOG_SEARCH_FIELDS)
+    this.setData({ logSearchKeyword: keyword })
+    this.normalizeLogs(filteredLogs)
+  },
+
+  onLogSearchInput(e) {
+    this.applyLogSearch(e.detail.value)
+  },
+
+  clearLogSearch() {
+    if (!this.data.logSearchKeyword) return
+    this.applyLogSearch('')
+  },
+
   switchViewType(e) {
     const viewType = e.currentTarget.dataset.type
     if (viewType === this.data.viewType) return
@@ -312,6 +344,7 @@ Page({
     const query = this.buildQuery()
     if (!query) {
       this.setData({
+        rawLogs: [],
         groupedLogs: [],
         summary: { count: 0, quantity: 0, amount: '0.00' }
       })
@@ -324,11 +357,14 @@ Page({
     try {
       const res = await callCloud('worklog', query)
       hideLoading()
-      this.normalizeLogs(res.data || [])
+      const rawLogs = res.data || []
+      this.setData({ rawLogs })
+      this.applyLogSearch(this.data.logSearchKeyword, rawLogs)
     } catch (err) {
       hideLoading()
       showError(err.message || '加载报工记录失败')
       this.setData({
+        rawLogs: [],
         groupedLogs: [],
         summary: { count: 0, quantity: 0, amount: '0.00' }
       })
@@ -341,6 +377,7 @@ Page({
     const detail = this.data.processDetail
     if (!detail || !detail.order_id || !detail.process_id) {
       this.setData({
+        rawLogs: [],
         groupedLogs: [],
         summary: { count: 0, quantity: 0, amount: '0.00' }
       })
@@ -357,11 +394,14 @@ Page({
         process_id: detail.process_id
       })
       hideLoading()
-      this.normalizeLogs(res.data || [])
+      const rawLogs = res.data || []
+      this.setData({ rawLogs })
+      this.applyLogSearch(this.data.logSearchKeyword, rawLogs)
     } catch (err) {
       hideLoading()
       showError(err.message || '加载工序明细失败')
       this.setData({
+        rawLogs: [],
         groupedLogs: [],
         summary: { count: 0, quantity: 0, amount: '0.00' }
       })

@@ -1,10 +1,23 @@
 // pages/boss/attendance/attendance.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm, formatDate, getToday } = require('../../../utils/util')
+const { filterListByKeyword } = require('../../../utils/list-search')
+
+const ATTENDANCE_SEARCH_FIELDS = [
+  'user_name',
+  'date',
+  'clock_in_display',
+  'clock_out_display',
+  'hours',
+  (record) => record.status === 'normal' ? '正常' : (record.status === 'abnormal' ? '异常' : '已补签')
+]
 
 Page({
   data: {
+    rawRecords: [],
     records: [],
+    rawAbnormalRecords: [],
     abnormalRecords: [],
+    attendanceSearchKeyword: '',
     selectedDate: '',
     activeTab: 'today',
     loading: false,
@@ -39,7 +52,8 @@ Page({
         action: 'getDailyRecords',
         date: this.data.selectedDate
       })
-      this.setData({ records: res.data || [] })
+      this.setData({ rawRecords: res.data || [] })
+      this.refreshAttendanceSearch()
     } catch (e) {
       showError('加载考勤记录失败')
     } finally {
@@ -52,10 +66,27 @@ Page({
       const res = await callCloud('attendance', {
         action: 'getAbnormalRecords'
       })
-      this.setData({ abnormalRecords: res.data || [] })
+      this.setData({ rawAbnormalRecords: res.data || [] })
+      this.refreshAttendanceSearch()
     } catch (e) {
       console.error('加载异常记录失败', e)
     }
+  },
+
+  refreshAttendanceSearch() {
+    this.setData({
+      records: filterListByKeyword(this.data.rawRecords, this.data.attendanceSearchKeyword, ATTENDANCE_SEARCH_FIELDS),
+      abnormalRecords: filterListByKeyword(this.data.rawAbnormalRecords, this.data.attendanceSearchKeyword, ATTENDANCE_SEARCH_FIELDS)
+    })
+  },
+
+  onAttendanceSearchInput(e) {
+    this.setData({ attendanceSearchKeyword: e.detail.value }, () => this.refreshAttendanceSearch())
+  },
+
+  clearAttendanceSearch() {
+    if (!this.data.attendanceSearchKeyword) return
+    this.setData({ attendanceSearchKeyword: '' }, () => this.refreshAttendanceSearch())
   },
 
   async loadEmployees() {

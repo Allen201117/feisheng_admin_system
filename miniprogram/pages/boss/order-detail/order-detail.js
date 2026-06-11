@@ -3,6 +3,7 @@ const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm
 const bjTime = require('../../../utils/beijing-time')
 const { buildDeleteOrderConfirmContent } = require('../orders/orders.logic')
 const { buildProcessListView } = require('../process-search.logic')
+const { filterListByKeyword } = require('../../../utils/list-search')
 
 function clampPercent(value) {
   if (value < 0) return 0
@@ -67,6 +68,12 @@ function getOrderStatusClass(status) {
 
 const PROCESS_PAGE_SIZE = 30
 const ASSIGN_PROCESS_PAGE_SIZE = 40
+const ASSIGN_EMPLOYEE_SEARCH_FIELDS = [
+  'name',
+  'phone',
+  'role',
+  (employee) => employee.role === 'qc' ? '质检员' : '员工'
+]
 
 Page({
   data: {
@@ -79,6 +86,8 @@ Page({
     processPageSize: PROCESS_PAGE_SIZE,
     hasMoreProcesses: false,
     allEmployees: [],
+    filteredAssignEmployees: [],
+    assignEmployeeSearchKeyword: '',
     employeeMap: {},  // id → name
     assignedCount: 0,
     unassignedCount: 0,
@@ -201,6 +210,7 @@ Page({
       const map = {}
       list.forEach(e => { map[e._id] = e.name })
       this.setData({ allEmployees: list, employeeMap: map })
+      this.refreshAssignEmployeeSearch()
     } catch (e) {
       console.error('加载员工列表失败', e)
     }
@@ -209,6 +219,21 @@ Page({
   // ===== 工序筛选 =====
   onProcessFilter(e) {
     this.applyFilter({ processFilter: e.currentTarget.dataset.filter })
+  },
+
+  refreshAssignEmployeeSearch() {
+    this.setData({
+      filteredAssignEmployees: filterListByKeyword(this.data.allEmployees, this.data.assignEmployeeSearchKeyword, ASSIGN_EMPLOYEE_SEARCH_FIELDS)
+    })
+  },
+
+  onAssignEmployeeSearchInput(e) {
+    this.setData({ assignEmployeeSearchKeyword: e.detail.value }, () => this.refreshAssignEmployeeSearch())
+  },
+
+  clearAssignEmployeeSearch() {
+    if (!this.data.assignEmployeeSearchKeyword) return
+    this.setData({ assignEmployeeSearchKeyword: '' }, () => this.refreshAssignEmployeeSearch())
   },
 
   onProcessSearchInput(e) {

@@ -63,7 +63,7 @@
 .worklog-stat-label {
   display: block;
   margin-top: 10rpx;
-  font-size: 24rpx;
+  font-size: var(--fs-xs);
   line-height: 1.35;
   color: var(--text-tertiary);
 }
@@ -141,8 +141,8 @@
 
 .worklog-process-progress,
 .worklog-process-people {
-  font-size: 24rpx;
-  line-height: 1.35;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
 }
 
 .worklog-process-progress {

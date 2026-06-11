@@ -3,9 +3,14 @@
   <view class="page-header">
     <view class="page-header-left">
       <text class="page-header-title">员工列表</text>
-      <text class="page-header-subtitle">{{employees.length}}人</text>
+      <text class="page-header-subtitle">{{employeeSearchKeyword ? filteredEmployees.length + '/' + employees.length : employees.length}}人</text>
     </view>
     <view class="employee-add-btn tappable" bindtap="goAddEmployee" hover-class="tap-button-hover">添加</view>
+  </view>
+
+  <view class="list-search-row">
+    <input class="field-input list-search-input" placeholder="搜索姓名、手机号、角色" value="{{employeeSearchKeyword}}" bindinput="onEmployeeSearchInput" confirm-type="search" />
+    <view wx:if="{{employeeSearchKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearEmployeeSearch" hover-class="tap-button-hover">清除</view>
   </view>
 
   <view wx:if="{{employees.length === 0 && !loading}}" class="empty">
@@ -15,8 +20,15 @@
     <text class="empty-title">暂无员工</text>
     <text class="empty-desc">请添加员工以开始使用</text>
   </view>
+  <view wx:elif="{{filteredEmployees.length === 0 && !loading}}" class="empty">
+    <view class="empty-icon">
+      <image src="/images/icons/employees.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+    </view>
+    <text class="empty-title">没有匹配的员工</text>
+    <text class="empty-desc">换个姓名、手机号或角色再试</text>
+  </view>
 
-  <view wx:for="{{employees}}" wx:key="_id" class="employee-card">
+  <view wx:for="{{filteredEmployees}}" wx:key="_id" class="employee-card">
     <view class="emp-row">
       <view class="emp-avatar blue">{{item.name[0]}}</view>
       <view class="emp-info">
