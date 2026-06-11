@@ -26,8 +26,59 @@ test('buildPaidSets splits month-mode and order-mode paid records', () => {
   assert.equal(sets.monthSet.has('u1::2026-03'), true)
   assert.equal(sets.monthSet.has('u1::2026-04'), false)
   assert.equal(sets.orderSet.has('u2::o9'), true)
-  assert.equal(sets.monthSet.has('u3::2026-03'), true)
+  // 按订单发薪记录虽带 month，但只锁该订单，不污染 monthSet（避免跨订单整月误锁）
+  assert.equal(sets.monthSet.has('u3::2026-03'), false)
   assert.equal(sets.orderSet.has('u3::o9'), true)
+})
+
+// 回归：复制已发薪订单 → 副本订单未发薪，但同员工同月在源订单已按订单发薪。
+// 改副本订单工序的价不应被误锁（薪资管理显示未发薪，改价口径必须一致）。
+test('order-mode paid does NOT lock a copied unpaid order in the same month', () => {
+  const sets = buildPaidSets([
+    // 张三在源订单 o-old 按订单发薪，记录带发薪当月 2026-06
+    { user_id: 'zhangsan', month: '2026-06', order_id: 'o-old', paid: true, payroll_type: 'order' }
+  ])
+  // 副本订单 o-new 的同月报工：未发薪，不应命中
+  assert.equal(
+    isWorklogPaid({ user_id: 'zhangsan', date: '2026-06-15', order_id: 'o-new' }, sets),
+    false
+  )
+  // 源订单 o-old 的报工仍按订单锁定
+  assert.equal(
+    isWorklogPaid({ user_id: 'zhangsan', date: '2026-06-15', order_id: 'o-old' }, sets),
+    true
+  )
+  // 改价拦截：副本订单工序的报工不构成冲突
+  const conflicts = findPaidWorklogs([
+    { _id: 'l1', user_id: 'zhangsan', user_name: '张三', date: '2026-06-15', order_id: 'o-new' }
+  ], sets)
+  assert.equal(conflicts.length, 0)
+})
+
+// 防回归：按月发薪模式（纯按月记录，无 order_id）必须锁住该员工该月跨订单的所有报工
+test('month-mode paid locks ALL same-month worklogs across orders', () => {
+  const sets = buildPaidSets([
+    { user_id: 'zhaoliu', month: '2026-06', paid: true }
+  ])
+  assert.equal(isWorklogPaid({ user_id: 'zhaoliu', date: '2026-06-01', order_id: 'oA' }, sets), true)
+  assert.equal(isWorklogPaid({ user_id: 'zhaoliu', date: '2026-06-30', order_id: 'oB' }, sets), true)
+  assert.equal(isWorklogPaid({ user_id: 'zhaoliu', date: '2026-07-01', order_id: 'oA' }, sets), false)
+})
+
+// 防回归（改价同步重写侧）：syncZero 用 !isWorklogPaid 选可重写报工，副本订单未发薪报工应可重写，
+// 已发薪报工（按订单/按月）应被排除，与改价闸门同口径
+test('reprice sync selects copied-order unpaid worklogs and excludes paid ones', () => {
+  const sets = buildPaidSets([
+    { user_id: 'zhangsan', month: '2026-06', order_id: 'o-old', paid: true, payroll_type: 'order' },
+    { user_id: 'lisi', month: '2026-06', paid: true }
+  ])
+  const worklogs = [
+    { _id: 'w1', user_id: 'zhangsan', date: '2026-06-10', order_id: 'o-new' },
+    { _id: 'w2', user_id: 'zhangsan', date: '2026-06-10', order_id: 'o-old' },
+    { _id: 'w3', user_id: 'lisi', date: '2026-06-10', order_id: 'o-new' }
+  ]
+  const repriceable = worklogs.filter((log) => !isWorklogPaid(log, sets))
+  assert.deepEqual(repriceable.map((l) => l._id), ['w1'])
 })
 
 test('isWorklogPaid matches by month or by order', () => {

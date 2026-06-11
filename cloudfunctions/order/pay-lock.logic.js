@@ -10,13 +10,20 @@ function getMonthKey(dateStr) {
 }
 
 // 从 SalaryPayments(paid:true) 构造按月 + 按订单两套已发薪集合
+// 关键：按订单发薪记录也带发薪当月 month（见 salary 的 buildSalaryPaymentCreateData），
+// 但其锁定范围只是该订单，不是整月。若把它的 month 也收进 monthSet，会导致同一员工同月
+// 在「发薪后新建/复制的未发薪订单」上的报工被按月误锁（薪资管理显示未发薪、改价却被拦截）。
+// 因此：有 order_id 的记录只进 orderSet；只有纯按月发薪记录（无 order_id）才进 monthSet。
 function buildPaidSets(payments) {
   const monthSet = new Set() // `${user_id}::${month}`
   const orderSet = new Set() // `${user_id}::${order_id}`
   ;(payments || []).forEach((p) => {
     if (!p || p.paid !== true || !p.user_id) return
-    if (p.month) monthSet.add(`${p.user_id}::${p.month}`)
-    if (p.order_id) orderSet.add(`${p.user_id}::${p.order_id}`)
+    if (p.order_id) {
+      orderSet.add(`${p.user_id}::${p.order_id}`)
+    } else if (p.month) {
+      monthSet.add(`${p.user_id}::${p.month}`)
+    }
   })
   return { monthSet, orderSet }
 }

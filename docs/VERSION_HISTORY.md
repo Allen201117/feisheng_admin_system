@@ -10,6 +10,19 @@
 
 ## 2026-06-11
 
+### 发薪锁「按订单发薪记录 month 污染按月口径」跨订单误锁/误显示全链路修复
+
+- 背景：复制已发薪订单后，副本订单「薪资管理显示未发薪」但「改工价被发薪锁拦截」，口径自相矛盾。
+- 根因：按订单发薪的 `SalaryPayments` 记录也带发薪当月 `month`，被多处代码当成「整月已发薪/已锁」。
+- 改动（统一口径：按月只认纯按月发薪记录无 `order_id`；按订单只锁该订单）：
+  - 闸门 `order/pay-lock.logic.js` `buildPaidSets`：有 `order_id` 只进 orderSet。
+  - 同步重写 `order/index.js` `syncZeroPriceWorklogsForProcess`：改用 `buildPaidSets`+`isWorklogPaid`（投影补 `order_id`），删除被取代的残缺口径 `reprice-worklogs.js` 及其测试。
+  - 删改报工月兜底 `worklog/index.js` `getPeriodPaidRecord`：where 加 `order_id: _.exists(false)`。
+  - 展示侧：`worklog` 管理页 `is_locked`（map key 带 user_id + 区分 order/month）、`salary` 月模式 `is_paid`（`getUserMonthlySalary` 与 `getUserMonthlySalaryByMonth` 月查询加 `order_id: _.exists(false)`）。
+- 数据影响：无；纯判定/展示口径修正。已发薪报工仍被正确锁定。
+- 部署影响：需部署 `order`、`worklog`、`salary` 三个云函数。
+- 验证：`tests/order-pay-lock.logic.test.js` 新增复制订单/按月整月锁/同步重写三条回归；`npm run test:unit` 213 全绿。
+
 ### 老板侧工价绿色强调 + 报表表格行列对齐
 
 - 背景：老板要求①全平台工价显示用绿色文字、字号加大醒目；②数据中心和导出报表所有表格单元格行列对齐、宽度合适（旧实现一处用内容自适应宽导致列错位、一处固定 150rpx 过窄）。
