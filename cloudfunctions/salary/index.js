@@ -506,7 +506,8 @@ async function getUserMonthlySalary(event, wxContext) {
     // 检查该月是否已发薪
     var paidRes = await db.collection('SalaryPayments').where({
       org_id: getOrgId(caller),
-      user_id: user_id, month: currentMonth, paid: true
+      user_id: user_id, month: currentMonth, paid: true,
+      order_id: _.exists(false)
     }).get()
     var isPaid = paidRes.data.length > 0
 
@@ -609,8 +610,13 @@ async function getUserMonthlySalaryByBoss(event, wxContext) {
       user_id: user_id,
       paid: true
     }
-    if (order_id) paidWhere.order_id = order_id
-    else paidWhere.month = currentMonth
+    if (order_id) {
+      paidWhere.order_id = order_id
+    } else {
+      // 月模式 is_paid 只认纯按月发薪记录（排除按订单发薪记录顺带写的 month）
+      paidWhere.month = currentMonth
+      paidWhere.order_id = _.exists(false)
+    }
     var paidRes = await db.collection('SalaryPayments').where(paidWhere).get()
     data.is_paid = paidRes.data.length > 0
     if (data.is_paid) data.paid_at = paidRes.data[0].paid_at

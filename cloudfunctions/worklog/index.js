@@ -59,11 +59,15 @@ async function ensureWritableEntitlement(caller) {
 
 async function getPeriodPaidRecord(userId, dateStr, orgId) {
   const month = dateStr.substring(0, 7)
+  // 月兜底只认纯按月发薪记录（无 order_id）：按订单发薪记录虽带发薪当月 month，但锁定范围是该订单，
+  // 不能当作整月已发薪（否则发薪后新建/复制订单的同月报工会被误锁，与 order 侧 buildPaidSets 同口径）。
+  // where 层用 order_id 不存在过滤 + 保留 limit(1)，避免 .get() 默认 20 条上限漏掉纯按月记录。
   const paidRes = await db.collection('SalaryPayments').where({
     org_id: orgId,
     user_id: userId,
     month,
-    paid: true
+    paid: true,
+    order_id: _.exists(false)
   }).orderBy('paid_at', 'desc').limit(1).get()
   return (paidRes.data && paidRes.data[0]) || null
 }
@@ -834,8 +838,15 @@ async function getUserLogs(event, wxContext) {
     const paidMonthMap = {}
     const paidOrderMap = {}
     paidRecords.forEach(item => {
-      if (item.month) paidMonthMap[item.month] = true
-      if (item.order_id) paidOrderMap[item.order_id] = true
+      if (!item.user_id) return
+      // 与写侧 isWorklogPaid 完全同口径：按订单发薪记录只进 orderMap（锁该订单），
+      // 仅纯按月发薪记录（无 order_id）进 monthMap（锁整月）；key 带 user_id，避免
+      // 「某员工发薪→同月所有人报工都显示锁」的跨员工误显示。
+      if (item.order_id) {
+        paidOrderMap[`${item.user_id}_${item.order_id}`] = true
+      } else if (item.month) {
+        paidMonthMap[`${item.user_id}_${item.month}`] = true
+      }
     })
 
     // 批量查询相关订单的 price_hidden 状态

@@ -3,7 +3,6 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
-const { buildPaidMonthSet, selectRepriceableWorklogs } = require('./reprice-worklogs')
 const {
   buildPaidSets,
   findPaidWorklogs,
@@ -485,7 +484,7 @@ async function syncZeroPriceWorklogsForProcess(processId, newPrice, orgId) {
     org_id: orgId,
     process_id: processId
   }, {
-    field: { _id: true, user_id: true, date: true, quantity: true, snapshot_price: true }
+    field: { _id: true, user_id: true, date: true, order_id: true, quantity: true, snapshot_price: true }
   })
 
   if (worklogs.length === 0) {
@@ -499,12 +498,14 @@ async function syncZeroPriceWorklogsForProcess(processId, newPrice, orgId) {
       user_id: _.in(userIds),
       paid: true
     }, {
-      field: { user_id: true, month: true, paid: true }
+      field: { user_id: true, month: true, order_id: true, paid: true }
     })
     : []
 
-  const paidMonthSet = buildPaidMonthSet(payments)
-  const targetLogs = selectRepriceableWorklogs(worklogs, paidMonthSet)
+  // 选「未发薪」报工重写：与改价闸门 findProcessPaidWorklogConflicts 完全同口径（buildPaidSets + isWorklogPaid），
+  // 避免按订单发薪记录的 month 被当整月锁导致漏改价（CLAUDE.md §2.2）；已发薪报工仍被正确排除。
+  const paidSets = buildPaidSets(payments)
+  const targetLogs = worklogs.filter((log) => !isWorklogPaid(log, paidSets))
 
   let updatedCount = 0
   for (const log of targetLogs) {
