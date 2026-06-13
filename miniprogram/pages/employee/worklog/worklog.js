@@ -1,12 +1,21 @@
 // pages/employee/worklog/worklog.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
-const { normalizeAssignedProcessForEmployee } = require('./worklog.logic')
+const { normalizeAssignedProcessForEmployee, buildOrderProcessCards } = require('./worklog.logic')
 
 Page({
   data: {
     userInfo: null,
     processes: [],
+    // 第二层：按订单筛出的工序卡片 + 搜索
+    orderId: '',
+    orderName: '',
+    searchKeyword: '',
+    displayProcesses: [],
+    matchedCount: 0,
+    orderProcessTotal: 0,
+    // 报工弹窗
+    showReportModal: false,
     selectedProcess: null,
     selectedProcessIndex: -1,
     initialProcessId: '',
@@ -25,8 +34,13 @@ Page({
     }
     this.setData({
       userInfo: user,
-      initialProcessId: options.process_id || ''
+      initialProcessId: options.process_id || '',
+      orderId: options.order_id || '',
+      orderName: options.order_name ? decodeURIComponent(options.order_name) : ''
     })
+    if (this.data.orderName) {
+      wx.setNavigationBarTitle({ title: this.data.orderName })
+    }
   },
 
   onShow() {
@@ -40,35 +54,57 @@ Page({
         user_id: this.data.userInfo._id
       })
       const processes = (res.data || []).map(normalizeAssignedProcessForEmployee)
-      const targetProcessId = this.data.initialProcessId || (this.data.selectedProcess && this.data.selectedProcess._id) || ''
-      const selectedProcessIndex = targetProcessId
-        ? processes.findIndex((item) => String(item._id) === String(targetProcessId))
-        : -1
-      const selectedProcess = selectedProcessIndex >= 0 ? processes[selectedProcessIndex] : null
+      this.setData({ processes })
+      this.refreshDisplayProcesses()
 
-      this.setData({
-        processes,
-        selectedProcessIndex,
-        selectedProcess,
-        quotaInfo: selectedProcess ? null : this.data.quotaInfo
-      })
-
-      if (selectedProcess) {
-        this.loadProcessQuota()
+      // 从首页订单卡进入时若带具体工序，直接打开报工弹窗
+      if (this.data.initialProcessId) {
+        const target = processes.find((item) => String(item._id) === String(this.data.initialProcessId))
+        if (target) this.openReport(target)
+        this.setData({ initialProcessId: '' })
       }
     } catch (e) {
       console.error('加载工序失败', e)
     }
   },
 
-  onProcessChange(e) {
-    const idx = Number(e.detail.value)
+  refreshDisplayProcesses() {
+    const view = buildOrderProcessCards(this.data.processes, this.data.orderId, this.data.searchKeyword)
     this.setData({
-      selectedProcessIndex: idx,
-      selectedProcess: this.data.processes[idx],
+      displayProcesses: view.items,
+      matchedCount: view.matchedCount,
+      orderProcessTotal: view.totalCount
+    })
+  },
+
+  onSearchInput(e) {
+    this.setData({ searchKeyword: e.detail.value || '' })
+    this.refreshDisplayProcesses()
+  },
+
+  onClearSearch() {
+    this.setData({ searchKeyword: '' })
+    this.refreshDisplayProcesses()
+  },
+
+  // 点击工序卡片直接进入报工
+  onSelectProcessCard(e) {
+    const proc = e.currentTarget.dataset.process
+    if (proc) this.openReport(proc)
+  },
+
+  openReport(proc) {
+    this.setData({
+      selectedProcess: proc,
+      showReportModal: true,
+      quantity: 0,
       quotaInfo: null
     })
     this.loadProcessQuota()
+  },
+
+  closeReportModal() {
+    this.setData({ showReportModal: false, quantity: 0 })
   },
 
   onQuantityInput(e) {
@@ -168,8 +204,8 @@ Page({
 
       hideLoading()
       showSuccess('报工成功')
-      this.setData({ quantity: 0 })
-      this.loadProcessQuota()
+      this.setData({ quantity: 0, showReportModal: false })
+      this.loadAssignedProcesses()
     } catch (err) {
       hideLoading()
       showError(err.message || '报工失败')

@@ -3,7 +3,7 @@ const { callCloud, showError, showSuccess, showLoading, hideLoading, formatTime,
 const { getStoredUser } = require('../../../utils/auth')
 const { requestBestLocation, sampleLocationAndPickBest, calculateDistanceMeters, isValidCoordinate, checkLocationPermission } = require('../../../utils/location')
 const { normalizeAssignedProcessForEmployee } = require('../worklog/worklog.logic')
-const { buildHomeProcessView, buildHomeRankCard, pickHomeRankItem } = require('./home.logic')
+const { buildHomeProcessView, buildHomeOrderView, buildHomeRankCard, pickHomeRankItem } = require('./home.logic')
 const app = getApp()
 
 const HOME_PROCESS_PREVIEW_LIMIT = 5
@@ -30,6 +30,9 @@ Page({
     displayedHomeProcesses: [],
     assignedProcessTotal: 0,
     hasMoreAssignedProcesses: false,
+    displayedHomeOrders: [],
+    assignedOrderTotal: 0,
+    hasMoreAssignedOrders: false,
     homeProcessLoading: false,
     homeProcessError: '',
     homeRankCard: null,
@@ -156,12 +159,16 @@ Page({
       })
       const processes = (res.data || []).map(normalizeAssignedProcessForEmployee)
       const view = buildHomeProcessView(processes, HOME_PROCESS_PREVIEW_LIMIT)
+      const orderView = buildHomeOrderView(processes, HOME_PROCESS_PREVIEW_LIMIT)
 
       this.setData({
         assignedProcesses: processes,
         displayedHomeProcesses: view.items,
         assignedProcessTotal: view.totalCount,
         hasMoreAssignedProcesses: view.hasMore,
+        displayedHomeOrders: orderView.items,
+        assignedOrderTotal: orderView.totalCount,
+        hasMoreAssignedOrders: orderView.hasMore,
         homeProcessLoading: false
       })
     } catch (e) {
@@ -365,6 +372,16 @@ Page({
   goToWorklog(e) {
     const processId = e && e.currentTarget && e.currentTarget.dataset ? e.currentTarget.dataset.id : ''
     const query = processId ? `?process_id=${encodeURIComponent(processId)}` : ''
+    wx.navigateTo({ url: `/pages/employee/worklog/worklog${query}` })
+  },
+
+  // 点击订单卡片：进入报工页，按订单筛选出「我负责的工序」卡片
+  goToOrderProcesses(e) {
+    const ds = (e && e.currentTarget && e.currentTarget.dataset) || {}
+    const orderId = ds.orderId || ''
+    const orderName = ds.orderName || ''
+    if (!orderId) return
+    const query = `?order_id=${encodeURIComponent(orderId)}&order_name=${encodeURIComponent(orderName)}`
     wx.navigateTo({ url: `/pages/employee/worklog/worklog${query}` })
   },
 

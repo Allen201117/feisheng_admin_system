@@ -54,6 +54,49 @@ function buildHomeProcessView(processes, limit = 5) {
   }
 }
 
+// 按订单分组：首页先展示订单卡片，点进订单再看该订单下「我负责的工序」
+function buildHomeOrderView(processes, limit = 5) {
+  const source = Array.isArray(processes) ? processes : []
+  const cards = source.map((process) => buildProcessCard(process))
+  const orderMap = {}
+  const orderIds = []
+  cards.forEach((card) => {
+    const oid = String(card.order_id || '')
+    if (!orderMap[oid]) {
+      orderMap[oid] = []
+      orderIds.push(oid)
+    }
+    orderMap[oid].push(card)
+  })
+
+  const orders = orderIds.map((oid) => {
+    const procs = orderMap[oid]
+    const processCount = procs.length
+    const incompleteCount = procs.filter((p) => !p.isComplete).length
+    const myReportedTotal = procs.reduce((sum, p) => sum + toNumber(p.user_current_total), 0)
+    const isAllComplete = incompleteCount === 0
+    return {
+      order_id: oid,
+      order_name: procs[0].order_name || '未命名订单',
+      processCount,
+      incompleteCount,
+      isAllComplete,
+      processCountText: `负责 ${processCount} 道工序`,
+      statusText: isAllComplete ? '已全部报满' : `${incompleteCount} 道待报工`,
+      myReportedText: `累计已报 ${myReportedTotal} 件`
+    }
+  })
+
+  const safeLimit = Math.max(1, toNumber(limit, 5))
+  const items = orders.slice(0, safeLimit)
+  return {
+    items,
+    totalCount: orders.length,
+    visibleCount: items.length,
+    hasMore: orders.length > items.length
+  }
+}
+
 function buildHomeRankCard(rankData = {}) {
   const rank = toNumber(rankData.rank)
   const total = toNumber(rankData.total_employees)
@@ -80,6 +123,7 @@ function pickHomeRankItem(rankList, userId) {
 
 module.exports = {
   buildHomeProcessView,
+  buildHomeOrderView,
   buildHomeRankCard,
   pickHomeRankItem
 }

@@ -80,7 +80,7 @@
     <view class="home-worklog-head">
       <view class="home-section-copy">
         <text class="home-section-title">今日报工</text>
-        <text class="home-section-subtitle">负责工序 {{assignedProcessTotal}} 道，点击工序进入报工</text>
+        <text class="home-section-subtitle">负责订单 {{assignedOrderTotal}} 个，点击订单查看工序并报工</text>
       </view>
     </view>
 
@@ -89,7 +89,7 @@
       <view class="skeleton skeleton-card"></view>
     </view>
 
-    <view wx:elif="{{assignedProcessTotal === 0}}" class="empty home-process-empty">
+    <view wx:elif="{{assignedOrderTotal === 0}}" class="empty home-process-empty">
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
       </view>
@@ -100,44 +100,31 @@
 
     <view wx:else class="home-process-list">
       <view
-        wx:for="{{displayedHomeProcesses}}"
-        wx:for-item="item"
-        wx:key="_id"
-        class="home-process-card tappable {{item.isComplete ? 'is-complete' : ''}}"
-        bindtap="goToWorklog"
-        data-id="{{item._id}}"
+        wx:for="{{displayedHomeOrders}}"
+        wx:for-item="order"
+        wx:key="order_id"
+        class="home-order-card tappable {{order.isAllComplete ? 'is-complete' : ''}}"
+        bindtap="goToOrderProcesses"
+        data-order-id="{{order.order_id}}"
+        data-order-name="{{order.order_name}}"
         hover-class="tap-card-hover"
         hover-stay-time="80"
       >
-        <view class="home-process-card-head">
-          <view class="home-process-main">
-            <text class="home-process-name">{{item.process_name}}</text>
-            <text class="home-process-order">{{item.order_name}}</text>
-          </view>
-          <view class="home-process-side">
-            <text wx:if="{{item.isMultiAssigned}}" class="home-process-multi-badge">{{item.multiAssignedText}}</text>
-            <text class="home-process-price">{{item.priceText}}</text>
-          </view>
+        <view class="home-order-card-head">
+          <text class="home-order-name">{{order.order_name}}</text>
+          <text class="home-order-status {{order.isAllComplete ? 'is-muted' : 'is-ready'}}">{{order.statusText}}</text>
         </view>
-
-        <view class="home-process-tags">
-          <text class="home-process-tag {{item.isComplete ? 'is-muted' : 'is-ready'}}">{{item.statusText}}</text>
-          <text class="home-process-tag">{{item.quotaText}}</text>
-          <text class="home-process-tag">{{item.myReportedText}}</text>
-          <text class="home-process-tag">{{item.progressText}}</text>
+        <view class="home-order-tags">
+          <text class="home-order-tag">{{order.processCountText}}</text>
+          <text class="home-order-tag">{{order.myReportedText}}</text>
         </view>
-
-        <view class="home-process-progress">
-          <view class="home-process-progress-fill {{item.isComplete ? 'is-complete' : ''}}" style="width: {{item.progressPercent}}%;"></view>
-        </view>
-
-        <view class="home-process-foot">
-          <text class="home-process-foot-text">{{item.actionText}}</text>
+        <view class="home-order-foot">
+          <text class="home-order-foot-text">点击查看工序 ›</text>
         </view>
       </view>
 
-      <view wx:if="{{hasMoreAssignedProcesses}}" class="home-more-row" bindtap="goToWorklog" hover-class="tap-row-hover">
-        <text>查看全部 {{assignedProcessTotal}} 道工序</text>
+      <view wx:if="{{hasMoreAssignedOrders}}" class="home-more-row" hover-class="tap-row-hover">
+        <text>共 {{assignedOrderTotal}} 个订单</text>
       </view>
     </view>
   </view>

@@ -2,16 +2,25 @@
 
   <view class="page-header">
     <view class="page-header-left">
-      <text class="page-header-title">计件报工</text>
-      <text class="page-header-subtitle">选择工序并提交本次完成数量</text>
+      <text class="page-header-title">{{orderName || '计件报工'}}</text>
+      <text class="page-header-subtitle">点击工序卡片即可报工</text>
     </view>
   </view>
 
-  <!-- 报工表单 -->
+  <!-- 工序卡片列表 -->
   <view class="card-bento">
-    <text class="menu-group-title block-mb-2">提交报工</text>
+    <view class="worklog-list-head">
+      <text class="menu-group-title">我负责的工序</text>
+      <text wx:if="{{searchKeyword}}" class="worklog-match-meta">匹配 {{matchedCount}} / {{orderProcessTotal}}</text>
+    </view>
 
-    <view wx:if="{{processes.length === 0}}" class="empty">
+    <!-- 搜索（需求3） -->
+    <view class="worklog-search-row" wx:if="{{orderProcessTotal > 0 || searchKeyword}}">
+      <input class="field-input worklog-search-input" placeholder="搜索工序名称 / 订单" value="{{searchKeyword}}" bindinput="onSearchInput" confirm-type="search" />
+      <view wx:if="{{searchKeyword}}" class="btn-sm btn-sm-secondary worklog-search-clear tappable" bindtap="onClearSearch" hover-class="tap-button-hover">清除</view>
+    </view>
+
+    <view wx:if="{{orderProcessTotal === 0}}" class="empty">
       <view class="empty-icon">
         <image src="/images/icons/worklog.svg" mode="aspectFit" class="icon-sm" />
       </view>
@@ -20,68 +29,100 @@
       <view class="empty-action secondary" bindtap="loadAssignedProcesses" hover-class="tap-button-hover">刷新工序</view>
     </view>
 
-    <view wx:else>
-      <view class="field-group">
-        <text class="field-label">选择工序</text>
-        <picker
-          mode="selector"
-          range="{{processes}}"
-          range-key="display"
-          value="{{selectedProcessIndex}}"
-          bindchange="onProcessChange"
-        >
-          <view class="picker-field" hover-class="tap-row-hover">
-            <text wx:if="{{selectedProcess}}" class="flex-1 worklog-truncate">{{selectedProcess.display}}</text>
-            <text wx:else class="text-tertiary flex-1 worklog-truncate">请选择工序</text>
-            <text class="picker-arrow">&#x276F;</text>
+    <view wx:elif="{{displayProcesses.length === 0}}" class="empty">
+      <text class="empty-title">没有匹配的工序</text>
+      <text class="empty-desc">换个关键词试试。</text>
+    </view>
+
+    <view wx:else class="worklog-proc-list">
+      <view
+        wx:for="{{displayProcesses}}"
+        wx:for-item="item"
+        wx:key="_id"
+        class="worklog-proc-card tappable {{item.isComplete ? 'is-complete' : ''}}"
+        bindtap="onSelectProcessCard"
+        data-process="{{item}}"
+        hover-class="tap-card-hover"
+        hover-stay-time="80"
+      >
+        <!-- 工序名称高亮 pill，完整展示不截断 -->
+        <view class="worklog-proc-name-pill">{{item.process_name}}</view>
+        <text class="worklog-proc-order">{{item.order_name}}</text>
+
+        <view class="worklog-proc-tags">
+          <text class="worklog-proc-tag {{item.isComplete ? 'is-muted' : 'is-ready'}}">{{item.statusText}}</text>
+          <text class="worklog-proc-tag">{{item.remainingText}}</text>
+          <text class="worklog-proc-tag">{{item.myReportedText}}</text>
+          <text class="worklog-proc-tag is-price">{{item.priceText}}</text>
+        </view>
+
+        <view class="worklog-proc-progress">
+          <view class="worklog-proc-progress-fill {{item.isComplete ? 'is-complete' : ''}}" style="width: {{item.progressPercent}}%;"></view>
+        </view>
+
+        <view class="worklog-proc-foot">
+          <text class="worklog-proc-foot-text">点击报工 ›</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 报工弹窗（点击工序卡直接出报工） -->
+  <view wx:if="{{showReportModal}}">
+    <view class="modal-overlay" bindtap="closeReportModal"></view>
+    <view class="modal-sheet" catchtap="true">
+      <view class="modal-sheet-title">提交报工</view>
+      <view class="modal-sheet-body">
+        <view class="worklog-modal-proc-pill">{{selectedProcess.process_name}}</view>
+        <text class="worklog-modal-order">{{selectedProcess.order_name}}</text>
+
+        <view class="field-group">
+          <text class="field-label">完成数量</text>
+          <input
+            class="field-input worklog-input-lg"
+            type="number"
+            placeholder="请输入本次报工数量"
+            value="{{quantity > 0 ? quantity : ''}}"
+            bindinput="onQuantityInput"
+            confirm-type="done"
+            focus="{{showReportModal}}"
+          />
+          <view wx:if="{{quantity > 0}}" class="worklog-qty-clear">
+            <button class="btn-sm btn-sm-danger" bindtap="onClearQuantity" hover-class="tap-button-hover">清空</button>
           </view>
-        </picker>
-      </view>
 
-      <view class="field-group">
-        <text class="field-label">完成数量</text>
-        <input
-          class="field-input worklog-input-lg"
-          type="number"
-          placeholder="请输入本次报工数量"
-          value="{{quantity > 0 ? quantity : ''}}"
-          bindinput="onQuantityInput"
-          confirm-type="done"
-        />
-        <view wx:if="{{quantity > 0}}" class="worklog-qty-clear">
-          <button class="btn-sm btn-sm-danger" bindtap="onClearQuantity" hover-class="tap-button-hover">清空</button>
-        </view>
-
-        <view class="worklog-quick-section">
-          <text class="text-tertiary worklog-quick-label">快捷输入</text>
-          <view class="filter-chips">
-            <view wx:for="{{quickQuantities}}" wx:key="index" class="filter-chip" data-value="{{item}}" bindtap="onQuickQuantityTap" hover-class="tap-chip-hover">{{item}}</view>
+          <view class="worklog-quick-section">
+            <text class="text-tertiary worklog-quick-label">快捷输入</text>
+            <view class="filter-chips">
+              <view wx:for="{{quickQuantities}}" wx:key="index" class="filter-chip" data-value="{{item}}" bindtap="onQuickQuantityTap" hover-class="tap-chip-hover">{{item}}</view>
+            </view>
           </view>
         </view>
-      </view>
 
-      <view wx:if="{{selectedProcess && !quotaLoading && quotaInfo}}" class="notice notice-green">
-        <view style="flex:1;display:flex;flex-direction:column;gap:4rpx;">
-          <view class="flex-between"><text class="text-xs">订单数量：</text><text class="font-semibold num">{{quotaInfo.order_total_quantity}}</text></view>
-          <view class="flex-between"><text class="text-xs">已报数量：</text><text class="font-semibold num">{{quotaInfo.current_total}}</text></view>
-          <view class="flex-between"><text class="text-xs">剩余可报：</text><text class="font-semibold num text-green">{{quotaInfo.remaining_quantity}}</text></view>
+        <view wx:if="{{!quotaLoading && quotaInfo}}" class="notice notice-green">
+          <view style="flex:1;display:flex;flex-direction:column;gap:4rpx;">
+            <view class="flex-between"><text class="text-xs">订单数量：</text><text class="font-semibold num">{{quotaInfo.order_total_quantity}}</text></view>
+            <view class="flex-between"><text class="text-xs">已报数量：</text><text class="font-semibold num">{{quotaInfo.current_total}}</text></view>
+            <view class="flex-between"><text class="text-xs">剩余可报：</text><text class="font-semibold num text-green">{{quotaInfo.remaining_quantity}}</text></view>
+          </view>
+        </view>
+        <view wx:if="{{quotaLoading}}" class="text-tertiary text-xs" style="margin-top:var(--sp-1);">正在获取可报数量...</view>
+
+        <view wx:if="{{quantity > 0 && !selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
+          <text>预估金额：<text class="font-bold text-accent num">¥{{quantity * selectedProcess.current_price}}</text> <text class="text-tertiary text-xs">（{{quantity}}件 x ¥{{selectedProcess.current_price}}）</text></text>
+        </view>
+        <view wx:elif="{{quantity > 0 && selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
+          <text>预估金额：<text class="text-tertiary">已隐藏</text></text>
         </view>
       </view>
-      <view wx:if="{{selectedProcess && quotaLoading}}" class="text-tertiary text-xs" style="margin-top:var(--sp-1);">正在获取可报数量...</view>
 
-      <view wx:if="{{selectedProcess && quantity > 0 && !selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
-        <text>预估金额：<text class="font-bold text-accent num">¥{{quantity * selectedProcess.current_price}}</text> <text class="text-tertiary text-xs">（{{quantity}}件 x ¥{{selectedProcess.current_price}}）</text></text>
-      </view>
-      <view wx:elif="{{selectedProcess && quantity > 0 && selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
-        <text>预估金额：<text class="text-tertiary">已隐藏</text></text>
-      </view>
-
-      <view class="bottom-action-bar worklog-submit-bar">
+      <view class="modal-sheet-footer">
+        <button class="modal-sheet-btn" bindtap="closeReportModal" hover-class="tap-row-hover">取消</button>
         <button
-          class="btn-primary btn-block btn-lg"
+          class="modal-sheet-btn primary"
           bindtap="onSubmit"
-          disabled="{{loading || !selectedProcess || quantity <= 0 || (quotaInfo && quantity > quotaInfo.remaining_quantity)}}"
-          hover-class="tap-button-hover"
+          disabled="{{loading || quantity <= 0 || (quotaInfo && quantity > quotaInfo.remaining_quantity)}}"
+          hover-class="tap-row-hover"
         >
           {{loading ? '提交中...' : '提交报工'}}
         </button>
