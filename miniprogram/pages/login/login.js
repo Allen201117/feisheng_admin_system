@@ -38,6 +38,47 @@ function storeLastLoginInfo(info) {
   }
 }
 
+// 按姓名保存「成功登录过」的完整登录信息（含密码，仅本机 storage），供姓名输入后自动回填
+var SAVED_LOGIN_MAP_KEY = 'factory_saved_login_map'
+
+function getSavedLoginMap() {
+  try {
+    var raw = wx.getStorageSync(SAVED_LOGIN_MAP_KEY)
+    var m = raw ? JSON.parse(raw) : null
+    return (m && typeof m === 'object') ? m : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+// 设备指纹（品牌|型号|系统|平台）：用于「同一手机才回填密码」。不用 IP——IP 随网络变、不稳定
+function getDeviceFingerprint() {
+  try {
+    var info = (wx.getDeviceInfo ? wx.getDeviceInfo() : (wx.getSystemInfoSync ? wx.getSystemInfoSync() : {})) || {}
+    return [info.brand || '', info.model || '', info.system || '', info.platform || ''].join('|')
+  } catch (e) {
+    return ''
+  }
+}
+
+function saveLoginCredential(info) {
+  try {
+    var key = trim(info.name || '').toLowerCase()
+    if (!key) return
+    var map = getSavedLoginMap()
+    map[key] = {
+      factoryCode: info.factoryCode || '',
+      name: info.name || '',
+      phone: info.phone || '',
+      password: info.password || '',
+      device: getDeviceFingerprint()
+    }
+    wx.setStorageSync(SAVED_LOGIN_MAP_KEY, JSON.stringify(map))
+  } catch (e) {
+    // ignore
+  }
+}
+
 Page({
   data: {
     factoryCode: '',
@@ -206,7 +247,24 @@ Page({
   },
 
   onInputName: function(e) {
-    this.setData({ name: e.detail.value })
+    var name = e.detail.value
+    this.setData({ name: name })
+    this.autofillByName(name)
+  },
+
+  // 姓名输入后，若该姓名曾成功登录过，自动回填工厂码/手机号/密码，助快速登录
+  autofillByName: function(name) {
+    var key = trim(name).toLowerCase()
+    if (!key) return
+    var rec = getSavedLoginMap()[key]
+    if (!rec) return
+    // 工厂码/手机号非密文，可直接回填；密码仅同一设备才回填（设备指纹吻合）
+    var sameDevice = !!rec.device && rec.device === getDeviceFingerprint()
+    this.setData({
+      factoryCode: rec.factoryCode || this.data.factoryCode,
+      phone: rec.phone || this.data.phone,
+      password: sameDevice ? (rec.password || this.data.password) : this.data.password
+    })
   },
 
   onInputFactoryCode: function(e) {
@@ -261,6 +319,7 @@ Page({
     }).then(function(res) {
       hideLoading()
       storeLastLoginInfo({ factoryCode: factoryCode, name: name, phone: phone })
+      saveLoginCredential({ factoryCode: factoryCode, name: name, phone: phone, password: password })
       if (res.data) {
         // 检查是否需要强制改密
         if (res.data.need_change_password) {
@@ -362,6 +421,13 @@ Page({
       hideLoading()
       showSuccess('密码修改成功')
       that.setData({ showChangePwd: false })
+      // 改密成功：同步更新本地保存的登录信息为新密码，避免下次自动回填旧密码
+      saveLoginCredential({
+        factoryCode: trim(that.data.factoryCode).toUpperCase(),
+        name: trim(that.data.name),
+        phone: trim(that.data.phone),
+        password: d.newPassword
+      })
       // 修改成功后自动完成登录
       if (res.data) {
         // 用新 token 更新用户信息
