@@ -5,6 +5,7 @@ const path = require('node:path')
 
 const {
   buildHomeProcessView,
+  buildHomeOrderView,
   buildHomeRankCard,
   pickHomeRankItem
 } = require('../miniprogram/pages/employee/home/home.logic')
@@ -90,7 +91,22 @@ test('buildHomeProcessView marks processes assigned to multiple employees', () =
   assert.equal(view.items[1].multiAssignedText, '')
 })
 
-test('employee homepage puts clocking before worklog and process cards navigate to submit form', () => {
+test('buildHomeOrderView groups assigned processes by order', () => {
+  const view = buildHomeOrderView([
+    { _id: 'p1', order_id: 'oA', order_name: '订单A', process_name: '工序1', order_total_quantity: 100, current_total: 100, user_current_total: 60 },
+    { _id: 'p2', order_id: 'oA', order_name: '订单A', process_name: '工序2', order_total_quantity: 100, current_total: 30, user_current_total: 10 },
+    { _id: 'p3', order_id: 'oB', order_name: '订单B', process_name: '工序3', order_total_quantity: 50, current_total: 0, user_current_total: 0 }
+  ])
+  assert.equal(view.totalCount, 2)
+  const orderA = view.items.find((o) => o.order_id === 'oA')
+  assert.equal(orderA.processCount, 2)
+  assert.equal(orderA.incompleteCount, 1) // p1 报满、p2 未满
+  assert.equal(orderA.isAllComplete, false)
+  assert.equal(orderA.processCountText, '负责 2 道工序')
+  assert.equal(orderA.myReportedText, '累计已报 70 件')
+})
+
+test('employee homepage puts clocking before worklog and order cards drill into processes', () => {
   const source = read('miniprogram/pages/employee/home/home.wxml')
   const clockIndex = source.indexOf('class="clock-section')
   const processIndex = source.indexOf('class="home-process-section')
@@ -98,10 +114,10 @@ test('employee homepage puts clocking before worklog and process cards navigate 
   assert.ok(clockIndex >= 0, 'clock section should exist')
   assert.ok(processIndex >= 0, 'process section should exist')
   assert.ok(clockIndex < processIndex, 'clock section should be above assigned processes')
-  assert.match(source, /class="home-process-card[^"]*"[\s\S]*bindtap="goToWorklog"[\s\S]*data-id="\{\{item\._id\}\}"/)
-  assert.match(source, /点击工序进入报工/)
+  // 首页先展示订单卡片，点击进入该订单的工序列表
+  assert.match(source, /class="home-order-card[^"]*"[\s\S]*bindtap="goToOrderProcesses"[\s\S]*data-order-id="\{\{order\.order_id\}\}"/)
+  assert.match(source, /点击订单查看工序并报工/)
   assert.match(source, /bindtap="goToWorklogHistory"[\s\S]*历史报工/)
-  assert.match(source, /wx:if="\{\{item\.isMultiAssigned\}\}"[\s\S]*home-process-multi-badge[\s\S]*\{\{item\.multiAssignedText\}\}/)
   assert.doesNotMatch(source, /\bhome-report-panel\b/)
   assert.doesNotMatch(source, /\bhome-qty-input\b/)
   assert.doesNotMatch(source, /\bonSelectHomeProcess\b/)

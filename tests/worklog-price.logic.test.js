@@ -6,6 +6,7 @@ const path = require('node:path')
 const {
   normalizePrice,
   normalizeAssignedProcessForEmployee,
+  buildOrderProcessCards,
   filterEmployeeVisibleWorkLogs,
   buildWorklogHistoryView
 } = require('../miniprogram/pages/employee/worklog/worklog.logic')
@@ -85,6 +86,31 @@ test('buildWorklogHistoryView groups historical logs into process overview cards
   assert.equal(view.overviewCards[1].amountText, '金额已隐藏')
 })
 
+test('buildOrderProcessCards filters by order and keyword', () => {
+  const processes = [
+    { _id: 'p1', order_id: 'oA', order_name: '工装短裤', process_name: '车缝', order_total_quantity: 100, current_total: 40, user_current_total: 20, current_price: 2 },
+    { _id: 'p2', order_id: 'oA', order_name: '工装短裤', process_name: '锁边', order_total_quantity: 100, current_total: 100, user_current_total: 50, current_price: 1.5 },
+    { _id: 'p3', order_id: 'oB', order_name: '别的订单', process_name: '车缝', order_total_quantity: 80, current_total: 0, user_current_total: 0, current_price: 3 }
+  ]
+  // 仅订单 oA 的两道工序
+  const all = buildOrderProcessCards(processes, 'oA', '')
+  assert.equal(all.totalCount, 2)
+  assert.equal(all.items.length, 2)
+  // p2 已报满
+  const p2 = all.items.find((x) => x._id === 'p2')
+  assert.equal(p2.isComplete, true)
+  assert.equal(p2.statusText, '已报满')
+  // p1 未满 + 工价/剩余文案
+  const p1 = all.items.find((x) => x._id === 'p1')
+  assert.equal(p1.isComplete, false)
+  assert.equal(p1.priceText, '¥2/件')
+  assert.equal(p1.remainingText, '剩余可报 60 件')
+  // 关键词搜索（工序名）
+  const searched = buildOrderProcessCards(processes, 'oA', '锁边')
+  assert.equal(searched.matchedCount, 1)
+  assert.equal(searched.items[0]._id, 'p2')
+})
+
 test('employee worklog page is submit-only and history page is history-only', () => {
   const submitSource = read('miniprogram/pages/employee/worklog/worklog.wxml')
   const submitJs = read('miniprogram/pages/employee/worklog/worklog.js')
@@ -96,7 +122,9 @@ test('employee worklog page is submit-only and history page is history-only', ()
   assert.match(pageConfig, /计件报工/)
   assert.match(submitSource, /提交报工/)
   assert.match(submitSource, /bindtap="onSubmit"/)
-  assert.match(submitSource, /range="\{\{processes\}\}"/)
+  // 工序卡片 + 搜索（点击工序卡直接报工，替代旧的 picker 选择）
+  assert.match(submitSource, /bindtap="onSelectProcessCard"/)
+  assert.match(submitSource, /bindinput="onSearchInput"/)
   assert.match(submitSource, /完成数量/)
   assert.doesNotMatch(submitSource, /报工总览/)
   assert.doesNotMatch(submitSource, /历史报工记录/)

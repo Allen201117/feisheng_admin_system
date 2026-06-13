@@ -1,5 +1,12 @@
+# 统一行尾为 LF，根治 CRLF/LF 混用导致的工具读写错乱
+* text=auto eol=lf
+
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
 *.pdf binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

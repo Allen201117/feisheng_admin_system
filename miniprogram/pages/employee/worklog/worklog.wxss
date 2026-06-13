@@ -103,3 +103,127 @@
   background: var(--green-50);
   color: var(--green-600);
 }
+
+/* ===== 报工页第二层：工序卡片 + 名称高亮 + 搜索 + 报工弹窗 ===== */
+.worklog-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.worklog-match-meta {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+.worklog-search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.worklog-search-input { flex: 1; }
+.worklog-search-clear { flex-shrink: 0; }
+
+.worklog-proc-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.worklog-proc-card {
+  padding: 28rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--bg-card-soft) 100%);
+  border: 1rpx solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
+}
+.worklog-proc-card.is-complete { opacity: 0.82; }
+
+/* 工序名称：彩色高亮 pill，完整展示不截断（解决长名看不全/乱码） */
+.worklog-proc-name-pill {
+  display: block;
+  padding: 14rpx 20rpx;
+  border-radius: 18rpx;
+  background: var(--blue-100);
+  color: var(--blue-600);
+  font-size: 32rpx;
+  line-height: 1.36;
+  font-weight: var(--fw-bold);
+  word-break: break-word;
+  white-space: normal;
+}
+.worklog-proc-order {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.worklog-proc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: var(--sp-2);
+}
+.worklog-proc-tag {
+  min-height: 50rpx;
+  padding: 0 16rpx;
+  border-radius: var(--r-full);
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+.worklog-proc-tag.is-ready { background: var(--green-50); color: var(--green-600); }
+.worklog-proc-tag.is-muted { background: var(--bg-elevated); color: var(--text-tertiary); }
+.worklog-proc-tag.is-price { background: var(--amber-50); color: var(--amber-600); }
+.worklog-proc-progress {
+  margin-top: var(--sp-2);
+  height: 12rpx;
+  border-radius: var(--r-full);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.worklog-proc-progress-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--blue-600);
+}
+.worklog-proc-progress-fill.is-complete { background: var(--green-600); }
+.worklog-proc-foot {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1rpx solid var(--hairline);
+}
+.worklog-proc-foot-text {
+  font-size: var(--fs-sm);
+  color: var(--color-primary);
+  font-weight: var(--fw-medium);
+}
+
+/* 报工弹窗里的工序名也高亮完整展示 */
+.worklog-modal-proc-pill {
+  display: block;
+  padding: 12rpx 18rpx;
+  border-radius: 16rpx;
+  background: var(--blue-100);
+  color: var(--blue-600);
+  font-size: 30rpx;
+  line-height: 1.34;
+  font-weight: var(--fw-bold);
+  word-break: break-word;
+}
+.worklog-modal-order {
+  display: block;
+  margin-top: 8rpx;
+  margin-bottom: var(--sp-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+.modal-sheet-btn.primary { color: var(--blue-600); font-weight: var(--fw-bold); }
