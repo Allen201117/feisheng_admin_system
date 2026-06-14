@@ -8,7 +8,21 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
-## 2026-06-11
+## 2026-06-14
+
+### 已完成订单支持「恢复为进行中」+ 对应解开发薪锁
+
+- 背景：订单误标/需补做时，`completed` 此前是绝对终态（§2.4），无法回到进行中。老板要求支持恢复，并把相关报工/工价锁对应打开。
+- 口径确认（与老板）：恢复时，本订单**「按订单」已发薪记录一并改为未发薪**（解锁报工/工价改动）；**「按月」发薪是整月跨订单口径，不自动动**，仅统计并提示老板自行到工资页取消该月发放。
+- 改动：
+  - 纯函数（`order/pay-lock.logic.js`）：新增 `canChangeOrderStatus`（completed→active 合法且标记 reactivation；completed→cancelled 仍禁止；其余订单流转自由度不变）、`selectOrderScopedPaidPayments`、`findMonthLockedConflicts`，均带 `node:test`。
+  - 后端（`order/index.js` `updateOrderStatus`）：用 `canChangeOrderStatus` 取代原「completed 即拒绝」硬拦；恢复分支 `releaseOrderPaymentLocksOnReactivate` 把本订单 `SalaryPayments{order_id,paid:true}` 批量改 `paid:false`（加 `released_by_reactivation/released_at/operator_*` 审计字段，与 `markPaid(paid:false)` 同口径），并返回 `month_locked_count/preview` 提示按月发薪仍锁定的报工。
+  - 前端：订单列表新增「恢复」按钮（completed 显示）+ `onChangeStatus` 选「进行中」均走 `reactivateOrder` 强提示流程；订单详情「更多」菜单 completed 增「恢复为进行中」。两处都把后端按月锁定提示弹窗透传。
+- 数据影响：恢复会把本订单按订单发薪记录置为未发薪（老板已知会，需重新核对发放）；新增 SalaryPayments 审计字段。完成锁、按月发薪锁口径其余不变。
+- 部署影响：需重新部署 `order` 云函数 + 前端包。**尚未真机验证/部署。**
+- 工程：`order/index.js`、`orders.js`、`order-detail.js` 编辑时由 CRLF 转 LF（符合 `.gitattributes eol=lf`）；逻辑改动看 `git diff --ignore-cr-at-eol`。
+- 调试修复：初版「恢复」按钮点了没反应——根因是 `wx.showModal` 的 `confirmText` 最多 4 字，写成 `'恢复进行中'`(5字) 触发 fail 回调、弹窗根本不显示。改为 `'恢复'` 并新增静态守护测试 `tests/showmodal-button-text.test.js`（全局扫描 confirmText/cancelText ≤4 字）。
+- 验证：`npm run test:unit` 全绿（225，新增 11）。**仍需在微信开发者工具重新编译，并部署 `order` 云函数后整链路才生效。**
 
 ### 登录页：按姓名自动回填登录信息 + 设备绑定密码
 

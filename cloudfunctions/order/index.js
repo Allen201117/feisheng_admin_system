@@ -7,7 +7,10 @@ const {
   buildPaidSets,
   findPaidWorklogs,
   isOrderCompleted,
-  buildPaidConflictPreview
+  buildPaidConflictPreview,
+  canChangeOrderStatus,
+  selectOrderScopedPaidPayments,
+  findMonthLockedConflicts
 } = require('./pay-lock.logic')
 const {
   collectAssignedUserIds,
@@ -389,6 +392,7 @@ async function copyOrder(event, caller) {
 
 async function updateOrderStatus(event, caller) {
   const { order_id, status } = event
+  if (!order_id) return { code: -1, msg: '参数不完整' }
   if (!['active', 'completed', 'cancelled'].includes(status)) {
     return { code: -1, msg: '无效的状态' }
   }
@@ -397,17 +401,91 @@ async function updateOrderStatus(event, caller) {
     const orderRes = await db.collection('Orders').doc(order_id).get()
     const order = orderRes.data
     if (!ensureSameOrg(order, caller)) return { code: -1, msg: '无权修改该订单' }
-    // 完成订单为终态：已完成订单不可再变更状态（CLAUDE.md §2.4）
-    if (isOrderCompleted(order) && status !== 'completed') {
-      return { code: -1, msg: '订单已完成，状态不可再变更' }
+
+    // 订单状态流转校验（CLAUDE.md §2.4）：completed 可恢复为 active，
+    // 但不可直接转为 cancelled；其余订单维持原有流转自由度。
+    const transition = canChangeOrderStatus(order.status, status)
+    if (!transition.ok) return { code: -1, msg: transition.reason }
+
+    // 普通状态变更（非恢复）：直接写状态。
+    if (!transition.reactivation) {
+      if (order.status === status) return { code: 0, msg: '状态更新成功' }
+      await db.collection('Orders').doc(order_id).update({
+        data: { status, updated_at: db.serverDate() }
+      })
+      return { code: 0, msg: '状态更新成功' }
     }
+
+    // 恢复「已完成 → 进行中」(CLAUDE.md §2.4)：
+    //   1) 完成锁：只需把 status 改回 active，所有按 status==='completed' 的写锁自动放开。
+    //   2) 「按订单」发薪锁：把本订单已发薪记录改为未发薪(paid:false)，解锁报工/工价（用户确认口径）。
+    //   3) 「按月」发薪锁：整月口径，不因单订单恢复而动——只统计并提示老板自行到工资页处理。
+    const releaseResult = await releaseOrderPaymentLocksOnReactivate(order_id, getOrgId(caller), caller)
+
     await db.collection('Orders').doc(order_id).update({
-      data: { status, updated_at: db.serverDate() }
+      data: { status: 'active', updated_at: db.serverDate() }
     })
-    return { code: 0, msg: '状态更新成功' }
+
+    return {
+      code: 0,
+      msg: '订单已恢复为进行中',
+      data: {
+        reactivated: true,
+        released_order_payments: releaseResult.releasedCount,
+        month_locked_count: releaseResult.monthLockedConflicts.length,
+        month_locked_preview: releaseResult.monthLockedConflicts.length
+          ? buildPaidConflictPreview(releaseResult.monthLockedConflicts)
+          : ''
+      }
+    }
   } catch (err) {
-    return { code: -1, msg: '更新失败' }
+    return { code: -1, msg: '更新失败：' + (err.message || JSON.stringify(err)) }
   }
+}
+
+// 恢复已完成订单时解开发薪锁（见 updateOrderStatus 第 2/3 步）。
+// 返回 { releasedCount, monthLockedConflicts }。
+async function releaseOrderPaymentLocksOnReactivate(orderId, orgId, caller) {
+  // 本订单参与者（用于把发薪记录范围收敛到相关员工）
+  const worklogs = await fetchAllDocs('WorkLogs', {
+    org_id: orgId,
+    order_id: orderId
+  }, { field: { user_id: true, user_name: true, date: true, order_id: true } })
+  const userIds = Array.from(new Set(worklogs.map(w => w.user_id).filter(Boolean)))
+
+  const payments = userIds.length > 0
+    ? await fetchAllDocs('SalaryPayments', {
+      org_id: orgId,
+      user_id: _.in(userIds),
+      paid: true
+    }, { field: { _id: true, user_id: true, month: true, order_id: true, paid: true } })
+    : []
+
+  // 2) 解开本订单「按订单」发薪锁：paid → false（与 salary.markPaid(paid:false) 同口径）
+  const toRelease = selectOrderScopedPaidPayments(payments, orderId)
+  let releasedCount = 0
+  if (toRelease.length > 0) {
+    const updateRes = await db.collection('SalaryPayments').where({
+      org_id: orgId,
+      order_id: orderId,
+      paid: true
+    }).update({
+      data: {
+        paid: false,
+        paid_at: null,
+        released_by_reactivation: true,
+        released_at: db.serverDate(),
+        operator_id: caller._id,
+        operator_name: caller.name
+      }
+    })
+    releasedCount = (updateRes.stats && updateRes.stats.updated) || toRelease.length
+  }
+
+  // 3) 「按月」发薪锁：只检测提示，不自动解锁（整月跨订单口径，不能因恢复单订单而动）
+  const monthLockedConflicts = findMonthLockedConflicts(worklogs, payments)
+
+  return { releasedCount, monthLockedConflicts }
 }
 
 function normalizePageSize(value, fallback = 100) {

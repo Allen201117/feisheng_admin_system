@@ -155,7 +155,7 @@ docs/                               项目文档、验收报告、审计报告
 ## 2026-06-11 高风险区规则现状（已落地）
 
 - **改价拦截**：工序存在已发薪报工（按月或按订单）时 `updateProcessPrice`/`updateProcess` 整体拒绝改价；未发薪改价会同步重写该工序全部未发薪报工的 `snapshot_price/amount`。
-- **完成订单锁**：`completed` 为终态；order/worklog 全部写操作（删订单/工序增删改/分配/改价/隐藏工价/清空/报工增删改）对 completed 订单拒绝并返回原因。
+- **完成订单锁（可恢复）**：处于 `completed` 时 order/worklog 全部写操作（删订单/工序增删改/分配/改价/隐藏工价/清空/报工增删改）拒绝并返回原因。**但 `completed` 非绝对终态：`updateStatus` 支持 completed→active「恢复为进行中」（`canChangeOrderStatus`），恢复后写锁随 status 自动放开；仍禁止 completed→cancelled。** 恢复时 `releaseOrderPaymentLocksOnReactivate` 把本订单 `SalaryPayments{order_id,paid:true}`→`paid:false`（+`released_by_reactivation/released_at/operator_*` 审计字段）解锁报工/工价；「按月」发薪锁不自动动，返回 `data.month_locked_count/month_locked_preview` 提示。前端：订单列表「恢复」按钮 / 详情「更多」菜单。
 - **删除发薪锁**：`deleteOrder`、`deleteWorkLog`、`clearOrderWorklogs` 命中已发薪（按月或按订单）一律拒绝；员工 `cancelOwnWorkLog` 保留时间序口径。
 - **发薪即完成**：`salary.markPaid` 返回 `data.order_fully_paid/order_status`，订单全员发薪后老板端弹窗一键置为已完成。
 - **实时工价（老板侧）**：`worklog.getManageLogs`、`salary.getUserMonthlySalaryByBoss` 返回 `current_price/price_changed`（响应字段，非库字段）；export 明细带「当前工价」列。
