@@ -243,6 +243,54 @@ Page({
     }
   },
 
+  onReactivateOrder(e) {
+    const order = e.currentTarget.dataset.order
+    this.reactivateOrder(order)
+  },
+
+  // 恢复「已完成 → 进行中」(CLAUDE.md §2.4)：强提示后调用 updateStatus，
+  // 并把后端返回的「按月发薪仍锁定」提醒透传给老板。
+  async reactivateOrder(order) {
+    if (!order || !order._id) return
+
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '恢复为进行中',
+        content: `确定把订单"${order.order_name}"恢复为进行中吗？\n恢复后订单重新可编辑；本订单「按订单」已发薪的标记会被撤销、报工与工价解锁，需重新核对发放。`,
+        confirmText: '恢复',
+        cancelText: '取消',
+        success: (r) => resolve(!!r.confirm),
+        fail: (err) => { console.error('恢复确认弹窗失败', err); resolve(false) }
+      })
+    })
+    if (!confirmed) return
+
+    showLoading('恢复中...')
+    try {
+      const res = await callCloud('order', {
+        action: 'updateStatus',
+        order_id: order._id,
+        status: 'active'
+      })
+      hideLoading()
+      const data = (res && res.data) || {}
+      if (data.month_locked_count > 0) {
+        wx.showModal({
+          title: '部分报工仍锁定',
+          content: `订单已恢复为进行中。但有 ${data.month_locked_count} 笔报工因「按月发薪」整月口径仍被锁定（${data.month_locked_preview || ''}），如需修改请到工资页取消对应月份的发放。`,
+          showCancel: false,
+          confirmText: '知道了'
+        })
+      } else {
+        showSuccess('已恢复为进行中')
+      }
+      await this.loadOrders()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '恢复失败')
+    }
+  },
+
   async onChangeStatus(e) {
     const order = e.currentTarget.dataset.order
     if (!order || !order._id) return
@@ -255,6 +303,12 @@ Page({
         const map = ['active', 'completed', 'cancelled']
         const target = map[idx]
         if (!target || target === order.status) return
+
+        // 已完成 → 进行中：走带强提示 + 发薪解锁的恢复流程
+        if (order.status === 'completed' && target === 'active') {
+          this.reactivateOrder(order)
+          return
+        }
 
         const statusTextMap = {
           active: '进行中',

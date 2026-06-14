@@ -49,9 +49,10 @@
 - 已发薪月份/订单的奖惩改删走**冲正记录**（`is_reversal`/`is_correction`/`original_id`），不改原记录。
 - **发薪 = 订单完成标志**（订单发薪模式）：✅ 已实现（2026-06-11）：`salary.markPaid` 返回 `data.order_fully_paid/order_status`（`isOrderFullyPaid`，payment-record.logic.js），订单全员发薪且未完成时，老板端工资页弹窗提醒一键把订单置为「已完成」。
 
-### 2.4 删除规则 + 已完成订单锁定 ✅
-- **订单状态 `completed`：禁止老板删除/修改该订单的任何相关数据**（订单本身、工序、改价、报工增删改），并把原因返回给老板（「订单已完成，不可修改」）。
-- ✅ 已实现（2026-06-11）统一锁：`order` 的 deleteOrder/updateStatus(完成为终态)/addProcess/updateProcessPrice/updateProcess/deleteProcess/assignProcess/batchAssignProcesses/togglePriceHidden/clearOrderPrices/clearOrderWorklogs 与 `worklog` 的 updateWorkLog/deleteWorkLog 全部拒绝 completed 订单（`isOrderCompleted`/`ensureOrderNotCompleted`）；`copyOrder` 仍允许（只读源订单）。
+### 2.4 删除规则 + 已完成订单锁定（可恢复）✅
+- **订单状态 `completed`：处于该状态时禁止老板删除/修改该订单的任何相关数据**（订单本身、工序、改价、报工增删改），并把原因返回给老板（「订单已完成，不可修改」）。
+- ✅ 已实现（2026-06-11）统一锁：`order` 的 deleteOrder/addProcess/updateProcessPrice/updateProcess/deleteProcess/assignProcess/batchAssignProcesses/togglePriceHidden/clearOrderPrices/clearOrderWorklogs 与 `worklog` 的 updateWorkLog/deleteWorkLog 全部拒绝 completed 订单（`isOrderCompleted`/`ensureOrderNotCompleted`）；`copyOrder` 仍允许（只读源订单）。
+- ✅ **`completed` 不再是绝对终态（2026-06-14）：老板可把已完成订单「恢复为进行中」(`updateStatus` completed→active，`canChangeOrderStatus`)。** 恢复=把 status 改回 active，所有按 `status==='completed'` 的写锁随之自动放开。`updateStatus` 仍禁止 completed→cancelled（恢复只针对进行中）。恢复时**自动把本订单「按订单」已发薪记录改为未发薪**（`releaseOrderPaymentLocksOnReactivate`：`SalaryPayments{order_id,paid:true}`→`paid:false` + 审计字段），解锁报工/工价；**「按月」发薪是整月跨订单口径不自动动**，仅 `findMonthLockedConflicts` 统计并返回 `month_locked_count/preview` 提示老板自行到工资页取消该月发放。前端入口：订单列表「恢复」按钮 / 详情「更多」菜单。
 - ✅ 发薪锁收口：`deleteOrder` 删除前查「订单级已发薪记录 + 报工按月/按订单已发薪」，命中即拒绝；`deleteWorkLog`/`updateWorkLog` 统一走 `getWorklogPaidRecord`（订单级优先、月级兜底）；`clearOrderWorklogs` 升级为按月+按订单双重检查。员工 `cancelOwnWorkLog` 保留时间序口径（发薪后新增的报工可自删，属有意设计）。
 
 ### 2.5 权限
