@@ -1,0 +1,46 @@
+<view class="container">
+
+  <!-- 员工头卡 -->
+  <view class="stat-card accent-blue">
+    <view class="flex-row gap-2" style="align-items:center;">
+      <view class="emp-avatar blue">{{userName[0]}}</view>
+      <view class="flex-1">
+        <text class="salary-name">{{userName}}</text>
+        <text class="emp-meta">{{roleName || '员工'}}<text wx:if="{{joinDate}}"> · 入厂 {{joinDate}}</text></text>
+      </view>
+    </view>
+    <view style="margin-top:var(--sp-2);">
+      <text class="stat-card-label">累计总工资</text>
+      <text class="stat-card-value">¥{{totalAll}}</text>
+      <text class="stat-card-footer">{{payrollMode === 'order' ? '按订单发薪' : '按月发薪'}} · 共 {{periods.length}} 期</text>
+    </view>
+  </view>
+
+  <!-- 工资期次列表 -->
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-0);">{{payrollMode === 'order' ? '按订单工资记录' : '按月工资记录'}}</text>
+    <text class="field-hint" style="display:block;margin-bottom:var(--sp-1);">点任意一期查看订单 / 工序 / 报工 / 工价明细</text>
+
+    <view wx:if="{{periods.length === 0 && !loading}}" class="empty">
+      <view class="empty-icon">
+        <image src="/images/icons/salary.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+      </view>
+      <text class="empty-title">暂无工资记录</text>
+      <text class="empty-desc">该员工还没有产生工资数据</text>
+    </view>
+
+    <view wx:for="{{periods}}" wx:key="key" class="salary-row tappable" bindtap="goPeriodDetail" data-period="{{item}}" hover-class="tap-row-hover">
+      <view class="salary-info">
+        <view class="flex-row gap-1">
+          <text class="salary-name">{{item.label}}</text>
+          <text class="badge {{item.paid ? 'badge-green' : 'badge-slate'}}">{{item.paid ? '已发' : '未发'}}</text>
+          <text wx:if="{{item.type === 'order' && item.order_status === 'completed'}}" class="badge badge-blue">已完成</text>
+        </view>
+      </view>
+      <view class="salary-amount">¥{{item.totalDisplay}}
+        <text class="text-accent text-xs" style="display:block;margin-top:2rpx;">详情 →</text>
+      </view>
+    </view>
+  </view>
+
+</view>

@@ -429,6 +429,7 @@ exports.main = async (event, context) => {
     case 'getUserPayrollSalary': return await getUserPayrollSalary(event, wxContext)
     case 'getUserMonthlySalary': return await getUserMonthlySalary(event, wxContext)
     case 'getUserMonthlySalaryByBoss': return await getUserMonthlySalaryByBoss(event, wxContext)
+    case 'getUserSalaryHistory': return await getUserSalaryHistory(event, wxContext)
     case 'getAllMonthlySalary': return await getAllMonthlySalary(event, wxContext)
     case 'getAllOrderSalary': return await getAllOrderSalary(event, wxContext)
     case 'getAllPeriodSalary': return await getAllPeriodSalary(event, wxContext)
@@ -623,6 +624,113 @@ async function getUserMonthlySalaryByBoss(event, wxContext) {
     return { code: 0, data: data }
   } catch (err) {
     return { code: -1, msg: '获取工资失败' }
+  }
+}
+
+// 老板：某员工的全部工资期次（按月或按订单），用于「员工工资档案」。
+// 复用 calcUserSalary / calcUserOrderSalary（§1.2 不新增第 5 套统计口径）。
+async function getUserSalaryHistory(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const { user_id } = event
+  if (!user_id) return { code: -1, msg: '参数不完整' }
+
+  try {
+    const orgId = getOrgId(caller)
+    const targetUserRes = await db.collection('Users').doc(user_id).get()
+    if (!ensureSameOrg(targetUserRes.data, caller)) return { code: -1, msg: '权限不足' }
+    const targetUser = targetUserRes.data || {}
+    const mode = await getPayrollMode(orgId)
+
+    const periods = []
+    let totalAll = 0
+
+    if (mode === 'order') {
+      // 该员工有报工的订单 ∪ 已发薪订单
+      const [logs, pays] = await Promise.all([
+        fetchAllByWhere('WorkLogs', { org_id: orgId, user_id }, { field: { order_id: true } }),
+        fetchAllByWhere('SalaryPayments', { org_id: orgId, user_id, order_id: _.exists(true) }, { field: { order_id: true } })
+      ])
+      const orderIdSet = {}
+      logs.forEach(l => { if (l.order_id) orderIdSet[l.order_id] = true })
+      pays.forEach(p => { if (p.order_id) orderIdSet[p.order_id] = true })
+      const orderIds = Object.keys(orderIdSet)
+
+      const orderMap = {}
+      for (let i = 0; i < orderIds.length; i += 100) {
+        const batch = orderIds.slice(i, i + 100)
+        if (batch.length === 0) break
+        const ordRes = await db.collection('Orders').where({ org_id: orgId, _id: _.in(batch) })
+          .field({ _id: true, order_name: true, status: true, created_at: true }).get()
+        ordRes.data.forEach(o => { orderMap[o._id] = o })
+      }
+
+      for (const oid of orderIds) {
+        const sal = await calcUserOrderSalary(user_id, oid, orgId)
+        const paidRes = await db.collection('SalaryPayments')
+          .where({ org_id: orgId, user_id, order_id: oid, paid: true }).get()
+        const order = orderMap[oid] || {}
+        const total = sal.total || 0
+        totalAll += total
+        const createdTs = order.created_at ? new Date(order.created_at).getTime() : 0
+        periods.push({
+          key: oid,
+          type: 'order',
+          order_id: oid,
+          order_name: order.order_name || '订单',
+          order_status: order.status || '',
+          total: Math.round(total * 100) / 100,
+          paid: paidRes.data.length > 0,
+          _sort: Number.isNaN(createdTs) ? 0 : createdTs
+        })
+      }
+      // 按订单创建时间倒序（最新在前）
+      periods.sort((a, b) => b._sort - a._sort)
+      periods.forEach(p => { delete p._sort })
+    } else {
+      // 月模式：该员工有报工 / 奖惩 / 按月发薪的月份
+      const [logs, adjs, pays] = await Promise.all([
+        fetchAllByWhere('WorkLogs', { org_id: orgId, user_id }, { field: { date: true } }),
+        fetchAllByWhere('SalaryAdjustments', { org_id: orgId, user_id }, { field: { month: true } }),
+        fetchAllByWhere('SalaryPayments', { org_id: orgId, user_id }, { field: { month: true, order_id: true } })
+      ])
+      const monthSet = {}
+      logs.forEach(l => { if (l.date && l.date.length >= 7) monthSet[l.date.substring(0, 7)] = true })
+      adjs.forEach(a => { if (a.month) monthSet[a.month] = true })
+      pays.forEach(p => { if (p.month && !p.order_id) monthSet[p.month] = true })
+      const months = Object.keys(monthSet).sort().reverse()
+
+      for (const m of months) {
+        const sal = await calcUserSalary(user_id, m, orgId)
+        const paidRes = await db.collection('SalaryPayments')
+          .where({ org_id: orgId, user_id, month: m, paid: true, order_id: _.exists(false) }).get()
+        const total = sal.total || 0
+        totalAll += total
+        periods.push({
+          key: m,
+          type: 'month',
+          month: m,
+          total: Math.round(total * 100) / 100,
+          paid: paidRes.data.length > 0
+        })
+      }
+    }
+
+    return {
+      code: 0,
+      data: {
+        user_id: user_id,
+        user_name: targetUser.name || '',
+        role: targetUser.role || '',
+        join_date: targetUser.join_date || '',
+        payroll_mode: mode,
+        total_all: Math.round(totalAll * 100) / 100,
+        periods: periods
+      }
+    }
+  } catch (err) {
+    console.error('[salary] getUserSalaryHistory 失败', err)
+    return { code: -1, msg: '获取工资档案失败' }
   }
 }
 

@@ -28,7 +28,8 @@ Page({
       date: '',
       clock_out_time: ''
     },
-    employees: []
+    employees: [],
+    leaveUnread: 0
   },
 
   onLoad() {
@@ -39,6 +40,20 @@ Page({
     this.loadTodayRecords()
     this.loadAbnormalRecords()
     this.loadEmployees()
+    this.loadLeaveUnread()
+  },
+
+  async loadLeaveUnread() {
+    try {
+      const res = await callCloud('attendance', { action: 'getUnreadLeaveCount' })
+      this.setData({ leaveUnread: (res.data && res.data.count) || 0 })
+    } catch (e) {
+      // 静默：红点失败不影响考勤主流程
+    }
+  },
+
+  goLeaveRecords() {
+    wx.navigateTo({ url: '/pages/boss/leave-records/leave-records' })
   },
 
   switchTab(e) {

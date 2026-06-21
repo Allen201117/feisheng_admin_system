@@ -3,6 +3,7 @@ const cloud = require('wx-server-sdk')
 const { comprehensiveCheckIn, buildCheckInLog } = require('./geofence-enhanced')
 const { normalizeFactorySettings } = require('./factory-settings.logic')
 const bjTime = require('./beijing-time')
+const leaveLogic = require('./leave.logic')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
@@ -205,6 +206,14 @@ exports.main = async (event, context) => {
     case 'supplement': return await supplement(event, wxContext)
     case 'getUserMonthlyRecords': return await getUserMonthlyRecords(event)
     case 'checkAbnormal': return await checkAbnormalAttendances()
+    // ===== 请假（LeaveRecords）=====
+    case 'requestLeave': return await requestLeave(event, wxContext)
+    case 'cancelLeave': return await cancelLeave(event, wxContext)
+    case 'getMyLeaves': return await getMyLeaves(event, wxContext)
+    case 'getMonthLeaveSummary': return await getMonthLeaveSummary(event, wxContext)
+    case 'getLeaveRequestsForBoss': return await getLeaveRequestsForBoss(event, wxContext)
+    case 'getUnreadLeaveCount': return await getUnreadLeaveCount(event, wxContext)
+    case 'markLeavesRead': return await markLeavesRead(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -890,5 +899,214 @@ async function checkAbnormalAttendances() {
     return { code: 0, msg: `已标记 ${marked} 条异常记录` }
   } catch (err) {
     return { code: -1, msg: '检查异常失败' }
+  }
+}
+
+// ════════════════════════ 请假（LeaveRecords）════════════════════════
+// 口径见 leave.logic.js：全勤 = 本月无 active 请假；请假不进工资（§2.1）。
+// 员工自助提交、立即生效（无需审批）；老板收 App 内红点提醒 + 卡片标记。
+
+// LeaveRecords 是新集合，首次写入前确保其存在（沿用 init/billing 的 createCollection 幂等模式）。
+function isCollectionAlreadyExistsError(err) {
+  const text = String((err && (err.message || err.errMsg)) || '')
+  return !!(err && (
+    err.errCode === -502005 ||
+    err.errCode === -501001 ||
+    text.includes('already exists') ||
+    text.includes('Table exist') ||
+    text.includes('ResourceExist') ||
+    text.includes('DATABASE_COLLECTION_ALREADY_EXIST')
+  ))
+}
+
+async function safeCreateCollection(name) {
+  try {
+    await db.createCollection(name)
+  } catch (err) {
+    if (isCollectionAlreadyExistsError(err)) return
+    throw err
+  }
+}
+
+// 员工提交请假（给自己）
+async function requestLeave(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) return { code: -1, msg: '登录已失效，请重新登录' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '账号未归属工厂' }
+
+  const month = String(event.month || '').trim()
+  if (!/^\d{4}-\d{2}$/.test(month)) return { code: -1, msg: '请假月份格式不正确' }
+  const dates = leaveLogic.normalizeLeaveDates(event.dates, month)
+  if (dates.length === 0) return { code: -1, msg: '请选择请假日期' }
+  if (dates.length > 31) return { code: -1, msg: '请假天数超出范围' }
+  const reason = String(event.reason || '').slice(0, 200)
+
+  try {
+    // 首次请假时若集合不存在则创建（幂等），避免 add 报 collection not exist
+    await safeCreateCollection('LeaveRecords')
+    const addRes = await db.collection('LeaveRecords').add({
+      data: {
+        org_id: orgId,
+        user_id: caller._id,
+        user_name: caller.name || '',
+        month: month,
+        dates: dates,
+        day_count: dates.length,
+        reason: reason,
+        status: 'active',
+        boss_read: false,
+        created_at: db.serverDate()
+      }
+    })
+    await writeAudit('leave_request', `user_id=${caller._id}; month=${month}; days=${dates.length}`, orgId)
+    return { code: 0, msg: '请假已提交', data: { _id: addRes._id, day_count: dates.length } }
+  } catch (err) {
+    console.error('[attendance] requestLeave 失败', err)
+    return { code: -1, msg: '请假提交失败' }
+  }
+}
+
+// 员工撤销请假（仅本人、仅 active、且全部日期严格在今天之后）
+async function cancelLeave(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) return { code: -1, msg: '登录已失效，请重新登录' }
+  const leaveId = event.leave_id
+  if (!leaveId) return { code: -1, msg: '参数不完整' }
+  try {
+    let record = null
+    try {
+      const recRes = await db.collection('LeaveRecords').doc(leaveId).get()
+      record = recRes.data
+    } catch (e) {
+      return { code: -1, msg: '请假记录不存在' }
+    }
+    if (!record || !ensureSameOrg(record, caller)) return { code: -1, msg: '请假记录不存在' }
+    if (String(record.user_id) !== String(caller._id)) return { code: -1, msg: '只能撤销本人的请假' }
+    if (record.status !== 'active') return { code: -1, msg: '该请假已撤销' }
+    const today = bjTime.getBeijingToday()
+    if (!leaveLogic.canCancelLeave(record, today)) return { code: -1, msg: '已开始或已过的请假不能撤销' }
+    await db.collection('LeaveRecords').doc(leaveId).update({
+      data: { status: 'cancelled', cancelled_at: db.serverDate() }
+    })
+    await writeAudit('leave_cancel', `user_id=${caller._id}; leave_id=${leaveId}`, getOrgId(caller))
+    return { code: 0, msg: '已撤销' }
+  } catch (err) {
+    console.error('[attendance] cancelLeave 失败', err)
+    return { code: -1, msg: '撤销失败' }
+  }
+}
+
+// 员工查看自己的请假列表（含可否撤销）
+async function getMyLeaves(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller) return { code: -1, msg: '登录已失效，请重新登录' }
+  try {
+    const list = await fetchAllDocs('LeaveRecords', {
+      org_id: getOrgId(caller),
+      user_id: caller._id
+    })
+    const today = bjTime.getBeijingToday()
+    const sorted = sortDocsByFields(list, ['created_at'], 'desc')
+    const data = sorted.map(function (r) {
+      return {
+        _id: r._id,
+        month: r.month,
+        dates: r.dates || [],
+        day_count: leaveLogic.countLeaveDays(r),
+        reason: r.reason || '',
+        status: r.status,
+        can_cancel: leaveLogic.canCancelLeave(r, today),
+        created_at: r.created_at
+      }
+    })
+    return { code: 0, data: data }
+  } catch (err) {
+    console.error('[attendance] getMyLeaves 失败', err)
+    return { code: -1, msg: '获取请假记录失败' }
+  }
+}
+
+// 老板：某月各员工请假天数汇总 → { [user_id]: day_count }
+async function getMonthLeaveSummary(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const month = String(event.month || '').trim() || bjTime.getBeijingMonth()
+  try {
+    const list = await fetchAllDocs('LeaveRecords', {
+      org_id: getOrgId(caller),
+      month: month,
+      status: 'active'
+    })
+    return { code: 0, data: leaveLogic.summarizeMonthLeave(list) }
+  } catch (err) {
+    console.error('[attendance] getMonthLeaveSummary 失败', err)
+    return { code: -1, msg: '获取请假汇总失败' }
+  }
+}
+
+// 老板：请假申请列表（红点列表）
+async function getLeaveRequestsForBoss(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  try {
+    const list = await fetchAllDocs('LeaveRecords', {
+      org_id: getOrgId(caller),
+      status: 'active'
+    })
+    const sorted = sortDocsByFields(list, ['created_at'], 'desc')
+    const data = sorted.map(function (r) {
+      return {
+        _id: r._id,
+        user_id: r.user_id,
+        user_name: r.user_name || '',
+        month: r.month,
+        dates: r.dates || [],
+        day_count: leaveLogic.countLeaveDays(r),
+        reason: r.reason || '',
+        boss_read: !!r.boss_read,
+        created_at: r.created_at
+      }
+    })
+    return { code: 0, data: data }
+  } catch (err) {
+    console.error('[attendance] getLeaveRequestsForBoss 失败', err)
+    return { code: -1, msg: '获取请假列表失败' }
+  }
+}
+
+// 老板：未读请假条数（红点）
+async function getUnreadLeaveCount(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  try {
+    const res = await db.collection('LeaveRecords').where({
+      org_id: getOrgId(caller),
+      status: 'active',
+      boss_read: _.neq(true)
+    }).count()
+    return { code: 0, data: { count: res.total || 0 } }
+  } catch (err) {
+    console.error('[attendance] getUnreadLeaveCount 失败', err)
+    return { code: -1, msg: '获取未读数失败' }
+  }
+}
+
+// 老板：打开请假列表 → 未读批量置已读（清红点）
+async function markLeavesRead(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  try {
+    await db.collection('LeaveRecords').where({
+      org_id: getOrgId(caller),
+      status: 'active',
+      boss_read: _.neq(true)
+    }).update({
+      data: { boss_read: true }
+    })
+    return { code: 0, msg: 'ok' }
+  } catch (err) {
+    console.error('[attendance] markLeavesRead 失败', err)
+    return { code: -1, msg: '操作失败' }
   }
 }

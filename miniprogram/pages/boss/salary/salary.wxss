@@ -1,1 +1,10 @@
 .container { padding-bottom: 60rpx; }
+
+/* 顶部请假提醒条 */
+.salary-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-2);
+  gap: var(--sp-2);
+}
+
+/* .leave-remind* 已提升至 app.wxss 全局（薪资页/考勤页共用） */

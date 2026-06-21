@@ -29,7 +29,7 @@
   </view>
 
   <view wx:for="{{filteredEmployees}}" wx:key="_id" class="employee-card">
-    <view class="emp-row">
+    <view class="emp-row tappable" bindtap="goSalaryArchive" data-id="{{item._id}}" data-name="{{item.name}}" data-role="{{item.role_name}}" hover-class="tap-row-hover">
       <view class="emp-avatar blue">{{item.name[0]}}</view>
       <view class="emp-info">
         <view class="flex-row gap-1" style="margin-bottom:4rpx;">
@@ -39,6 +39,7 @@
         <text class="emp-meta">{{item.phone}}</text>
         <text class="emp-meta">角色: {{item.role_name}}<text wx:if="{{item.join_date}}"> | 入厂: {{item.join_date}}</text><text wx:else> | 入厂时间: 未设置</text></text>
       </view>
+      <text class="text-accent text-xs" style="flex-shrink:0;">工资档案 ›</text>
     </view>
     <view class="employee-actions">
       <view class="employee-action primary" bindtap="goEditEmployee" data-id="{{item._id}}" hover-class="tap-button-hover">编辑</view>

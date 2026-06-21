@@ -4,6 +4,11 @@
       <text class="page-header-title">考勤</text>
       <text class="page-header-subtitle">查看每日出勤和异常补签</text>
     </view>
+    <view class="leave-remind tappable" bindtap="goLeaveRecords" hover-class="tap-button-hover">
+      <image src="/images/icons/attendance.svg" mode="aspectFit" style="width:34rpx;height:34rpx;" />
+      <text class="leave-remind-text">请假提醒</text>
+      <text wx:if="{{leaveUnread > 0}}" class="leave-remind-badge">{{leaveUnread}}</text>
+    </view>
   </view>
 
   <!-- 选项卡 -->

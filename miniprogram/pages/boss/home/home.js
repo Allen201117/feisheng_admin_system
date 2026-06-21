@@ -16,6 +16,7 @@ Page({
     },
     subscription: null,
     subscriptionStatusClass: 'subscription-normal',
+    leaveUnread: 0,
     // 修改密码
     showChangePwd: false,
     changePwdData: { oldPassword: '', newPassword: '', confirmPassword: '' },
@@ -39,6 +40,16 @@ Page({
   onShow() {
     this.loadDashboard()
     this.loadSubscription()
+    this.loadLeaveUnread()
+  },
+
+  async loadLeaveUnread() {
+    try {
+      const res = await callCloud('attendance', { action: 'getUnreadLeaveCount' })
+      this.setData({ leaveUnread: (res.data && res.data.count) || 0 })
+    } catch (e) {
+      // 静默：红点失败不影响首页
+    }
   },
 
   onPullDownRefresh() {

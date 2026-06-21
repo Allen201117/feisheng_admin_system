@@ -88,6 +88,7 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/employee/worklog/worklog`：员工报工。
 - `pages/employee/profile/profile`：员工个人资料、工资与记录、改密。
 - `pages/employee/leaderboard/leaderboard`：员工排行榜。
+- `pages/employee/leave/leave`：员工请假（日历多选日期+原因，自助提交、可撤销未到的请假）。
 - `pages/qc/home/home`：质检首页，待检/已检列表。
 - `pages/qc/inspect/inspect`：质检详情与提交。
 - `pages/platform/home/home`：平台管理，工厂列表、工厂资料、工厂管理员、订阅开通。
@@ -100,6 +101,8 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/boss/attendance/attendance`：考勤管理。
 - `pages/boss/salary/salary`：工资汇总。
 - `pages/boss/salary-detail/salary-detail`：员工工资详情、奖惩、报工修改。
+- `pages/boss/employee-salary/employee-salary`：员工工资档案（某员工全部工资期次+累计总额，点某期下钻 salary-detail）。从员工列表卡片进入。
+- `pages/boss/leave-records/leave-records`：请假提醒列表（谁/哪几天/原因），打开即清未读红点。
 - `pages/boss/leaderboard/leaderboard`：老板端排行榜。
 - `pages/boss/settings/settings`：系统/工厂设置。
 - `pages/boss/qrcode/qrcode`：打卡二维码管理。
@@ -111,10 +114,10 @@ docs/                               项目文档、验收报告、审计报告
 
 - `login`：`login`、`changePassword`、`verifyToken`、`getConsentStatus`、`recordConsent`。
 - `user`：`list`、`listEmployees`、`get`、`create`、`update`、`updateStatus`、`resetPassword`、`updateJoinDate`。
-- `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`。
+- `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`；**请假（LeaveRecords）**：`requestLeave`、`cancelLeave`、`getMyLeaves`（员工）、`getMonthLeaveSummary`、`getLeaveRequestsForBoss`、`getUnreadLeaveCount`、`markLeavesRead`（老板）。纯逻辑见 `attendance/leave.logic.js`。
 - `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`clearOrderWorklogs`、`getPriceChangeLogs`。
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
-- `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getAllMonthlySalary`、`getAllOrderSalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getUserPaymentRecords`、`getAvailableMonths`。
+- `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getUserSalaryHistory`（员工工资档案：全部期次+累计总额，复用 calcUserSalary/calcUserOrderSalary 不新增口径）、`getAllMonthlySalary`、`getAllOrderSalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getUserPaymentRecords`、`getAvailableMonths`。
 - `leaderboard`：`getMonthlyRank`、`getOrderRank`、`getYearlyRank`。
 - `settings`：`getAll`、`getPublic`、`save`、`updateLeaderboardVisibility`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
@@ -136,6 +139,7 @@ docs/                               项目文档、验收报告、审计报告
 - `Attendances`：`user_id`、`user_name`、`date`、`clock_in_time`、`clock_out_time`、`clock_in_location`、`clock_out_location`、`status`、`source`、`qr_id`、`distance_meters`、`hours`、`quality_score`、`quality_level`、`created_at`。
 - `SalaryAdjustments`：`user_id`、`user_name`、`type`、`amount`、`reason`、`month`、`order_id`、`operator_id`、`operator_name`、`is_reversal`、`is_correction`、`original_id`、`created_at`、`updated_at`。
 - `SalaryPayments`：`user_id`、`user_name`、`month`、`paid`、`paid_at`、`operator_id`、`operator_name`、`created_at`；订单发薪记录可选 `order_id`、`order_name`、`payroll_type=order`、`total_amount`。
+- `LeaveRecords`：`org_id`、`user_id`、`user_name`、`month`(YYYY-MM 北京)、`dates`(['YYYY-MM-DD'] 北京)、`day_count`、`reason`、`status`(`active`/`cancelled`)、`boss_read`、`created_at`、`cancelled_at?`。「全勤」=某员工本月无 active 记录；请假不进工资（§2.1），仅作老板核对参考。员工自助提交、立即生效（无需审批），撤销仅本人且全部日期严格晚于今天。集合首次 `requestLeave` 时由 `safeCreateCollection` 幂等创建（沿用 init/billing 模式），无需手动建集合。
 - `factory_settings`：`factory_latitude`、`factory_longitude`、`geofence_radius`、`checkpoints`、`quality_threshold`、`qrcode_expire_days`、`leaderboard_visible`、`salary_payroll_mode`、`face_recognition_enabled`、`allow_home_checkin`、`smtp_*`、`updated_at`。
 - `audit_logs`：`action`、`operator_id`、`operator_name`、`target_id`、`details`、`old_values`、`new_values`、`changes`、`created_at`。
 - `qr_codes`：打卡二维码 token、状态、有效期、创建时间等。

@@ -81,6 +81,16 @@ Page({
     wx.navigateTo({ url: '/pages/boss/employee-edit/employee-edit?id=' + id })
   },
 
+  // 点击员工卡片主体 → 查看该员工的工资档案（全部工资期次 + 明细下钻）
+  goSalaryArchive: function(e) {
+    var ds = e.currentTarget.dataset
+    wx.navigateTo({
+      url: '/pages/boss/employee-salary/employee-salary?id=' + ds.id +
+        '&name=' + encodeURIComponent(ds.name || '') +
+        '&role=' + encodeURIComponent(ds.role || '')
+    })
+  },
+
   toggleStatus: function(e) {
     var that = this
     var emp = e.currentTarget.dataset.emp
