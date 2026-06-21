@@ -1,0 +1,33 @@
+<view class="container">
+
+  <view class="page-header">
+    <view class="page-header-left">
+      <text class="page-header-title">请假提醒</text>
+      <text class="page-header-subtitle">{{list.length}} 条记录</text>
+    </view>
+  </view>
+
+  <view wx:if="{{list.length === 0 && !loading}}" class="empty">
+    <view class="empty-icon">
+      <image src="/images/icons/attendance.svg" mode="aspectFit" style="width:48rpx;height:48rpx;" />
+    </view>
+    <text class="empty-title">暂无请假</text>
+    <text class="empty-desc">员工提交请假后会显示在这里</text>
+  </view>
+
+  <view class="card-bento" wx:if="{{list.length > 0}}">
+    <view wx:for="{{list}}" wx:key="_id" class="leave-item">
+      <view class="flex-between">
+        <view class="flex-row gap-1">
+          <view wx:if="{{!item.boss_read}}" class="leave-new-dot"></view>
+          <text class="salary-name">{{item.user_name}}</text>
+          <text class="badge badge-solid-red">请假{{item.day_count}}天</text>
+        </view>
+        <text class="emp-meta">{{item.monthLabel}}</text>
+      </view>
+      <text class="leave-dates">{{item.datesText}}</text>
+      <text wx:if="{{item.reason}}" class="leave-reason">原因：{{item.reason}}</text>
+    </view>
+  </view>
+
+</view>

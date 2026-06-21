@@ -182,3 +182,23 @@
   font-size: 28rpx;
   color: #1D2939;
 }
+
+/* 请假未读红点（薪酬管理入口） */
+.home-menu-dot {
+  position: absolute;
+  top: -8rpx; right: -8rpx;
+  min-width: 30rpx; height: 30rpx;
+  padding: 0 6rpx;
+  border-radius: 999rpx;
+  background: var(--red-500);
+  color: #fff;
+  font-size: 20rpx; font-weight: var(--fw-bold);
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
+}
+
+.home-menu-hint {
+  font-size: 22rpx;
+  color: var(--red-600);
+  margin-left: 4rpx;
+}

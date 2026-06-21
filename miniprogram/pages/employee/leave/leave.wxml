@@ -1,0 +1,53 @@
+<view class="container">
+
+  <!-- 日历选择 -->
+  <view class="card-bento">
+    <view class="leave-cal-head">
+      <view class="leave-cal-nav {{canPrev ? '' : 'disabled'}}" bindtap="onPrevMonth" hover-class="tap-chip-hover">‹</view>
+      <text class="leave-cal-title">{{monthLabel}}</text>
+      <view class="leave-cal-nav" bindtap="onNextMonth" hover-class="tap-chip-hover">›</view>
+    </view>
+
+    <view class="leave-week">
+      <text wx:for="{{weekHeaders}}" wx:key="*this" class="leave-week-cell">{{item}}</text>
+    </view>
+
+    <view class="leave-grid">
+      <view wx:for="{{cells}}" wx:key="key"
+            class="leave-day {{item.empty ? 'empty' : ''}} {{item.selected ? 'selected' : ''}} {{!item.empty && !item.selectable ? 'disabled' : ''}} {{item.isToday ? 'today' : ''}}"
+            bindtap="onDayTap" data-cell="{{item}}">
+        <view wx:if="{{!item.empty}}" class="leave-day-inner">{{item.day}}</view>
+      </view>
+    </view>
+
+    <view class="leave-summary" wx:if="{{selectedDates.length > 0}}">已选 {{selectedSummary}} · 共 {{selectedDates.length}} 天</view>
+    <view class="leave-summary muted" wx:else>点日历上的日期选择请假（可多选）</view>
+
+    <view class="field-group" style="margin-top:var(--sp-2);">
+      <input class="field-input" placeholder="请假原因（选填，如 事假/病假）" value="{{reason}}" bindinput="onReasonInput" maxlength="50" />
+    </view>
+
+    <button class="btn-primary btn-block {{selectedDates.length === 0 || submitting ? 'btn-disabled' : ''}}" bindtap="onSubmit">{{submitting ? '提交中...' : '提交请假'}}</button>
+  </view>
+
+  <!-- 我的请假 -->
+  <view class="card-bento">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">我的请假</text>
+
+    <view wx:if="{{myLeaves.length === 0}}" class="empty" style="padding:var(--sp-3) 0;">
+      <text class="empty-desc">还没有请假记录</text>
+    </view>
+
+    <view wx:for="{{myLeaves}}" wx:key="_id" class="leave-mine {{item.status === 'cancelled' ? 'cancelled' : ''}}">
+      <view class="flex-1">
+        <view class="flex-row gap-1">
+          <text class="list-row-title">{{item.monthLabel}}</text>
+          <text class="badge {{item.status === 'cancelled' ? 'badge-slate' : 'badge-amber'}}">{{item.statusText}} {{item.day_count}}天</text>
+        </view>
+        <text class="list-row-subtitle">{{item.datesText}}<text wx:if="{{item.reason}}"> · {{item.reason}}</text></text>
+      </view>
+      <view wx:if="{{item.can_cancel}}" class="btn-sm btn-sm-outline" catchtap="onCancelLeave" data-id="{{item._id}}" hover-class="tap-button-hover">撤销</view>
+    </view>
+  </view>
+
+</view>

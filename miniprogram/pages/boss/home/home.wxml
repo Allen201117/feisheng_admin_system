@@ -136,10 +136,11 @@
     </view>
     <view class="menu-grid">
       <view class="menu-item tappable" bindtap="goTo" data-page="salary" hover-class="tap-card-hover" hover-stay-time="80">
-        <view class="menu-item-icon red">
+        <view class="menu-item-icon red" style="position:relative;">
           <image src="/images/icons/salary.svg" mode="aspectFit" style="width:40rpx;height:40rpx;" />
+          <text wx:if="{{leaveUnread > 0}}" class="home-menu-dot">{{leaveUnread}}</text>
         </view>
-        <text class="menu-item-label">薪酬管理</text>
+        <text class="menu-item-label">薪酬管理<text wx:if="{{leaveUnread > 0}}" class="home-menu-hint">· {{leaveUnread}}条请假</text></text>
       </view>
       <view class="menu-item tappable" bindtap="goTo" data-page="export" hover-class="tap-card-hover" hover-stay-time="80">
         <view class="menu-item-icon amber">

@@ -528,6 +528,38 @@ button[disabled] { opacity: 0.48; }
 .badge-red    { background: var(--red-100); color: var(--red-600); }
 .badge-slate  { background: var(--bg-elevated); color: var(--text-secondary); }
 
+/* 实心强调徽章：用于全勤/请假等需一眼识别的状态（沿用按钮的实心填充语言） */
+.badge-solid-green { background: var(--green-600); color: #fff; border-color: transparent; }
+.badge-solid-red   { background: var(--red-500); color: #fff; border-color: transparent; }
+
+/* 请假提醒入口（薪资页 / 考勤页共用，带未读红点） */
+.leave-remind {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8rpx;
+  padding: 10rpx 20rpx;
+  border-radius: var(--r-full);
+  background: var(--bg-card);
+  border: 1rpx solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  flex-shrink: 0;
+}
+.leave-remind-text {
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+.leave-remind-badge {
+  position: absolute;
+  top: -10rpx; right: -10rpx;
+  min-width: 32rpx; height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 999rpx;
+  background: var(--red-500);
+  color: #fff;
+  font-size: 22rpx; font-weight: var(--fw-bold);
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
+}
+
 /* ═══════════ 标签页 · iOS 分段控制器 ═══════════ */
 
 .tab-bar {

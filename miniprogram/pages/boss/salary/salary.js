@@ -34,7 +34,8 @@ Page({
     selectedMonthIndex: 0,
     loading: false,
     paidMap: {},
-    paidCount: 0
+    paidCount: 0,
+    leaveUnread: 0
   },
 
   onLoad() {
@@ -48,6 +49,20 @@ Page({
 
   onShow() {
     this.loadPayrollMode()
+    this.loadLeaveUnread()
+  },
+
+  async loadLeaveUnread() {
+    try {
+      const res = await callCloud('attendance', { action: 'getUnreadLeaveCount' })
+      this.setData({ leaveUnread: (res.data && res.data.count) || 0 })
+    } catch (e) {
+      // 静默：红点失败不影响主流程
+    }
+  },
+
+  goLeaveRecords() {
+    wx.navigateTo({ url: '/pages/boss/leave-records/leave-records' })
   },
 
   async loadPayrollMode() {
@@ -152,25 +167,34 @@ Page({
       const paidPayload = isOrderMode
         ? { action: 'getPaidStatus', order_id: this.data.currentOrderId }
         : { action: 'getPaidStatus', month: this.data.currentMonthValue }
-      const [salaryRes, paidRes] = await Promise.all([
+      // 全勤/请假标记：按月模式取选中月，按订单模式取当前自然月（订单跨月，作粗略提示）
+      const bjTime = require('../../../utils/beijing-time')
+      const leaveMonth = isOrderMode ? bjTime.getBeijingMonth() : this.data.currentMonthValue
+      const [salaryRes, paidRes, leaveRes] = await Promise.all([
         callCloud('salary', salaryPayload),
-        callCloud('salary', paidPayload)
+        callCloud('salary', paidPayload),
+        callCloud('attendance', { action: 'getMonthLeaveSummary', month: leaveMonth }).catch(() => ({ data: {} }))
       ])
 
       const resData = salaryRes.data || {}
       const list = resData.list || []
       const paidMap = paidRes.data || {}
+      const leaveMap = (leaveRes && leaveRes.data) || {}
 
       let paidCount = 0
       const employees = list.map(emp => {
         const isPaid = !!(paidMap[emp.user_id] && paidMap[emp.user_id].paid)
         if (isPaid) paidCount++
+        const leaveDays = leaveMap[emp.user_id] || 0
         return {
           ...emp,
           baseSalary: formatMoney(emp.piece_rate || 0),
           adjustmentTotal: formatMoney((emp.reward || 0) - (emp.penalty || 0)),
           finalSalary: formatMoney(emp.total || 0),
-          paid: isPaid
+          paid: isPaid,
+          leaveDays: leaveDays,
+          attendFull: leaveDays === 0,
+          attendBadgeText: leaveDays === 0 ? '全勤' : ('请假' + leaveDays + '天')
         }
       })
       this.setData({

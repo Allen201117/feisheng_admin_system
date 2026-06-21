@@ -427,6 +427,10 @@ Page({
     wx.navigateTo({ url: '/pages/employee/profile/profile' })
   },
 
+  goToLeave() {
+    wx.navigateTo({ url: '/pages/employee/leave/leave' })
+  },
+
   goToLeaderboard() {
     wx.navigateTo({ url: '/pages/employee/leaderboard/leaderboard' })
   },

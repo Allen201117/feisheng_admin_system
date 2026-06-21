@@ -8,6 +8,32 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-06-22
+
+### 新增「员工工资档案」+「请假 / 全勤标识」两个功能
+
+- 背景：① 员工列表只能看名单，老板想点进每个员工看其全部历史工资及每期的订单/工序/报工/工价；② 需要员工自助请假，老板在薪资管理里一眼看出谁本月全勤、谁请假，方便核工资。
+- 口径确认（与老板）：请假**不需审批、员工自助立即生效**；提醒用 **App 内红点+列表**（不做微信推送）；**「全勤」= 本月无 active 请假**（不用打卡推算）；请假**不自动扣工资**（§2.1），仅作老板核对参考，要扣全勤奖仍走现有奖惩。
+- 方案文档：`docs/specs/2026-06-22-salary-archive-and-leave-design.md`。
+- 功能1（工资档案）改动：
+  - 后端 `salary/index.js` 新增 `getUserSalaryHistory(user_id)`：返回该员工全部工资期次（按 `salary_payroll_mode` 走按月/按订单）+ 累计总额 + 各期发放状态。**复用 `calcUserSalary`/`calcUserOrderSalary`，不新增第 5 套口径（§1.2）**。
+  - 前端：新增页 `pages/boss/employee-salary`（员工头卡+期次列表）；员工列表卡片主体可点击进档案；点某一期**复用现有 `salary-detail`**（订单/工序/报工/结算价+当前工价/合格率/奖惩明细，§2.9 不变）。
+- 功能2（请假/全勤）改动：
+  - 新集合 `LeaveRecords`（见 PROJECT_MEMORY）。纯逻辑 `attendance/leave.logic.js`（`summarizeMonthLeave`/`countLeaveDays`/`canCancelLeave`/`normalizeLeaveDates`）+ `tests/leave.logic.test.js`（7 例）。
+  - 后端 `attendance/index.js` 新增 7 个 action：`requestLeave`/`cancelLeave`/`getMyLeaves`（员工）、`getMonthLeaveSummary`/`getLeaveRequestsForBoss`/`getUnreadLeaveCount`/`markLeavesRead`（老板）。均校验登录态+角色+org 隔离；撤销仅本人且全部日期严格在今天之后；时间走 `beijing-time`。
+  - 前端：新增员工 `pages/employee/leave`（纯算术日历多选日期+原因+我的请假可撤销）、老板 `pages/boss/leave-records`（请假列表，打开即清红点）；员工首页加「请假」入口；薪资卡片加「全勤(绿)/请假N天(红)」标 + 顶部「请假提醒」红点；老板首页「薪酬管理」入口加未读红点。全程套用现有设计 Token / badge / card 风格。
+  - 「请假提醒」入口同时放在**薪资管理**与**考勤管理**两处页头（`.leave-remind*` 提升至 `app.wxss` 全局共用，两页同款红点）。
+- 数据影响：新增 `LeaveRecords` 集合；不改动任何既有集合/工资口径。
+- 部署影响：需重新部署 `attendance`、`salary` 云函数 + 前端包。**AI 未部署、未真机验证。**
+- 验证：`npm run test:unit` 全绿（232，新增 7）；全部新增/改动 JS `node --check` 通过；`app.json` 与新页 json 合法、3 个新页已注册且四件套齐全。
+
+#### 修复：员工提交请假失败（集合不存在）
+
+- 现象：员工端提交请假失败。
+- 根因（系统化排查）：①前端日期格式经核对正确（`getBeijingMonth` 返回零填充 `YYYY-MM`，排除格式 bug）；②`LeaveRecords` 是新集合且未纳入 `init` 的 `COLLECTIONS`，而本项目**不依赖自动建集合**（`init`/`billing` 均显式 `db.createCollection`），故 `requestLeave` 的 `.add()` 落到不存在的集合 → 失败；③加之新代码未部署，旧 `attendance` 不识别 `requestLeave` 会返回「未知操作」。
+- 修复：`attendance/index.js` 加 `isCollectionAlreadyExistsError`/`safeCreateCollection`（复制 billing 幂等模式），`requestLeave` 写入前 `await safeCreateCollection('LeaveRecords')` 自举集合。读侧（汇总/未读/我的请假）原本就对查询失败做了空降级（老板看「全员全勤」、红点为 0），首条请假写入后集合存在即恢复正常。
+- 仍需老板侧操作：**部署 `attendance`（含 `salary`）云函数**后才生效（新代码本地有、云端旧版没有）。
+
 ## 2026-06-14
 
 ### 已完成订单支持「恢复为进行中」+ 对应解开发薪锁

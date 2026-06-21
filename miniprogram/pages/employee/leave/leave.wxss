@@ -1,0 +1,67 @@
+.container { padding-bottom: 60rpx; }
+
+/* 日历 */
+.leave-cal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.leave-cal-title {
+  font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--text-primary);
+}
+.leave-cal-nav {
+  width: 72rpx; height: 72rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44rpx; line-height: 1; color: var(--blue-600);
+  border-radius: var(--r-md); background: var(--surface-strong);
+}
+.leave-cal-nav.disabled { color: var(--text-tertiary); opacity: 0.4; }
+
+.leave-week { display: flex; margin-bottom: 8rpx; }
+.leave-week-cell {
+  flex: 1; text-align: center;
+  font-size: var(--fs-2xs); color: var(--text-tertiary);
+}
+
+.leave-grid { display: flex; flex-wrap: wrap; }
+.leave-day {
+  width: calc(100% / 7);
+  height: 92rpx;
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
+}
+.leave-day.empty { visibility: hidden; }
+
+.leave-day-inner {
+  width: 72rpx; height: 72rpx;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  font-size: var(--fs-base); color: var(--text-primary);
+  box-sizing: border-box;
+  transition: all 0.15s var(--ease-apple);
+}
+.leave-day.disabled .leave-day-inner { color: var(--text-tertiary); opacity: 0.35; }
+.leave-day.today .leave-day-inner { border: 2rpx solid var(--blue-500); }
+.leave-day.selected .leave-day-inner {
+  background: var(--blue-500); color: #fff;
+  font-weight: var(--fw-semibold);
+  border: none;
+  box-shadow: var(--shadow-blue);
+}
+
+.leave-summary {
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-blue);
+  font-size: var(--fs-sm); color: var(--blue-600); font-weight: var(--fw-medium);
+}
+.leave-summary.muted { background: var(--surface-strong); color: var(--text-secondary); font-weight: var(--fw-regular); }
+
+/* 我的请假 */
+.leave-mine {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1rpx solid var(--border-light);
+}
+.leave-mine:last-child { border-bottom: none; }
+.leave-mine.cancelled { opacity: 0.55; }
