@@ -1,6 +1,6 @@
 // 发薪锁 + 订单完成锁判定（纯函数，无 wx/db 副作用）
 // 业务口径见 CLAUDE.md §2.2/2.3/2.4：
-//   - 工资按 quantity*snapshot_price 结算；已发薪报工不可被改价/删除/清空。
+//   - 工资按 quantity*有效snapshot_price 结算；已发薪报工不可被改价/删除/清空。
 //   - 已发薪检测兼容「按月发薪」(SalaryPayments.month) 与「按订单发薪」(SalaryPayments.order_id) 两种模式。
 //   - completed 订单禁止删改任何相关数据。
 

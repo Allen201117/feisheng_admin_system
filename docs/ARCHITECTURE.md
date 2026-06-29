@@ -44,11 +44,11 @@
 2. 订单详情页对工序列表和分配面板做分批渲染；批量分配通过 `order.batchAssignProcesses` 一次提交，降低 150-200 道工序订单的页面节点压力和云函数调用次数。
 3. 员工在 `pages/employee/worklog/worklog` 获取已分配工序，选择订单/工序并提交数量。
 4. `worklog.submit` 校验登录态、本人或老板代报、工序归属、订单状态、工价、订单总量额度。
-5. 报工写入 `WorkLogs`，保存 `quantity`、`snapshot_price`、`amount`、`date`、`status=pending`、`passed_qty=0`。
+5. 报工写入 `WorkLogs`，保存 `quantity`、`snapshot_price`、`amount`、`date`、`status=pending`、`passed_qty=0`；未发薪记录读取/算薪时会按工序 `Processes.current_price` 纠正有效结算价，已发薪记录保留写入时快照。
 6. 老板可在 `pages/boss/worklog-manage/worklog-manage` 从订单工序进度进入单道工序明细，调用 `worklog.submit` 代员工新增报工，或调用 `worklog.updateWorkLog` 修改数量/备注帮助员工修正；新增和修改都写回同一套 `WorkLogs` 数据源，修改会写审计。
 7. QC 在 `pages/qc/home/home` 与 `pages/qc/inspect/inspect` 获取待检记录并提交 `passed_qty`。
 8. `worklog.inspect` 更新 `WorkLogs.passed_qty`、`status=inspected`、`qc_status=inspected`、质检人和质检时间。
-9. 当前工资计算主要使用 `quantity * snapshot_price`，`passed_qty` 暂未直接影响工资金额。该口径是高风险业务点，改动前必须确认。
+9. 当前工资计算使用 `quantity * 有效 snapshot_price`，`passed_qty` 暂未直接影响工资金额。有效 `snapshot_price` 的规则：未发薪报工跟随 `Processes.current_price`，已发薪报工保留历史快照价。该口径是高风险业务点，改动前必须确认。
 
 ### 订单 -> 工序 -> 报工 -> 统计
 
@@ -71,7 +71,7 @@
 ### 统计 -> 导出
 
 1. 老板在 `pages/boss/export/export` 或相关页面选择月份、年份、订单和报表类型。
-2. 前端调用 `export.getTableDataV2` 预览数据，或调用 `export.exportToFileV2` 导出。`dimension=order` + `report_type=detail` 走 `buildDetailByOrder`，自 2026-05-31 起由 `order-matrix.logic.js` 的 `buildOrderMatrix` 生成计件核算矩阵（工序为行、每个员工一列仅报工数量、表头只写姓名、含最右合计列与最底合计行；纯函数保留 `includeAmount` 选项可拆数量/金额两列，按 `quantity * snapshot_price` 计算，当前导出未启用），其余维度明细仍为扁平表。
+2. 前端调用 `export.getTableDataV2` 预览数据，或调用 `export.exportToFileV2` 导出。`dimension=order` + `report_type=detail` 走 `buildDetailByOrder`，自 2026-05-31 起由 `order-matrix.logic.js` 的 `buildOrderMatrix` 生成计件核算矩阵（工序为行、每个员工一列仅报工数量、表头只写姓名、含最右合计列与最底合计行；纯函数保留 `includeAmount` 选项可拆数量/金额两列，金额按 `quantity * 有效snapshot_price` 计算，当前导出未启用），其余维度明细仍为扁平表。
 3. `export` 云函数读取 `Users`、`WorkLogs`、`Attendances`、`SalaryAdjustments`、`Orders` 等集合。
 4. 云函数生成汇总/明细数据，使用 `xlsx` 构建 Excel。
 5. 文件上传到云存储，导出记录写入 `export_history`。
@@ -160,7 +160,7 @@
 - 核心字段：`user_id`、`user_name`、`order_id`、`order_name`、`process_id`、`process_name`、`quantity`、`snapshot_price`、`amount`、`date`、`status`、`qc_status`、`passed_qty`、`inspected_by`、`inspected_by_name`、`inspected_at`、`note`、`created_at`、`updated_at`。
 - 主要写入：`worklog`；部分工价同步由 `order` 更新历史零价报工；订单详情清空报工由 `order.clearOrderWorklogs` 删除该订单关联记录。
 - 主要读取：`worklog`、`salary`、`leaderboard`、`export`、`order`。
-- 高风险口径：工资目前按 `quantity * snapshot_price` 计算，而不是按 `passed_qty`。
+- 高风险口径：工资按报工数量计算，而不是按 `passed_qty`；未发薪报工的有效结算价跟随 `Processes.current_price`，已发薪后冻结历史 `snapshot_price`。
 
 ### Attendances
 

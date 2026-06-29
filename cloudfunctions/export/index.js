@@ -6,6 +6,7 @@ const db = cloud.database()
 const _ = db.command
 const XLSX = require('xlsx')
 const { buildOrderMatrix } = require('./order-matrix.logic')
+const { applyCurrentPricesToUnpaidLogs } = require('./settlement-price.logic')
 
 // ---- 公共工具 ----
 
@@ -94,7 +95,7 @@ function groupByUserId(list) {
   return map
 }
 
-// 实时工价 join（CLAUDE.md §2.9）：按 process_id 批量取 Processes.current_price
+// 实时工价 join：未发薪报工按 Processes.current_price 结算；已发薪保留 snapshot_price。
 async function buildCurrentPriceMap(logs, orgId) {
   const processIds = Array.from(new Set((logs || []).map(l => l.process_id).filter(Boolean)))
   const priceMap = {}
@@ -106,11 +107,38 @@ async function buildCurrentPriceMap(logs, orgId) {
   return priceMap
 }
 
+async function fetchPaidRecordsForLogs(logs, orgId) {
+  const userIds = Array.from(new Set((logs || []).map(l => l.user_id).filter(Boolean)))
+  if (userIds.length === 0) return []
+  return await fetchAll('SalaryPayments', {
+    org_id: orgId,
+    user_id: _.in(userIds),
+    paid: true
+  })
+}
+
+async function applySettlementPrices(logs, orgId) {
+  const list = logs || []
+  if (list.length === 0) return list
+  const [priceMap, payments] = await Promise.all([
+    buildCurrentPriceMap(list, orgId),
+    fetchPaidRecordsForLogs(list, orgId)
+  ])
+  return applyCurrentPricesToUnpaidLogs({
+    logs: list,
+    processPriceMap: priceMap,
+    payments
+  })
+}
+
 // ---- 汇总型数据表 (按月/按年) ----
 
 async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj, orgId) {
   const users = await getActiveUsers(orgId)
-  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId)
+  const logs = await applySettlementPrices(
+    await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId),
+    orgId
+  )
 
   // 按 user_id 分组
   const userLogMap = {}
@@ -183,15 +211,15 @@ async function buildSummaryByDateRange(startDate, endDate, label, monthsForAdj, 
 // ---- 细节型数据表 (按月/按年) ----
 
 async function buildDetailByDateRange(startDate, endDate, label, orgId) {
-  const logs = await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId)
-
-  // 实时工价（CLAUDE.md §2.9）：结算按 snapshot_price，当前价仅展示
-  const priceMap = await buildCurrentPriceMap(logs, orgId)
+  const logs = await applySettlementPrices(
+    await getWorkLogs({ date: _.gte(startDate).and(_.lt(endDate)) }, orgId),
+    orgId
+  )
 
   const headers = ['员工', '订单名称', '工序名称', '报工数量', '结算单价(元)', '当前工价(元)',
     '小计薪资(元)', '报工时间', '所属月份', '备注']
   const rows = logs.map(l => {
-    const currentPrice = l.process_id != null ? priceMap[String(l.process_id)] : null
+    const currentPrice = l.current_price != null ? l.current_price : null
     return [
       l.user_name || '',
       l.order_name || '',
@@ -216,7 +244,10 @@ async function buildSummaryByOrder(orderId, orgId) {
   const orderRes = await db.collection('Orders').doc(orderId).get()
   const order = orderRes.data
   if (!order || order.org_id !== orgId) return null
-  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId })
+  const logs = await applySettlementPrices(
+    await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }),
+    orgId
+  )
   const adjustments = await fetchAll('SalaryAdjustments', { org_id: orgId, order_id: orderId })
 
   // 按员工聚合（含只有奖惩没有报工的员工）
@@ -262,7 +293,10 @@ async function buildDetailByOrder(orderId, orgId) {
   const orderRes = await db.collection('Orders').doc(orderId).get()
   const order = orderRes.data
   if (!order || order.org_id !== orgId) return null
-  const logs = await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'asc' } })
+  const logs = await applySettlementPrices(
+    await fetchAll('WorkLogs', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'asc' } }),
+    orgId
+  )
   // 取工序以确定行顺序与工价（工价显示在工序单元格括号内）
   const processes = await fetchAll('Processes', { org_id: orgId, order_id: orderId }, { orderBy: { field: 'created_at', order: 'asc' } })
 

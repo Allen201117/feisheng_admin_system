@@ -8,6 +8,21 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-06-29
+
+### 未发薪报工按工序当前价同步结算
+
+- 背景：老板复制旧订单后，员工报工沿用旧 `snapshot_price`；老板后来把工序改为新 `Processes.current_price`，报工管理仍显示「结算单价 0.23 / 当前单价 0.29」，报工金额和工资也继续按旧价算。
+- 口径：`passed_qty` 仍只用于质量统计；工资仍按报工数量计。新增收口：**未发薪报工的有效结算价必须等于工序当前价**，即读取/算薪时把未发薪 `WorkLogs.snapshot_price/amount` 视为 `Processes.current_price` 重新计算；已发薪（按月或按订单）报工继续保留历史快照价，并展示当前价差异。
+- 改动：
+  - 新增纯函数 `settlement-price.logic.js`（common 为真源，复制到 `worklog`/`salary`/`export`/`leaderboard` 云函数目录）：按 `SalaryPayments` 构造月/订单发薪锁，未发薪日志套用 `Processes.current_price`，已发薪日志保留 `snapshot_price`。
+  - `worklog.getManageLogs`、员工 `getUserPayrollLogs/getUserLogs` 返回有效结算价；`worklog.updateWorkLog` 修改未发薪数量时同步用当前工价重算 `snapshot_price/amount`；修正员工历史锁定 key（按 `user_id+month/order`）。
+  - `salary` 的明细、员工工资档案、老板月/订单工资列表、期间统计、首页看板均先统一应用有效结算价，再复用原有 `quantity*snapshot_price` 聚合。
+  - `export` 月/年/订单汇总和明细、`leaderboard` 工资榜同步应用同一有效结算价，避免新增第 5 套统计口径。
+- 数据影响：不新增集合/字段；读取和算薪会即时修正历史未发薪旧价展示。已发薪记录不被重算；若要把历史未发薪旧价实际写回库，仍需通过改价/编辑等写路径触发。
+- 部署影响：需重新部署 `worklog`、`salary`、`export`、`leaderboard` 云函数；前端运行文件未改，页面会随云函数返回值更新。**AI 未部署、未真机验证。**
+- 验证：新增 `tests/settlement-price.logic.test.js` 覆盖未发薪用当前价、订单发薪不误锁同月复制订单、按月发薪锁整月、云函数副本一致。
+
 ## 2026-06-22
 
 ### 新增「员工工资档案」+「请假 / 全勤标识」两个功能

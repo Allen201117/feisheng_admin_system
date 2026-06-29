@@ -6,6 +6,7 @@ const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
 const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid } = require('./payment-record.logic')
+const { applyCurrentPricesToUnpaidLogs } = require('./settlement-price.logic')
 
 function normalizePageSize(value, fallback = 100) {
   const parsed = parseInt(value, 10)
@@ -62,12 +63,9 @@ async function getPayrollMode(orgId) {
   }
 }
 
-// 老板视角实时工价（CLAUDE.md §2.9）：批量 join Processes.current_price 到报工明细。
-// 结算金额仍按 snapshot_price；current_price 仅作展示，price_changed 标记两者不一致。
-async function attachCurrentPriceToLogs(logs, orgId) {
+async function buildCurrentPriceMapForLogs(logs, orgId) {
   const list = logs || []
   const processIds = Array.from(new Set(list.map(l => l.process_id).filter(Boolean)))
-  if (processIds.length === 0) return list
   const priceMap = {}
   for (let i = 0; i < processIds.length; i += 50) {
     const chunk = processIds.slice(i, i + 50)
@@ -77,14 +75,38 @@ async function attachCurrentPriceToLogs(logs, orgId) {
     }, { field: { _id: true, current_price: true } })
     procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
   }
-  return list.map(l => {
-    const currentPrice = l.process_id != null ? priceMap[String(l.process_id)] : null
-    return {
-      ...l,
-      current_price: currentPrice,
-      price_changed: currentPrice != null && Number(currentPrice) !== Number(l.snapshot_price)
-    }
+  return priceMap
+}
+
+async function fetchPaidRecordsForLogs(logs, orgId) {
+  const userIds = Array.from(new Set((logs || []).map(log => log.user_id).filter(Boolean)))
+  if (userIds.length === 0) return []
+  return await fetchAllByWhere('SalaryPayments', {
+    org_id: orgId,
+    user_id: _.in(userIds),
+    paid: true
+  }, {
+    field: { user_id: true, month: true, order_id: true, paid: true }
   })
+}
+
+async function applySettlementPricesToLogs(logs, orgId, paidRecords) {
+  const list = logs || []
+  if (list.length === 0) return list
+  const [priceMap, payments] = await Promise.all([
+    buildCurrentPriceMapForLogs(list, orgId),
+    Array.isArray(paidRecords) ? Promise.resolve(paidRecords) : fetchPaidRecordsForLogs(list, orgId)
+  ])
+  return applyCurrentPricesToUnpaidLogs({
+    logs: list,
+    processPriceMap: priceMap,
+    payments
+  })
+}
+
+// 老板视角实时工价：未发薪报工按 Processes.current_price 结算；已发薪保留 snapshot_price。
+async function attachCurrentPriceToLogs(logs, orgId) {
+  return await applySettlementPricesToLogs(logs, orgId)
 }
 
 function getMonthRange(monthStr) {
@@ -121,7 +143,7 @@ async function getPeriodSalarySummary(params = {}, orgId) {
       org_id: orgId,
       date: _.gte(period.startDate).and(_.lt(period.endDate))
     }, {
-      field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
+      field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
     }),
     fetchAllByWhere('SalaryAdjustments', {
       org_id: orgId,
@@ -140,13 +162,14 @@ async function getPeriodSalarySummary(params = {}, orgId) {
       month: monthFilter,
       paid: true
     }, {
-      field: { user_id: true, month: true, paid: true, paid_at: true, operator_name: true }
+      field: { user_id: true, month: true, order_id: true, paid: true, paid_at: true, operator_name: true }
     })
   ])
+  const settlementLogs = await applySettlementPricesToLogs(logs, orgId)
 
   return buildSalaryPeriodSummary({
     users,
-    logs,
+    logs: settlementLogs,
     adjustments,
     attendances,
     payments,
@@ -183,8 +206,9 @@ async function calcUserSalary(userId, month, orgId) {
     })
   ])
 
+  const settlementLogs = await applySettlementPricesToLogs(logs, orgId)
   let totalPieceRate = 0, totalQuantity = 0, totalPassed = 0
-  logs.forEach(function(log) {
+  settlementLogs.forEach(function(log) {
     totalQuantity += log.quantity || 0
     totalPassed += log.passed_qty || 0
     totalPieceRate += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
@@ -217,7 +241,7 @@ async function calcUserSalary(userId, month, orgId) {
       total_hours: Math.round(totalHours * 10) / 10
     },
     adjustments,
-    logs
+    logs: settlementLogs
   }
 }
 
@@ -239,7 +263,8 @@ async function calcUserOrderSalary(userId, orderId, orgId) {
     })
   ])
 
-  return buildSalaryDataFromParts(logs, adjustments, [])
+  const settlementLogs = await applySettlementPricesToLogs(logs, orgId)
+  return buildSalaryDataFromParts(settlementLogs, adjustments, [])
 }
 
 function buildSalaryDataFromParts(logs, adjustments, attendances) {
@@ -373,11 +398,12 @@ async function getOrderModeSalaryData(userId, orgId) {
     })
   }
 
-  const data = buildSalaryDataFromParts(visibleLogs, adjustments, [])
+  const settlementVisibleLogs = await applySettlementPricesToLogs(visibleLogs, orgId)
+  const data = buildSalaryDataFromParts(settlementVisibleLogs, adjustments, [])
   const orderSummaryMap = {}
   const maskedLogs = []
 
-  visibleLogs.forEach(log => {
+  settlementVisibleLogs.forEach(log => {
     const orderId = log.order_id || ''
     const order = orderMetaMap[orderId] || {}
     const hidden = order.price_hidden === true
@@ -761,7 +787,7 @@ async function getAllMonthlySalary(event, wxContext) {
         org_id: getOrgId(caller),
         date: _.gte(startDate).and(_.lt(endDate))
       }, {
-        field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true }
+        field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
       }),
       fetchAllByWhere('SalaryAdjustments', {
         org_id: getOrgId(caller),
@@ -777,8 +803,9 @@ async function getAllMonthlySalary(event, wxContext) {
       })
     ])
 
+    const settlementMonthLogs = await applySettlementPricesToLogs(monthLogs, getOrgId(caller))
     const pieceRateMap = {}
-    monthLogs.forEach(log => {
+    settlementMonthLogs.forEach(log => {
       const userId = log.user_id
       if (!userId) return
       if (!pieceRateMap[userId]) pieceRateMap[userId] = 0
@@ -873,7 +900,7 @@ async function getAllOrderSalary(event, wxContext) {
         org_id: getOrgId(caller),
         order_id
       }, {
-        field: { user_id: true, quantity: true, passed_qty: true, snapshot_price: true }
+        field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
       }),
       fetchAllByWhere('SalaryAdjustments', {
         org_id: getOrgId(caller),
@@ -883,8 +910,9 @@ async function getAllOrderSalary(event, wxContext) {
       })
     ])
 
+    const settlementOrderLogs = await applySettlementPricesToLogs(orderLogs, getOrgId(caller))
     const pieceRateMap = {}
-    orderLogs.forEach(log => {
+    settlementOrderLogs.forEach(log => {
       const userId = log.user_id
       if (!userId) return
       if (!pieceRateMap[userId]) pieceRateMap[userId] = 0
@@ -1265,12 +1293,13 @@ async function getDashboard(event, wxContext) {
         org_id: getOrgId(caller),
         date: _.gte(monthStart).and(_.lt(monthEnd))
       }, {
-        field: { quantity: true, passed_qty: true, snapshot_price: true }
+        field: { user_id: true, order_id: true, process_id: true, quantity: true, passed_qty: true, snapshot_price: true, date: true }
       })
     ])
 
     let monthlySalary = 0
-    monthLogs.forEach(log => {
+    const settlementMonthLogs = await applySettlementPricesToLogs(monthLogs, getOrgId(caller))
+    settlementMonthLogs.forEach(log => {
       monthlySalary += Math.round((log.quantity || 0) * (log.snapshot_price || 0) * 100) / 100
     })
 
