@@ -8,6 +8,7 @@ const MAX_TX_RETRIES = 3
 
 
 const authGuard = require('./auth-guard')
+const { applyCurrentPricesToUnpaidLogs } = require('./settlement-price.logic')
 
 // 统一鉴权（见 auth-guard.js）：必须携带有效 token，工厂 status=active，失败一律拒绝。
 async function getCallerUserByEvent(event, wxContext) {
@@ -544,21 +545,26 @@ async function getManageLogs(event, wxContext) {
       'desc'
     )
 
-    // 老板视角实时工价（CLAUDE.md §2.9）：批量 join Processes.current_price，结算仍按 snapshot_price
+    // 批量 join Processes.current_price；未发薪报工按当前价结算，已发薪保留历史快照价。
     const processIds = Array.from(new Set(allLogs.map(l => l.process_id).filter(Boolean)))
+    const userIds = Array.from(new Set(allLogs.map(l => l.user_id).filter(Boolean)))
     const priceMap = {}
     for (let i = 0; i < processIds.length; i += 50) {
       const chunk = processIds.slice(i, i + 50)
       const procs = await fetchAllDocs('Processes', { org_id: getOrgId(caller), _id: _.in(chunk) })
       procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
     }
-    const logsWithPrice = allLogs.map(l => {
-      const currentPrice = l.process_id != null ? priceMap[String(l.process_id)] : null
-      return {
-        ...l,
-        current_price: currentPrice,
-        price_changed: currentPrice != null && Number(currentPrice) !== Number(l.snapshot_price)
-      }
+    const payments = userIds.length > 0
+      ? await fetchAllDocs('SalaryPayments', {
+        org_id: getOrgId(caller),
+        user_id: _.in(userIds),
+        paid: true
+      })
+      : []
+    const logsWithPrice = applyCurrentPricesToUnpaidLogs({
+      logs: allLogs,
+      processPriceMap: priceMap,
+      payments
     })
 
     return { code: 0, data: logsWithPrice }
@@ -872,10 +878,27 @@ async function getUserLogs(event, wxContext) {
       ? allLogs
       : allLogs.filter(log => (orderMetaMap[log.order_id] || {}).status !== 'completed')
 
-    const data = sourceLogs.map(log => {
+    const processIds = Array.from(new Set(sourceLogs.map(log => log.process_id).filter(Boolean)))
+    const priceMap = {}
+    for (let i = 0; i < processIds.length; i += 50) {
+      const chunk = processIds.slice(i, i + 50)
+      const procs = await fetchAllDocs('Processes', {
+        org_id: getOrgId(caller),
+        _id: _.in(chunk)
+      })
+      procs.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
+    }
+
+    const pricedLogs = applyCurrentPricesToUnpaidLogs({
+      logs: sourceLogs,
+      processPriceMap: priceMap,
+      payments: paidRecords
+    })
+
+    const data = pricedLogs.map(log => {
       const logMonth = log.date ? String(log.date).substring(0, 7) : currentMonth
-      const isMonthPaidLocked = paidMonthMap[logMonth] === true
-      const isOrderPaidLocked = paidOrderMap[log.order_id] === true
+      const isMonthPaidLocked = paidMonthMap[`${log.user_id}_${logMonth}`] === true
+      const isOrderPaidLocked = paidOrderMap[`${log.user_id}_${log.order_id}`] === true
       const isLocked = isMonthPaidLocked || isOrderPaidLocked
       const priceHidden = (orderMetaMap[log.order_id] || {}).price_hidden === true || isLocked
       return {
@@ -1189,8 +1212,18 @@ async function updateWorkLog(event, wxContext) {
         old_value: log.quantity,
         new_value: newQty
       })
+      let settlementPrice = Number(log.snapshot_price || 0)
+      if (log.process_id) {
+        try {
+          const processRes = await db.collection('Processes').doc(log.process_id).get()
+          if (ensureSameOrg(processRes.data, caller) && processRes.data.current_price !== undefined && processRes.data.current_price !== null) {
+            settlementPrice = Number(processRes.data.current_price) || 0
+            updateData.snapshot_price = settlementPrice
+          }
+        } catch (e) {}
+      }
       updateData.quantity = newQty
-      updateData.amount = Math.round(newQty * (log.snapshot_price || 0) * 100) / 100
+      updateData.amount = Math.round(newQty * settlementPrice * 100) / 100
     }
 
     if (note !== undefined && note !== log.note) {

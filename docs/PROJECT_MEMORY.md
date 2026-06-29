@@ -151,18 +151,18 @@ docs/                               项目文档、验收报告、审计报告
 
 - 考勤 -> 工资：员工签到/签退写入 `Attendances`，签退后计算 `hours`，工资汇总读取出勤天数和总工时。
 - 订单 -> 工序 -> 报工：老板创建订单和工序，分配员工，员工只能对可用工序报工；报工写入 `WorkLogs`，包含 `snapshot_price`；订单详情可清空该订单未发薪月份的全部报工。
-- 报工 -> 质检 -> 工资：报工初始为待检，QC 写入 `passed_qty` 和质检状态。当前工资计算主要按 `quantity * snapshot_price`，`passed_qty` 目前用于质量统计，不直接影响工资。
+- 报工 -> 质检 -> 工资：报工初始为待检，QC 写入 `passed_qty` 和质检状态。工资按报工数量计，`passed_qty` 只用于质量统计；未发薪报工读取/算薪时按 `Processes.current_price` 同步为有效 `snapshot_price/amount`，已发薪报工保留历史快照价。
 - 工资 -> 发薪锁定：按月模式下 `SalaryPayments.month + paid=true` 锁定月份；按订单模式下 `SalaryPayments.order_id + paid=true` 标记订单发薪。奖惩修改/删除对已发薪月份仍走冲正记录。
 - 统计 -> 导出：`salary`、`worklog`、`export` 等云函数按日期、月份、年份、订单维度聚合数据，并生成 Excel 报表。
 - 订阅 -> 写操作限制：`billing` 维护 `Organizations` 上的订阅快照；到期且超过宽限期后，新增订单、复制订单、新增工序、创建员工、提交报工、生成考勤码会被拦截；历史查看和导出暂不拦。
 
 ## 2026-06-11 高风险区规则现状（已落地）
 
-- **改价拦截**：工序存在已发薪报工（按月或按订单）时 `updateProcessPrice`/`updateProcess` 整体拒绝改价；未发薪改价会同步重写该工序全部未发薪报工的 `snapshot_price/amount`。
+- **改价拦截**：工序存在已发薪报工（按月或按订单）时 `updateProcessPrice`/`updateProcess` 整体拒绝改价；未发薪改价会同步重写该工序全部未发薪报工的 `snapshot_price/amount`。为兼容历史漏同步数据，`worklog`/`salary`/`export`/`leaderboard` 读取和聚合时也会把未发薪报工的有效结算价同步为 `Processes.current_price`。
 - **完成订单锁（可恢复）**：处于 `completed` 时 order/worklog 全部写操作（删订单/工序增删改/分配/改价/隐藏工价/清空/报工增删改）拒绝并返回原因。**但 `completed` 非绝对终态：`updateStatus` 支持 completed→active「恢复为进行中」（`canChangeOrderStatus`），恢复后写锁随 status 自动放开；仍禁止 completed→cancelled。** 恢复时 `releaseOrderPaymentLocksOnReactivate` 把本订单 `SalaryPayments{order_id,paid:true}`→`paid:false`（+`released_by_reactivation/released_at/operator_*` 审计字段）解锁报工/工价；「按月」发薪锁不自动动，返回 `data.month_locked_count/month_locked_preview` 提示。前端：订单列表「恢复」按钮 / 详情「更多」菜单。
 - **删除发薪锁**：`deleteOrder`、`deleteWorkLog`、`clearOrderWorklogs` 命中已发薪（按月或按订单）一律拒绝；员工 `cancelOwnWorkLog` 保留时间序口径。
 - **发薪即完成**：`salary.markPaid` 返回 `data.order_fully_paid/order_status`，订单全员发薪后老板端弹窗一键置为已完成。
-- **实时工价（老板侧）**：`worklog.getManageLogs`、`salary.getUserMonthlySalaryByBoss` 返回 `current_price/price_changed`（响应字段，非库字段）；export 明细带「当前工价」列。
+- **实时工价 / 有效结算价**：`worklog.getManageLogs`、员工历史报工、`salary` 明细/列表/档案、`export`、`leaderboard` 均通过 `settlement-price.logic.js` 处理：未发薪显示和计算当前工价，已发薪保留结算价并返回 `current_price/price_changed`（响应字段，非库字段）；export 明细带「当前工价」列。
 - **统一鉴权**：`auth-guard.js`（common 为真源，10 份相同副本，测试守护）强制 token + org active fail-closed，无 openid 回退；登录限流按 `rate_key=(工厂码/姓名/手机号)` 等值计数、fail-closed（audit_logs 新增 `rate_key` 字段）。
 
 ## 当前 P0/P1/P2 风险清单

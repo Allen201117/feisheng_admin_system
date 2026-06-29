@@ -5,6 +5,7 @@ const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
 const { filterRankListForViewer } = require('./privacy.logic')
+const { applyCurrentPricesToUnpaidLogs } = require('./settlement-price.logic')
 
 function toDateStr(val) {
   if (!val) return ''
@@ -60,6 +61,41 @@ async function fetchAllDocs(collectionName, where) {
     all = all.concat(res.data || [])
   } while (batchLen === 100)
   return all
+}
+
+async function buildCurrentPriceMap(logs, orgId) {
+  const processIds = Array.from(new Set((logs || []).map(l => l.process_id).filter(Boolean)))
+  const priceMap = {}
+  for (let i = 0; i < processIds.length; i += 50) {
+    const chunk = processIds.slice(i, i + 50)
+    const processes = await fetchAllDocs('Processes', { org_id: orgId, _id: _.in(chunk) })
+    processes.forEach(p => { priceMap[String(p._id)] = p.current_price != null ? p.current_price : null })
+  }
+  return priceMap
+}
+
+async function fetchPaidRecordsForLogs(logs, orgId) {
+  const userIds = Array.from(new Set((logs || []).map(l => l.user_id).filter(Boolean)))
+  if (userIds.length === 0) return []
+  return await fetchAllDocs('SalaryPayments', {
+    org_id: orgId,
+    user_id: _.in(userIds),
+    paid: true
+  })
+}
+
+async function applySettlementPrices(logs, orgId) {
+  const list = logs || []
+  if (list.length === 0) return list
+  const [priceMap, payments] = await Promise.all([
+    buildCurrentPriceMap(list, orgId),
+    fetchPaidRecordsForLogs(list, orgId)
+  ])
+  return applyCurrentPricesToUnpaidLogs({
+    logs: list,
+    processPriceMap: priceMap,
+    payments
+  })
 }
 
 exports.main = async function(event, context) {
@@ -136,7 +172,7 @@ async function getRank(event, period) {
     } while (batchLen === 100)
 
     // 一次性按 org+日期范围(+订单) 拉取记录后内存按 user_id 分组，
-    // 替代原先「每员工 × 分页」的 N+1 嵌套循环查库；薪资口径不变（quantity*snapshot_price）。
+    // 替代原先「每员工 × 分页」的 N+1 嵌套循环查库；工资榜先把未发薪报工同步为当前工价。
     var groupMap = {}
     function groupOf(userId) {
       var key = String(userId)
@@ -154,6 +190,9 @@ async function getRank(event, period) {
       if (dimension === 'quality') logQuery.status = 'inspected'
       if (period === 'order' && event.order_id) logQuery.order_id = event.order_id
       var logData = await fetchAllDocs('WorkLogs', logQuery)
+      if (dimension === 'salary') {
+        logData = await applySettlementPrices(logData, getOrgId(caller))
+      }
       logData.forEach(function(l) { if (l.user_id) groupOf(l.user_id).push(l) })
     }
 
