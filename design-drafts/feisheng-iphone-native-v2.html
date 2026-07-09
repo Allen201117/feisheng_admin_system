@@ -1,0 +1,2332 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>飞盛小程序 iPhone 原生风格设计稿 V2</title>
+  <style>
+    :root {
+      --page: #eceff4;
+      --wallpaper-1: #f6f8fb;
+      --wallpaper-2: #dfe7f2;
+      --card: #ffffff;
+      --group: #f7f8fb;
+      --group-strong: #eef2f8;
+      --text: #111114;
+      --text-2: #343a46;
+      --text-3: #687182;
+      --line: rgba(60, 60, 67, 0.18);
+      --line-soft: rgba(60, 60, 67, 0.1);
+      --blue: #007aff;
+      --blue-dark: #0057cc;
+      --blue-bg: #e8f2ff;
+      --green: #248a3d;
+      --green-bg: #e9f7ee;
+      --orange: #c87500;
+      --orange-bg: #fff3df;
+      --red: #d6241e;
+      --red-bg: #fff0ef;
+      --purple: #5e5ce6;
+      --purple-bg: #efefff;
+      --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
+      --shadow-float: 0 24px 60px rgba(15, 23, 42, 0.18);
+      --radius-xs: 10px;
+      --radius-sm: 14px;
+      --radius-md: 18px;
+      --radius-lg: 24px;
+      --radius-xl: 30px;
+      --tap: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --spring: cubic-bezier(0.18, 1.12, 0.32, 1);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(0, 122, 255, 0.13), transparent 30%),
+        radial-gradient(circle at 94% 12%, rgba(94, 92, 230, 0.1), transparent 32%),
+        linear-gradient(180deg, var(--wallpaper-1), var(--wallpaper-2));
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body {
+      padding: 28px;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    .hero-copy {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .intro h1 {
+      max-width: 760px;
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.18;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    .intro p {
+      max-width: 820px;
+      margin: 12px 0 0;
+      color: var(--text-2);
+      font-size: 16px;
+      line-height: 1.65;
+      text-wrap: pretty;
+    }
+
+    .design-notes {
+      display: grid;
+      gap: 8px;
+    }
+
+    .note-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+      backdrop-filter: blur(18px);
+    }
+
+    .note-pill strong {
+      font-size: 13px;
+    }
+
+    .note-pill span {
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: 430px minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+    }
+
+    .iphone-shell {
+      position: sticky;
+      top: 18px;
+      padding: 12px;
+      border-radius: 48px;
+      background: #1c1c1e;
+      box-shadow: 0 30px 80px rgba(15, 23, 42, 0.32);
+    }
+
+    .iphone {
+      position: relative;
+      overflow: hidden;
+      width: 390px;
+      height: 844px;
+      border-radius: 38px;
+      background: var(--page);
+      isolation: isolate;
+    }
+
+    .iphone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        radial-gradient(circle at 18% -4%, rgba(0, 122, 255, 0.14), transparent 36%),
+        radial-gradient(circle at 90% 8%, rgba(94, 92, 230, 0.1), transparent 30%),
+        linear-gradient(180deg, #f7f8fb 0%, #edf1f6 100%);
+    }
+
+    .island {
+      position: absolute;
+      z-index: 50;
+      top: 10px;
+      left: 50%;
+      width: 126px;
+      height: 36px;
+      border-radius: 999px;
+      background: #070708;
+      transform: translateX(-50%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .status {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 54px;
+      padding: 11px 24px 0;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--text-2);
+      font-size: 12px;
+    }
+
+    .battery {
+      width: 24px;
+      height: 11px;
+      border: 1.6px solid currentColor;
+      border-radius: 4px;
+      padding: 1.5px;
+    }
+
+    .battery span {
+      display: block;
+      width: 80%;
+      height: 100%;
+      border-radius: 2px;
+      background: currentColor;
+    }
+
+    .app {
+      position: absolute;
+      inset: 54px 0 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .nav {
+      position: relative;
+      z-index: 6;
+      padding: 4px 18px 10px;
+      transition: background 180ms var(--tap), box-shadow 180ms var(--tap);
+    }
+
+    .nav.is-condensed {
+      background: rgba(247, 248, 251, 0.74);
+      box-shadow: 0 1px 0 var(--line-soft);
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 34px;
+    }
+
+    .nav-action {
+      display: inline-grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--blue);
+      cursor: pointer;
+      font-size: 20px;
+      font-weight: 850;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7), 0 8px 18px rgba(15, 23, 42, 0.06);
+      transition: transform 150ms var(--tap), background 150ms var(--tap);
+    }
+
+    .nav-action:active {
+      transform: scale(0.92);
+      background: #e8f2ff;
+    }
+
+    .large-title {
+      display: block;
+      margin-top: 2px;
+      font-size: 31px;
+      line-height: 1.08;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .subtitle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--text-3);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .screen-scroll {
+      overflow-y: auto;
+      padding: 0 16px 14px;
+      scrollbar-width: none;
+      scroll-behavior: smooth;
+    }
+
+    .screen-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .screen {
+      display: none;
+      padding-bottom: 14px;
+    }
+
+    .screen.is-active {
+      display: block;
+      animation: screenIn 220ms var(--tap);
+    }
+
+    @keyframes screenIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .critical-stack {
+      display: grid;
+      gap: 10px;
+      margin: 2px 0 14px;
+    }
+
+    .priority-card {
+      position: relative;
+      overflow: hidden;
+      border: 0;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      padding: 16px;
+      text-align: left;
+      transition: transform 160ms var(--tap), box-shadow 160ms var(--tap);
+    }
+
+    .priority-card:active,
+    .group-button:active,
+    .list-row:active,
+    .tab-button:active,
+    .pill-button:active,
+    .primary-action:active,
+    .icon-tile:active {
+      transform: scale(0.975);
+    }
+
+    .priority-card.main {
+      min-height: 154px;
+      color: #fff;
+      background:
+        linear-gradient(135deg, rgba(0, 86, 179, 0.96), rgba(0, 122, 255, 0.92)),
+        #007aff;
+      box-shadow: 0 18px 32px rgba(0, 99, 210, 0.28);
+    }
+
+    .priority-card.main::after {
+      content: "";
+      position: absolute;
+      right: -44px;
+      top: -48px;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .priority-top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .priority-title {
+      display: block;
+      font-size: 15px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .priority-sub {
+      display: block;
+      margin-top: 5px;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
+    .priority-number {
+      position: relative;
+      z-index: 1;
+      display: block;
+      margin-top: 20px;
+      font-size: 42px;
+      line-height: 0.95;
+      font-weight: 950;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .priority-unit {
+      margin-left: 4px;
+      font-size: 17px;
+      font-weight: 850;
+    }
+
+    .mini-priority-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .mini-priority {
+      min-height: 92px;
+      border: 0;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+      padding: 11px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 160ms var(--tap), background 160ms var(--tap);
+    }
+
+    .mini-priority strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mini-priority span {
+      display: block;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 0 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      color: inherit;
+      font-size: 11px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .badge.blue {
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .badge.green {
+      background: var(--green-bg);
+      color: var(--green);
+    }
+
+    .badge.orange {
+      background: var(--orange-bg);
+      color: var(--orange);
+    }
+
+    .badge.red {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .section {
+      margin-top: 17px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 2px 9px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .section-action {
+      border: 0;
+      background: transparent;
+      color: var(--blue);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 850;
+      padding: 0;
+    }
+
+    .group-card {
+      overflow: hidden;
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+    }
+
+    .group-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 64px;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .group-row:last-child {
+      border-bottom: 0;
+    }
+
+    .row-left {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .symbol {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 auto;
+      border-radius: 12px;
+      background: var(--group-strong);
+    }
+
+    .symbol img {
+      width: 21px;
+      height: 21px;
+      object-fit: contain;
+    }
+
+    .symbol.blue {
+      background: var(--blue-bg);
+    }
+
+    .symbol.green {
+      background: var(--green-bg);
+    }
+
+    .symbol.orange {
+      background: var(--orange-bg);
+    }
+
+    .symbol.red {
+      background: var(--red-bg);
+    }
+
+    .row-copy {
+      min-width: 0;
+    }
+
+    .row-title {
+      display: block;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .row-sub {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .row-value {
+      flex: 0 0 auto;
+      color: var(--text-2);
+      font-size: 14px;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .chevron {
+      color: #b8bfca;
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .job-card {
+      padding: 15px;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+    }
+
+    .job-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .job-title {
+      display: block;
+      font-size: 17px;
+      line-height: 1.25;
+      font-weight: 900;
+    }
+
+    .job-sub {
+      display: block;
+      margin-top: 4px;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .progress-shell {
+      overflow: hidden;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--group-strong);
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: var(--value, 50%);
+      border-radius: inherit;
+      background: var(--blue);
+      transition: width 240ms var(--tap);
+    }
+
+    .progress-fill.green {
+      background: var(--green);
+    }
+
+    .progress-fill.orange {
+      background: var(--orange);
+    }
+
+    .job-bottom {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .icon-tile {
+      min-height: 84px;
+      border: 0;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+      cursor: pointer;
+      padding: 10px 6px;
+      transition: transform 160ms var(--tap), background 160ms var(--tap);
+    }
+
+    .icon-tile .symbol {
+      margin: 0 auto 8px;
+    }
+
+    .icon-tile span {
+      display: block;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .employee-summary {
+      display: grid;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .state-card {
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+      padding: 15px;
+    }
+
+    .state-card.main {
+      background: linear-gradient(180deg, #ffffff, #f2fff6);
+    }
+
+    .state-label {
+      display: block;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .state-value {
+      display: block;
+      margin-top: 7px;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .state-value.green {
+      color: var(--green);
+    }
+
+    .state-note {
+      display: block;
+      margin-top: 8px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .clock-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .clock-button {
+      min-height: 92px;
+      border: 0;
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+      cursor: pointer;
+      padding: 13px;
+      text-align: left;
+      transition: transform 160ms var(--tap), background 160ms var(--tap);
+    }
+
+    .clock-button.is-active {
+      background: var(--green-bg);
+    }
+
+    .clock-button.is-ready {
+      background: var(--orange-bg);
+    }
+
+    .clock-button small {
+      display: block;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .clock-button strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 950;
+    }
+
+    .clock-button span {
+      display: block;
+      margin-top: 8px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .work-focus {
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.98)),
+        var(--card);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+      padding: 16px;
+    }
+
+    .work-focus-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .primary-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      border: 0;
+      border-radius: 16px;
+      background: var(--blue);
+      color: #fff;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 900;
+      padding: 0 18px;
+      box-shadow: 0 12px 24px rgba(0, 122, 255, 0.22);
+      transition: transform 150ms var(--tap), background 150ms var(--tap);
+    }
+
+    .primary-action.full {
+      width: 100%;
+    }
+
+    .rank-strip {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      border-radius: 24px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+      padding: 13px;
+    }
+
+    .rank-number {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+      font-size: 20px;
+      font-weight: 950;
+    }
+
+    .rank-copy strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .rank-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-3);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .order-control {
+      border-radius: 28px;
+      background: var(--card);
+      box-shadow: var(--shadow-soft);
+      padding: 16px;
+    }
+
+    .order-title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .order-title-row h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .order-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 14px;
+    }
+
+    .order-stat {
+      min-width: 0;
+      border-radius: 17px;
+      background: var(--group);
+      padding: 11px;
+    }
+
+    .order-stat small {
+      display: block;
+      color: var(--text-3);
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .order-stat strong {
+      display: block;
+      margin-top: 5px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.2;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .segmented {
+      display: flex;
+      gap: 4px;
+      min-height: 38px;
+      margin-top: 12px;
+      padding: 4px;
+      border-radius: 15px;
+      background: rgba(118, 118, 128, 0.13);
+    }
+
+    .segment {
+      flex: 1;
+      border: 0;
+      border-radius: 11px;
+      background: transparent;
+      color: var(--text-2);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      transition: background 160ms var(--tap), transform 160ms var(--tap);
+    }
+
+    .segment.is-active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.11);
+    }
+
+    .search-field {
+      position: relative;
+      margin-top: 11px;
+    }
+
+    .search-field input {
+      width: 100%;
+      min-height: 42px;
+      border: 0;
+      border-radius: 14px;
+      background: rgba(118, 118, 128, 0.13);
+      color: var(--text);
+      outline: none;
+      padding: 0 14px 0 34px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .search-field span {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      color: var(--text-3);
+      transform: translateY(-50%);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .process-card {
+      overflow: hidden;
+      border-radius: 23px;
+      background: var(--card);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+    }
+
+    .process-item {
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .process-item:last-child {
+      border-bottom: 0;
+    }
+
+    .process-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      padding: 14px;
+      text-align: left;
+    }
+
+    .process-summary strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.22;
+      font-weight: 900;
+    }
+
+    .process-summary span {
+      display: block;
+      margin-top: 4px;
+      color: var(--text-3);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 750;
+    }
+
+    .process-price {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .process-detail {
+      display: none;
+      padding: 0 14px 14px;
+    }
+
+    .process-item.is-open .process-detail {
+      display: block;
+      animation: detailIn 190ms var(--tap);
+    }
+
+    @keyframes detailIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .detail-cell {
+      border-radius: 14px;
+      background: var(--group);
+      padding: 10px;
+    }
+
+    .detail-cell small {
+      display: block;
+      color: var(--text-3);
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .detail-cell strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+      line-height: 1.15;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .detail-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .pill-button {
+      min-height: 36px;
+      border: 0;
+      border-radius: 13px;
+      background: var(--group-strong);
+      color: var(--text-2);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      transition: transform 150ms var(--tap), background 150ms var(--tap);
+    }
+
+    .pill-button.primary {
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+    }
+
+    .pill-button.red {
+      background: var(--red-bg);
+      color: var(--red);
+    }
+
+    .danger-card {
+      border-radius: 23px;
+      background: var(--red-bg);
+      box-shadow: none;
+      padding: 14px;
+    }
+
+    .danger-card strong {
+      display: block;
+      color: var(--red);
+      font-size: 15px;
+      line-height: 1.25;
+      font-weight: 950;
+    }
+
+    .danger-card p {
+      margin: 6px 0 12px;
+      color: #8d1d18;
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 750;
+    }
+
+    .danger-card .detail-actions {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .tabbar {
+      position: relative;
+      z-index: 8;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      padding: 8px 16px 24px;
+      background: rgba(247, 248, 251, 0.78);
+      border-top: 1px solid rgba(60, 60, 67, 0.12);
+      backdrop-filter: blur(22px);
+    }
+
+    .tab-button {
+      display: grid;
+      justify-items: center;
+      gap: 3px;
+      border: 0;
+      border-radius: 16px;
+      background: transparent;
+      color: var(--text-3);
+      cursor: pointer;
+      padding: 7px 0;
+      transition: transform 150ms var(--tap), color 150ms var(--tap), background 150ms var(--tap);
+    }
+
+    .tab-button img {
+      width: 23px;
+      height: 23px;
+      opacity: 0.72;
+      transition: opacity 150ms var(--tap), transform 150ms var(--spring);
+    }
+
+    .tab-button span {
+      font-size: 11px;
+      font-weight: 850;
+    }
+
+    .tab-button.is-active {
+      color: var(--blue);
+      background: rgba(0, 122, 255, 0.09);
+    }
+
+    .tab-button.is-active img {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    .home-indicator {
+      position: absolute;
+      z-index: 10;
+      left: 50%;
+      bottom: 7px;
+      width: 132px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(17, 17, 20, 0.84);
+      transform: translateX(-50%);
+    }
+
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      background: rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transition: opacity 180ms var(--tap);
+    }
+
+    .sheet-backdrop.is-open {
+      display: block;
+      opacity: 1;
+    }
+
+    .bottom-sheet {
+      position: absolute;
+      z-index: 70;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      max-height: 82%;
+      border-radius: 28px 28px 0 0;
+      background: rgba(248, 249, 252, 0.96);
+      box-shadow: var(--shadow-float);
+      backdrop-filter: blur(22px);
+      transform: translateY(105%);
+      transition: transform 260ms var(--spring);
+      padding: 10px 16px 26px;
+    }
+
+    .bottom-sheet.is-open {
+      transform: translateY(0);
+    }
+
+    .grabber {
+      width: 44px;
+      height: 5px;
+      margin: 0 auto 12px;
+      border-radius: 999px;
+      background: rgba(60, 60, 67, 0.28);
+    }
+
+    .sheet-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 13px;
+    }
+
+    .sheet-head h3 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .sheet-head p {
+      margin: 5px 0 0;
+      color: var(--text-3);
+      font-size: 13px;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    .sheet-close {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(118, 118, 128, 0.15);
+      color: var(--text-2);
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .sheet-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sheet-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      min-height: 62px;
+      border-radius: 18px;
+      background: #fff;
+      padding: 11px;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    .sheet-index {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: var(--group-strong);
+      color: var(--text-2);
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sheet-copy strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .sheet-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-3);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: 46px 1fr 46px;
+      gap: 10px;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .stepper button {
+      height: 46px;
+      border: 0;
+      border-radius: 16px;
+      background: var(--blue-bg);
+      color: var(--blue-dark);
+      cursor: pointer;
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .stepper output {
+      display: grid;
+      place-items: center;
+      height: 54px;
+      border-radius: 18px;
+      background: #fff;
+      color: var(--text);
+      font-size: 28px;
+      font-weight: 950;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    .toast {
+      position: absolute;
+      z-index: 90;
+      left: 50%;
+      top: 58px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(17, 17, 20, 0.88);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -12px) scale(0.96);
+      transition: opacity 180ms var(--tap), transform 220ms var(--spring);
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
+
+    .interaction-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .interaction-card {
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(18px);
+    }
+
+    .interaction-card h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .interaction-card p {
+      margin: 8px 0 0;
+      color: var(--text-2);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .check-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .check-item {
+      display: grid;
+      grid-template-columns: 26px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .check-mark {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--green-bg);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .check-item strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .check-item span {
+      display: block;
+      margin-top: 3px;
+      color: var(--text-3);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .control-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .control-buttons button {
+      min-height: 40px;
+      border: 0;
+      border-radius: 14px;
+      background: #fff;
+      color: var(--blue);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 7px 18px rgba(15, 23, 42, 0.07);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 1ms !important;
+        scroll-behavior: auto !important;
+        transition-duration: 1ms !important;
+      }
+    }
+
+    @media (max-width: 980px) {
+      body {
+        padding: 16px;
+      }
+
+      .hero-copy,
+      .stage {
+        grid-template-columns: 1fr;
+      }
+
+      .iphone-shell {
+        position: static;
+        justify-self: center;
+      }
+    }
+
+    @media (max-width: 460px) {
+      body {
+        padding: 0;
+        background: #1c1c1e;
+      }
+
+      .hero-copy,
+      .interaction-panel {
+        display: none;
+      }
+
+      .page {
+        max-width: none;
+      }
+
+      .stage {
+        display: block;
+      }
+
+      .iphone-shell {
+        width: 100vw;
+        min-height: 100dvh;
+        padding: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .iphone {
+        width: 100vw;
+        height: 100dvh;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero-copy">
+      <div class="intro">
+        <h1>V2：更像 iPhone 原生 App，关键信息先出来，交互再展开</h1>
+        <p>这版把展示方式从多张静态稿改成一个可点击的手机 App 原型。老板、员工、订单三类页面都在同一个 iPhone shell 里，底部 tab 切换，关键卡片、工序行、报工按钮都会弹出 bottom sheet 或展开详情。</p>
+      </div>
+      <div class="design-notes">
+        <div class="note-pill"><strong>信息层级</strong><span>先处理，再入口</span></div>
+        <div class="note-pill"><strong>iPhone 交互</strong><span>大标题、tab、sheet</span></div>
+        <div class="note-pill"><strong>工厂可用</strong><span>高对比、大触控</span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="iphone-shell">
+        <div class="iphone">
+          <div class="island" aria-hidden="true"></div>
+          <div class="status">
+            <span>9:41</span>
+            <div class="status-right">
+              <span>5G</span>
+              <div class="battery"><span></span></div>
+            </div>
+          </div>
+
+          <div class="toast" id="toast">已保存</div>
+
+          <div class="app">
+            <header class="nav" id="nav">
+              <div class="nav-top">
+                <button class="nav-action" data-sheet="profile" aria-label="打开账户">人</button>
+                <button class="nav-action" data-sheet="alerts" aria-label="打开提醒">铃</button>
+              </div>
+              <strong class="large-title" id="largeTitle">老板工作台</strong>
+              <div class="subtitle-row">
+                <span id="subtitle">飞盛一厂 · 今日 06-13</span>
+                <span class="badge green" id="navState">生产中</span>
+              </div>
+            </header>
+
+            <div class="screen-scroll" id="scrollArea">
+              <section class="screen is-active" data-screen="boss">
+                <div class="critical-stack">
+                  <button class="priority-card main" data-sheet="boss-priority">
+                    <div class="priority-top">
+                      <div>
+                        <span class="priority-title">今天先处理质检积压</span>
+                        <span class="priority-sub">18 条待质检会影响 3 个订单结算，建议先从校服订单开始</span>
+                      </div>
+                      <span class="badge">需处理</span>
+                    </div>
+                    <span class="priority-number">18<span class="priority-unit">条</span></span>
+                  </button>
+
+                  <div class="mini-priority-grid">
+                    <button class="mini-priority" data-sheet="attendance">
+                      <span>异常考勤</span>
+                      <strong>3</strong>
+                    </button>
+                    <button class="mini-priority" data-sheet="assignment">
+                      <span>未分配工序</span>
+                      <strong>6</strong>
+                    </button>
+                    <button class="mini-priority" data-sheet="payroll">
+                      <span>本月薪资</span>
+                      <strong>4.26万</strong>
+                    </button>
+                  </div>
+                </div>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">重点订单</span>
+                    <button class="section-action" data-tab="order">进入详情</button>
+                  </div>
+                  <div class="job-card">
+                    <div class="job-top">
+                      <div>
+                        <span class="job-title">夏季校服 3200 件</span>
+                        <span class="job-sub">截止还有 4 天，缝制和锁边是当前瓶颈</span>
+                      </div>
+                      <span class="badge orange">交期风险</span>
+                    </div>
+                    <div class="progress-shell"><div class="progress-fill" style="--value: 72%"></div></div>
+                    <div class="job-bottom">
+                      <span>已完成 2,304 件</span>
+                      <span>72%</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">经营快照</span>
+                    <button class="section-action" data-sheet="snapshot">看明细</button>
+                  </div>
+                  <div class="group-card">
+                    <div class="group-row">
+                      <div class="row-left">
+                        <div class="symbol blue"><img src="../miniprogram/images/icons/orders.svg" alt=""></div>
+                        <div class="row-copy">
+                          <span class="row-title">进行中订单</span>
+                          <span class="row-sub">3 单临近交期，1 单超预期成本</span>
+                        </div>
+                      </div>
+                      <span class="row-value">12 单</span>
+                    </div>
+                    <div class="group-row">
+                      <div class="row-left">
+                        <div class="symbol green"><img src="../miniprogram/images/icons/attendance.svg" alt=""></div>
+                        <div class="row-copy">
+                          <span class="row-title">今日出勤</span>
+                          <span class="row-sub">47 人已到岗，2 人迟到</span>
+                        </div>
+                      </div>
+                      <span class="row-value">47 人</span>
+                    </div>
+                    <div class="group-row">
+                      <div class="row-left">
+                        <div class="symbol red"><img src="../miniprogram/images/icons/salary.svg" alt=""></div>
+                        <div class="row-copy">
+                          <span class="row-title">待发薪订单</span>
+                          <span class="row-sub">发薪前请确认报工和质检</span>
+                        </div>
+                      </div>
+                      <span class="row-value">5 单</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">常用入口</span>
+                    <button class="section-action" data-sheet="more-tools">全部</button>
+                  </div>
+                  <div class="quick-grid">
+                    <button class="icon-tile" data-tab="order">
+                      <div class="symbol blue"><img src="../miniprogram/images/icons/orders.svg" alt=""></div>
+                      <span>订单</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="worklog">
+                      <div class="symbol green"><img src="../miniprogram/images/icons/worklog.svg" alt=""></div>
+                      <span>报工</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="boss-priority">
+                      <div class="symbol orange"><img src="../miniprogram/images/icons/qc.svg" alt=""></div>
+                      <span>质检</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="snapshot">
+                      <div class="symbol"><img src="../miniprogram/images/icons/database.svg" alt=""></div>
+                      <span>数据</span>
+                    </button>
+                  </div>
+                </section>
+              </section>
+
+              <section class="screen" data-screen="employee">
+                <div class="employee-summary">
+                  <div class="state-card main">
+                    <span class="state-label">今日预估工资</span>
+                    <span class="state-value green">¥236.50</span>
+                    <span class="state-note">按已报 120 件实时估算</span>
+                  </div>
+                  <div class="state-card">
+                    <span class="state-label">今日工时</span>
+                    <span class="state-value">6.5h</span>
+                    <span class="state-note">08:04 已上班</span>
+                  </div>
+                </div>
+
+                <div class="clock-actions">
+                  <button class="clock-button is-active" data-sheet="clock-in">
+                    <small>上班</small>
+                    <strong>已开始</strong>
+                    <span>08:04 打卡成功</span>
+                  </button>
+                  <button class="clock-button is-ready" data-sheet="clock-out">
+                    <small>下班</small>
+                    <strong>打卡</strong>
+                    <span>下班时确认位置</span>
+                  </button>
+                </div>
+
+                <section class="section">
+                  <div class="rank-strip">
+                    <div class="rank-number">8</div>
+                    <div class="rank-copy">
+                      <strong>我的排名</strong>
+                      <span>本月 ¥5,842，仅显示本人排名</span>
+                    </div>
+                    <button class="section-action" data-sheet="rank">查看</button>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">下一步报工</span>
+                    <button class="section-action" data-sheet="worklog-submit">填写</button>
+                  </div>
+                  <div class="work-focus">
+                    <div class="work-focus-header">
+                      <div>
+                        <span class="job-title">缝制 · 夏季校服</span>
+                        <span class="job-sub">单价 ¥1.80/件，目标 300 件，已报 120 件</span>
+                      </div>
+                      <span class="badge green">可继续</span>
+                    </div>
+                    <div class="progress-shell"><div class="progress-fill green" style="--value: 40%"></div></div>
+                    <div class="job-bottom">
+                      <span>今日收入 ¥216.00</span>
+                      <span>40%</span>
+                    </div>
+                    <div style="margin-top: 13px">
+                      <button class="primary-action full" data-sheet="worklog-submit">继续报工</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">快捷操作</span>
+                  </div>
+                  <div class="quick-grid">
+                    <button class="icon-tile" data-sheet="scan">
+                      <div class="symbol blue"><img src="../miniprogram/images/icons/camera.svg" alt=""></div>
+                      <span>扫码</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="salary">
+                      <div class="symbol green"><img src="../miniprogram/images/icons/profile.svg" alt=""></div>
+                      <span>工资</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="history">
+                      <div class="symbol"><img src="../miniprogram/images/icons/edit.svg" alt=""></div>
+                      <span>历史</span>
+                    </button>
+                    <button class="icon-tile" data-sheet="password">
+                      <div class="symbol"><img src="../miniprogram/images/icons/lock.svg" alt=""></div>
+                      <span>密码</span>
+                    </button>
+                  </div>
+                </section>
+              </section>
+
+              <section class="screen" data-screen="order">
+                <div class="order-control">
+                  <div class="order-title-row">
+                    <div>
+                      <h2>夏季校服</h2>
+                      <span class="job-sub">生产中，临近交期，建议先处理未分配工序</span>
+                    </div>
+                    <span class="badge orange">4 天</span>
+                  </div>
+                  <div class="order-grid">
+                    <div class="order-stat">
+                      <small>总数量</small>
+                      <strong>3,200</strong>
+                    </div>
+                    <div class="order-stat">
+                      <small>完成</small>
+                      <strong>2,304</strong>
+                    </div>
+                    <div class="order-stat">
+                      <small>待质检</small>
+                      <strong>18</strong>
+                    </div>
+                  </div>
+                  <div style="margin-top: 13px">
+                    <div class="progress-shell"><div class="progress-fill" style="--value: 72%"></div></div>
+                    <div class="job-bottom">
+                      <span>订单进度</span>
+                      <span>72%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <section class="section">
+                  <div class="segmented" data-segmented>
+                    <button class="segment is-active">全部 24</button>
+                    <button class="segment">未分配 6</button>
+                    <button class="segment">异常 3</button>
+                  </div>
+                  <div class="search-field">
+                    <span>搜</span>
+                    <input value="缝制" aria-label="搜索工序">
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">工序列表</span>
+                    <button class="section-action" data-sheet="assign">批量分配</button>
+                  </div>
+                  <div class="process-card">
+                    <div class="process-item is-open">
+                      <button class="process-summary">
+                        <div>
+                          <strong>缝制</strong>
+                          <span>张师傅、李师傅，已报 120 / 300 件</span>
+                        </div>
+                        <div class="process-price">¥1.80/件</div>
+                      </button>
+                      <div class="process-detail">
+                        <div class="progress-shell"><div class="progress-fill green" style="--value: 40%"></div></div>
+                        <div class="detail-grid">
+                          <div class="detail-cell"><small>负责员工</small><strong>2 人</strong></div>
+                          <div class="detail-cell"><small>今日报工</small><strong>120 件</strong></div>
+                        </div>
+                        <div class="detail-actions">
+                          <button class="pill-button primary" data-sheet="assign">分配</button>
+                          <button class="pill-button" data-sheet="price">改价</button>
+                          <button class="pill-button red" data-sheet="delete-process">删除</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="process-item">
+                      <button class="process-summary">
+                        <div>
+                          <strong>锁边</strong>
+                          <span>未分配，会影响后续报工</span>
+                        </div>
+                        <div class="process-price">¥0.70/件</div>
+                      </button>
+                      <div class="process-detail">
+                        <div class="detail-grid">
+                          <div class="detail-cell"><small>状态</small><strong>未分配</strong></div>
+                          <div class="detail-cell"><small>建议</small><strong>先分配</strong></div>
+                        </div>
+                        <div class="detail-actions">
+                          <button class="pill-button primary" data-sheet="assign">去分配</button>
+                          <button class="pill-button" data-sheet="price">改价</button>
+                          <button class="pill-button red" data-sheet="delete-process">删除</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="process-item">
+                      <button class="process-summary">
+                        <div>
+                          <strong>包装</strong>
+                          <span>王师傅，质检通过率 98.6%</span>
+                        </div>
+                        <div class="process-price">¥0.42/件</div>
+                      </button>
+                      <div class="process-detail">
+                        <div class="detail-grid">
+                          <div class="detail-cell"><small>今日报工</small><strong>460 件</strong></div>
+                          <div class="detail-cell"><small>合格率</small><strong>98.6%</strong></div>
+                        </div>
+                        <div class="detail-actions">
+                          <button class="pill-button primary" data-sheet="assign">分配</button>
+                          <button class="pill-button" data-sheet="price">改价</button>
+                          <button class="pill-button red" data-sheet="delete-process">删除</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="section-head">
+                    <span class="section-title">价格与审计</span>
+                    <button class="section-action" data-sheet="price-history">记录</button>
+                  </div>
+                  <div class="group-card">
+                    <div class="group-row">
+                      <div class="row-left">
+                        <div class="symbol blue"><img src="../miniprogram/images/icons/lock.svg" alt=""></div>
+                        <div class="row-copy">
+                          <span class="row-title">工价对员工隐藏</span>
+                          <span class="row-sub">员工报工时不显示单价和工资估算</span>
+                        </div>
+                      </div>
+                      <span class="badge green">已开启</span>
+                    </div>
+                    <div class="group-row">
+                      <div class="row-left">
+                        <div class="symbol"><img src="../miniprogram/images/icons/export.svg" alt=""></div>
+                        <div class="row-copy">
+                          <span class="row-title">工序汇总</span>
+                          <span class="row-sub">导出前预览数量、价格和员工</span>
+                        </div>
+                      </div>
+                      <span class="chevron">›</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="section">
+                  <div class="danger-card">
+                    <strong>危险区</strong>
+                    <p>清空工价、清空报工、删除订单会影响工资核算，操作前必须二次确认。</p>
+                    <div class="detail-actions">
+                      <button class="pill-button red" data-sheet="danger">清空工价</button>
+                      <button class="pill-button red" data-sheet="danger">清空报工</button>
+                    </div>
+                  </div>
+                </section>
+              </section>
+            </div>
+
+            <nav class="tabbar" aria-label="主要页面">
+              <button class="tab-button is-active" data-tab="boss">
+                <img src="../miniprogram/images/icons/database.svg" alt="">
+                <span>老板</span>
+              </button>
+              <button class="tab-button" data-tab="employee">
+                <img src="../miniprogram/images/icons/worklog.svg" alt="">
+                <span>员工</span>
+              </button>
+              <button class="tab-button" data-tab="order">
+                <img src="../miniprogram/images/icons/orders.svg" alt="">
+                <span>订单</span>
+              </button>
+            </nav>
+          </div>
+
+          <div class="sheet-backdrop" id="sheetBackdrop"></div>
+          <section class="bottom-sheet" id="bottomSheet" aria-live="polite">
+            <div class="grabber"></div>
+            <div class="sheet-head">
+              <div>
+                <h3 id="sheetTitle">待处理</h3>
+                <p id="sheetDesc">优先处理影响生产和工资核算的事项</p>
+              </div>
+              <button class="sheet-close" id="sheetClose" aria-label="关闭">×</button>
+            </div>
+            <div id="sheetContent" class="sheet-list"></div>
+          </section>
+
+          <div class="home-indicator" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <aside class="interaction-panel">
+        <div class="interaction-card">
+          <h2>这版针对你反馈改了什么</h2>
+          <p>V1 的问题是像展示板，不像 iPhone 小程序，且关键信息被分散。V2 改成一个可点击的原生 App 原型，核心风险、下一步动作、报工入口和订单瓶颈都放在首屏。</p>
+          <div class="check-list">
+            <div class="check-item">
+              <div class="check-mark">✓</div>
+              <div>
+                <strong>信息更清晰</strong>
+                <span>老板端第一屏直接显示待质检、异常考勤、未分配工序、本月薪资。</span>
+              </div>
+            </div>
+            <div class="check-item">
+              <div class="check-mark">✓</div>
+              <div>
+                <strong>交互更像 iPhone</strong>
+                <span>大标题、底部 tab、bottom sheet、分段控制器、展开行、toast 都可点击。</span>
+              </div>
+            </div>
+            <div class="check-item">
+              <div class="check-mark">✓</div>
+              <div>
+                <strong>细节更贴业务</strong>
+                <span>危险区、工价隐藏、质检积压、报工数量和交期风险都有明确解释。</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="interaction-card">
+          <h2>快速预览</h2>
+          <p>可以直接点手机里的 tab 和卡片，也可以用下面按钮快速切换。</p>
+          <div class="control-buttons">
+            <button data-tab="boss">老板</button>
+            <button data-tab="employee">员工</button>
+            <button data-tab="order">订单</button>
+          </div>
+          <div class="control-buttons">
+            <button data-sheet="boss-priority">待处理</button>
+            <button data-sheet="worklog-submit">报工</button>
+            <button data-sheet="danger">危险区</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const titles = {
+      boss: ["老板工作台", "飞盛一厂 · 今日 06-13", "生产中", "green"],
+      employee: ["员工工作台", "张师傅 · 在岗中 6.5h", "在岗", "green"],
+      order: ["订单详情", "夏季校服 · 截止还有 4 天", "交期风险", "orange"]
+    };
+
+    const sheetData = {
+      "boss-priority": {
+        title: "待质检积压",
+        desc: "先处理会影响结算和交付的记录",
+        rows: [
+          ["1", "夏季校服 · 缝制", "120 件待质检，提交时间 14:28", "进入质检"],
+          ["2", "运动裤 · 锁边", "68 件待质检，员工李师傅", "查看"],
+          ["3", "外套返工", "异常说明缺失，需要补充", "处理"]
+        ]
+      },
+      attendance: {
+        title: "异常考勤",
+        desc: "影响今日工时和工资计算",
+        rows: [
+          ["1", "张师傅迟到 18 分钟", "已上班，缺少迟到原因", "补充"],
+          ["2", "王师傅未下班", "连续在岗 10.2 小时", "确认"],
+          ["3", "赵师傅位置异常", "距离工厂 1.8 公里", "查看"]
+        ]
+      },
+      assignment: {
+        title: "未分配工序",
+        desc: "未分配会阻断员工报工",
+        rows: [
+          ["1", "夏季校服 · 锁边", "单价 ¥0.70/件，建议今日分配", "分配"],
+          ["2", "运动裤 · 包装", "目标 900 件，暂无负责人", "分配"],
+          ["3", "外套 · 质检返工", "需要质检员复核", "分配"]
+        ]
+      },
+      payroll: {
+        title: "本月薪资支出",
+        desc: "发薪前检查报工、质检和异常考勤",
+        rows: [
+          ["¥", "累计 ¥42,680", "较上月同期 +8.4%", "明细"],
+          ["5", "待发薪订单", "其中 2 单仍有质检积压", "查看"],
+          ["3", "工资风险", "改价记录、考勤异常、质检未完成", "处理"]
+        ]
+      },
+      snapshot: {
+        title: "经营快照",
+        desc: "把老板关心的状态集中展示",
+        rows: [
+          ["12", "进行中订单", "3 单临近交期", "订单"],
+          ["47", "今日出勤", "2 人迟到，1 人位置异常", "考勤"],
+          ["18", "待质检", "影响 3 个订单结算", "质检"]
+        ]
+      },
+      "worklog-submit": {
+        title: "提交报工",
+        desc: "示例交互：调整数量后提交",
+        custom: "worklog"
+      },
+      "clock-in": {
+        title: "上班打卡",
+        desc: "今天 08:04 已打卡成功",
+        rows: [
+          ["✓", "上班打卡已完成", "位置：飞盛一厂，误差 23 米", "知道了"],
+          ["1", "今日第 1 次打卡", "系统已开始计算工时", "查看"]
+        ]
+      },
+      "clock-out": {
+        title: "下班打卡",
+        desc: "确认位置后完成下班",
+        rows: [
+          ["1", "当前位置正常", "飞盛一厂范围内，误差 18 米", "确认"],
+          ["2", "今日工时 6.5h", "下班后将更新今日工资估算", "打卡"]
+        ]
+      },
+      rank: {
+        title: "我的排名",
+        desc: "私密模式下只显示本人排名",
+        rows: [
+          ["8", "本月第 8 名", "累计工资 ¥5,842", "查看"],
+          ["3", "本周上升 3 名", "缝制工序报工稳定", "趋势"]
+        ]
+      },
+      scan: {
+        title: "扫码打卡",
+        desc: "实际落地时调用微信扫码能力",
+        rows: [
+          ["扫", "扫描管理员考勤码", "识别后自动进入打卡确认", "开始"]
+        ]
+      },
+      salary: {
+        title: "我的工资",
+        desc: "只展示和员工本人相关的数据",
+        rows: [
+          ["¥", "本月 ¥5,842", "已确认 ¥4,960，待质检 ¥882", "查看"],
+          ["12", "今日已报工 120 件", "预计收入 ¥216.00", "明细"]
+        ]
+      },
+      history: {
+        title: "历史报工",
+        desc: "按订单和日期查看报工明细",
+        rows: [
+          ["今", "今日报工 120 件", "缝制 · 夏季校服", "打开"],
+          ["昨", "昨日报工 156 件", "包装 · 运动裤", "打开"]
+        ]
+      },
+      password: {
+        title: "修改密码",
+        desc: "输入错误会在字段附近反馈",
+        rows: [
+          ["1", "旧密码", "输入当前登录密码", "填写"],
+          ["2", "新密码", "至少 8 位，含字母和数字", "填写"]
+        ]
+      },
+      assign: {
+        title: "工序分配",
+        desc: "底部 sheet 承载复杂选择，不挤在详情正文",
+        rows: [
+          ["缝", "缝制", "已选张师傅、李师傅", "调整"],
+          ["锁", "锁边", "未分配，建议选择 2 人", "分配"],
+          ["包", "包装", "王师傅负责，进度正常", "查看"]
+        ]
+      },
+      price: {
+        title: "编辑工价",
+        desc: "已发薪工序不可修改，原因应就地显示",
+        rows: [
+          ["¥", "当前 ¥1.80/件", "未发薪，可以修改", "修改"],
+          ["记", "改价记录", "最近一次由王老板修改", "查看"]
+        ]
+      },
+      "delete-process": {
+        title: "删除工序",
+        desc: "危险动作需要明确影响范围",
+        rows: [
+          ["!", "将删除缝制工序", "已有报工时不允许直接删除", "确认"],
+          ["审", "保留审计记录", "删除结果写入操作日志", "查看"]
+        ]
+      },
+      "price-history": {
+        title: "工价记录",
+        desc: "价格配置从订单状态里分离出来",
+        rows: [
+          ["1", "¥1.80/件", "06-12 由王老板设置", "查看"],
+          ["2", "¥1.60/件", "06-08 初始价格", "查看"]
+        ]
+      },
+      danger: {
+        title: "危险区确认",
+        desc: "这里只演示确认层级，正式实现需保留现有权限逻辑",
+        rows: [
+          ["!", "清空工价", "员工工资估算会受影响", "二次确认"],
+          ["!", "清空报工", "会影响工资核算和统计", "二次确认"]
+        ]
+      },
+      profile: {
+        title: "当前账户",
+        desc: "账号信息和退出放在次级入口",
+        rows: [
+          ["王", "王老板", "飞盛一厂 · 管理员", "管理"],
+          ["退", "退出登录", "不会清除本机缓存", "退出"]
+        ]
+      },
+      alerts: {
+        title: "提醒中心",
+        desc: "把系统通知做成可处理事项",
+        rows: [
+          ["1", "服务还有 12 天到期", "续费后不影响新增订单", "续费"],
+          ["2", "3 条报工异常", "数量超出订单剩余件数", "处理"]
+        ]
+      },
+      "more-tools": {
+        title: "全部工具",
+        desc: "低频入口不挤占首屏",
+        rows: [
+          ["员", "员工管理", "新增、停用、修改工资权限", "进入"],
+          ["导", "导出报表", "工资、考勤、报工明细", "进入"],
+          ["设", "系统设置", "排行榜公开、工价显示等配置", "进入"]
+        ]
+      },
+      worklog: {
+        title: "报工管理",
+        desc: "老板查看进度和异常，员工提交数量",
+        rows: [
+          ["1", "进度总览", "按订单和工序看瓶颈", "打开"],
+          ["2", "报工明细", "按员工、日期、订单筛选", "打开"]
+        ]
+      }
+    };
+
+    const tabButtons = Array.from(document.querySelectorAll("[data-tab]"));
+    const screens = Array.from(document.querySelectorAll(".screen"));
+    const scrollArea = document.getElementById("scrollArea");
+    const nav = document.getElementById("nav");
+    const title = document.getElementById("largeTitle");
+    const subtitle = document.getElementById("subtitle");
+    const navState = document.getElementById("navState");
+    const sheet = document.getElementById("bottomSheet");
+    const backdrop = document.getElementById("sheetBackdrop");
+    const sheetTitle = document.getElementById("sheetTitle");
+    const sheetDesc = document.getElementById("sheetDesc");
+    const sheetContent = document.getElementById("sheetContent");
+    const sheetClose = document.getElementById("sheetClose");
+    const toast = document.getElementById("toast");
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("is-visible");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 1500);
+    }
+
+    function switchTab(name) {
+      if (!titles[name]) return;
+      screens.forEach((screen) => screen.classList.toggle("is-active", screen.dataset.screen === name));
+      tabButtons.forEach((button) => {
+        if (button.dataset.tab) button.classList.toggle("is-active", button.dataset.tab === name);
+      });
+      const [nextTitle, nextSubtitle, state, color] = titles[name];
+      title.textContent = nextTitle;
+      subtitle.textContent = nextSubtitle;
+      navState.textContent = state;
+      navState.className = `badge ${color}`;
+      scrollArea.scrollTo({ top: 0, behavior: "smooth" });
+      showToast(`已切到${nextTitle}`);
+    }
+
+    function renderRows(rows) {
+      sheetContent.className = "sheet-list";
+      sheetContent.innerHTML = rows.map(([index, heading, desc, action]) => `
+        <div class="sheet-row">
+          <div class="sheet-index">${index}</div>
+          <div class="sheet-copy">
+            <strong>${heading}</strong>
+            <span>${desc}</span>
+          </div>
+          <button class="section-action" data-toast="${action}">${action}</button>
+        </div>
+      `).join("");
+    }
+
+    function renderWorklog() {
+      sheetContent.className = "";
+      sheetContent.innerHTML = `
+        <div class="sheet-list">
+          <div class="sheet-row">
+            <div class="sheet-index">缝</div>
+            <div class="sheet-copy">
+              <strong>缝制 · 夏季校服</strong>
+              <span>单价 ¥1.80/件，今日已报 120 件</span>
+            </div>
+            <span class="badge green">可提交</span>
+          </div>
+        </div>
+        <div class="stepper">
+          <button type="button" data-step="-10">−</button>
+          <output id="worklogQty">120</output>
+          <button type="button" data-step="10">+</button>
+        </div>
+        <button class="primary-action full" data-submit-worklog>提交 120 件报工</button>
+      `;
+    }
+
+    function openSheet(key) {
+      const data = sheetData[key] || sheetData["boss-priority"];
+      sheetTitle.textContent = data.title;
+      sheetDesc.textContent = data.desc;
+      if (data.custom === "worklog") {
+        renderWorklog();
+      } else {
+        renderRows(data.rows);
+      }
+      backdrop.classList.add("is-open");
+      sheet.classList.add("is-open");
+    }
+
+    function closeSheet() {
+      sheet.classList.remove("is-open");
+      backdrop.classList.remove("is-open");
+    }
+
+    document.addEventListener("click", (event) => {
+      const tab = event.target.closest("[data-tab]");
+      if (tab) switchTab(tab.dataset.tab);
+
+      const opener = event.target.closest("[data-sheet]");
+      if (opener) openSheet(opener.dataset.sheet);
+
+      const processSummary = event.target.closest(".process-summary");
+      if (processSummary) {
+        processSummary.closest(".process-item").classList.toggle("is-open");
+      }
+
+      const segment = event.target.closest(".segment");
+      if (segment) {
+        segment.parentElement.querySelectorAll(".segment").forEach((item) => item.classList.remove("is-active"));
+        segment.classList.add("is-active");
+        showToast(segment.textContent.trim());
+      }
+
+      const toastAction = event.target.closest("[data-toast]");
+      if (toastAction) showToast(`${toastAction.dataset.toast}已记录`);
+
+      const stepper = event.target.closest("[data-step]");
+      if (stepper) {
+        const output = document.getElementById("worklogQty");
+        const next = Math.max(0, Number(output.value || output.textContent) + Number(stepper.dataset.step));
+        output.value = next;
+        output.textContent = next;
+        const submit = document.querySelector("[data-submit-worklog]");
+        if (submit) submit.textContent = `提交 ${next} 件报工`;
+      }
+
+      const submit = event.target.closest("[data-submit-worklog]");
+      if (submit) {
+        closeSheet();
+        showToast("报工已提交");
+      }
+    });
+
+    scrollArea.addEventListener("scroll", () => {
+      nav.classList.toggle("is-condensed", scrollArea.scrollTop > 18);
+    });
+
+    sheetClose.addEventListener("click", closeSheet);
+    backdrop.addEventListener("click", closeSheet);
+  </script>
+</body>
+</html>
