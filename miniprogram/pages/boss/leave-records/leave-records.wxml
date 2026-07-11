@@ -29,6 +29,9 @@
       </view>
       <text class="leave-dates">{{item.datesText}}</text>
       <text wx:if="{{item.reason}}" class="leave-reason">原因：{{item.reason}}</text>
+      <view class="leave-item-actions">
+        <view class="leave-del-btn tappable" catchtap="onDeleteLeave" data-id="{{item._id}}" data-name="{{item.user_name}}" hover-class="tap-button-hover">删除</view>
+      </view>
     </view>
   </view>
 

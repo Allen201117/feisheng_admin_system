@@ -32,6 +32,19 @@ test('summarizeMonthLeave: 空输入安全', () => {
   assert.deepStrictEqual(summarizeMonthLeave([]), {})
 })
 
+test('全勤口径不分来源：老板代录与员工提报都计入，删除(cancelled)不计入', () => {
+  const records = [
+    { user_id: 'u1', status: 'active', day_count: 1 },                          // 员工自助提报
+    { user_id: 'u1', status: 'active', day_count: 2, created_by_boss: true },   // 老板代录
+    { user_id: 'u2', status: 'cancelled', day_count: 3, created_by_boss: true } // 老板代录后又被删除
+  ]
+  const map = summarizeMonthLeave(records)
+  // u1：员工提报 1 天 + 老板代录 2 天 = 3 天 → 非全勤（来源不影响统计）
+  assert.strictEqual(map.u1, 3)
+  // u2：唯一一条已删除 → 不计入 → 视为全勤
+  assert.strictEqual(map.u2, undefined)
+})
+
 test('canCancelLeave: 全部未来可撤，含今天/过去不可撤', () => {
   const today = '2026-06-22'
   // 全部严格在今天之后 → 可撤

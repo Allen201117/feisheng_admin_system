@@ -215,6 +215,7 @@ exports.main = async (event, context) => {
     case 'getUnreadLeaveCount': return await getUnreadLeaveCount(event, wxContext)
     case 'markLeavesRead': return await markLeavesRead(event, wxContext)
     case 'bossAddLeave': return await bossAddLeave(event, wxContext)
+    case 'bossDeleteLeave': return await bossDeleteLeave(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -1166,5 +1167,41 @@ async function bossAddLeave(event, wxContext) {
   } catch (err) {
     console.error('[attendance] bossAddLeave 失败', err)
     return { code: -1, msg: '添加请假失败' }
+  }
+}
+
+// 老板删除请假：可删本厂任意请假（员工提报的 + 老板代录的），录错也能删。
+// 软删 status→cancelled（与员工撤销同口径），删后自动不再计入全勤（summarizeMonthLeave 只算 active）。
+// 与员工 cancelLeave 的差异：老板权限、不限本人、不限日期（含已开始/已过的也能删）。
+async function bossDeleteLeave(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const leaveId = event.leave_id
+  if (!leaveId) return { code: -1, msg: '参数不完整' }
+  try {
+    let record = null
+    try {
+      const recRes = await db.collection('LeaveRecords').doc(leaveId).get()
+      record = recRes.data
+    } catch (e) {
+      return { code: -1, msg: '请假记录不存在' }
+    }
+    // org 从登录老板推导，绝不信前端；校验记录属本厂（防跨租户删除）
+    if (!record || !ensureSameOrg(record, caller)) return { code: -1, msg: '请假记录不存在' }
+    if (record.status !== 'active') return { code: -1, msg: '该请假已删除' }
+    await db.collection('LeaveRecords').doc(leaveId).update({
+      data: {
+        status: 'cancelled',
+        cancelled_at: db.serverDate(),
+        cancelled_by_boss: true,          // 删除来源标记，不覆盖代录的 operator_*
+        cancelled_operator_id: caller._id,
+        cancelled_operator_name: caller.name || ''
+      }
+    })
+    await writeAudit('leave_delete_by_boss', `operator=${caller._id}; leave_id=${leaveId}; target=${record.user_id}`, getOrgId(caller))
+    return { code: 0, msg: '已删除' }
+  } catch (err) {
+    console.error('[attendance] bossDeleteLeave 失败', err)
+    return { code: -1, msg: '删除失败' }
   }
 }
