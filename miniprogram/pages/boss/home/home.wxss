@@ -157,6 +157,27 @@
   color: var(--text-tertiary);
 }
 
+/* 经营概览：纯功能入口（无数值）时用小一号字显示功能名 */
+.boss-home-page .stats-card-value-sm {
+  font-size: 34rpx;
+  margin-top: 14rpx;
+}
+
+/* 经营概览考勤卡请假红点 */
+.home-overview-dot {
+  position: absolute;
+  top: 14rpx; right: 14rpx;
+  min-width: 30rpx; height: 30rpx;
+  padding: 0 6rpx;
+  border-radius: 999rpx;
+  background: var(--red-500);
+  color: #fff;
+  font-size: 20rpx; font-weight: var(--fw-bold);
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
 .boss-home-page .menu-grid {
   gap: 14rpx;
 }

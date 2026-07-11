@@ -30,32 +30,35 @@
     <view class="subscription-bar-action">查看</view>
   </view>
 
-  <!-- 经营概览 -->
+  <!-- 经营概览：常用功能入口，按使用频次自动排序，取前 4 置顶 -->
   <view class="card-bento">
     <view class="menu-group-head">
       <text class="menu-group-title">经营概览</text>
-      <text class="menu-group-note">点击卡片直达</text>
+      <text class="menu-group-note">常用功能 · 按使用自动排序</text>
     </view>
     <view class="stats-grid">
-      <view class="stats-card blue tappable" bindtap="onStatTap" data-target="employees" hover-class="tap-card-hover" hover-stay-time="80">
-        <text class="stats-card-label">员工总数</text>
-        <text class="stats-card-value">{{stats.totalEmployees}}</text>
-        <text class="stats-card-note">员工管理</text>
-      </view>
-      <view class="stats-card green tappable" bindtap="onStatTap" data-target="attendance" hover-class="tap-card-hover" hover-stay-time="80">
-        <text class="stats-card-label">今日出勤</text>
-        <text class="stats-card-value">{{stats.todayAttendance}}</text>
-        <text class="stats-card-note">考勤管理</text>
-      </view>
-      <view class="stats-card amber tappable" bindtap="onStatTap" data-target="orders" hover-class="tap-card-hover" hover-stay-time="80">
-        <text class="stats-card-label">进行中订单</text>
-        <text class="stats-card-value">{{stats.activeOrders}}</text>
-        <text class="stats-card-note">订单管理</text>
-      </view>
-      <view class="stats-card blue tappable" bindtap="onStatTap" data-target="qc" hover-class="tap-card-hover" hover-stay-time="80">
-        <text class="stats-card-label">待质检</text>
-        <text class="stats-card-value">{{stats.pendingQC}}</text>
-        <text class="stats-card-note">质检工作台</text>
+      <view wx:for="{{overviewCards}}" wx:for-item="card" wx:key="key"
+            class="stats-card {{card.color}} tappable" bindtap="onOverviewTap" data-key="{{card.key}}"
+            hover-class="tap-card-hover" hover-stay-time="80" style="position:relative;">
+        <!-- 考勤特殊卡：今日出勤 + 今日请假 + 请假红点 -->
+        <block wx:if="{{card.special === 'attendance'}}">
+          <text wx:if="{{card.showDot}}" class="home-overview-dot">{{card.dotText}}</text>
+          <text class="stats-card-label">今日出勤</text>
+          <text class="stats-card-value">{{card.value}}</text>
+          <text class="stats-card-note">考勤管理 · 请假 {{card.leaveCount}} 人</text>
+        </block>
+        <!-- 带数值入口 -->
+        <block wx:elif="{{card.valueLabel}}">
+          <text class="stats-card-label">{{card.valueLabel}}</text>
+          <text class="stats-card-value">{{card.value}}</text>
+          <text class="stats-card-note">{{card.title}}</text>
+        </block>
+        <!-- 纯功能入口（无代表数值）-->
+        <block wx:else>
+          <text class="stats-card-label">{{card.desc}}</text>
+          <text class="stats-card-value stats-card-value-sm">{{card.title}}</text>
+          <text class="stats-card-note">进入 ›</text>
+        </block>
       </view>
     </view>
   </view>
