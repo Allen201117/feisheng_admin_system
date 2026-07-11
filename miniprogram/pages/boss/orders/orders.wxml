@@ -104,10 +104,10 @@
     <view class="orders-card-footer">
       <text class="orders-detail-hint">点击卡片查看订单详情 ›</text>
       <view class="orders-actions" catchtap="stopPropagation">
-        <button class="btn-sm btn-sm-ghost orders-tool-btn" bindtap="onChangeStatus" data-order="{{item}}" hover-class="tap-button-hover">状态</button>
-        <button wx:if="{{item.status === 'active'}}" class="btn-sm btn-sm-success orders-tool-btn success" bindtap="onCompleteOrder" data-order="{{item}}" hover-class="tap-button-hover">完成</button>
-        <button wx:if="{{item.status === 'completed'}}" class="btn-sm btn-sm-success orders-tool-btn success" bindtap="onReactivateOrder" data-order="{{item}}" hover-class="tap-button-hover">恢复</button>
-        <button class="btn-sm btn-sm-outline orders-tool-btn danger" bindtap="onDeleteOrder" data-order="{{item}}" hover-class="tap-button-hover">删除</button>
+        <view class="orders-tool-btn" bindtap="onChangeStatus" data-order="{{item}}" hover-class="tap-button-hover">状态</view>
+        <view wx:if="{{item.status === 'active'}}" class="orders-tool-btn success" bindtap="onCompleteOrder" data-order="{{item}}" hover-class="tap-button-hover">完成</view>
+        <view wx:if="{{item.status === 'completed'}}" class="orders-tool-btn success" bindtap="onReactivateOrder" data-order="{{item}}" hover-class="tap-button-hover">恢复</view>
+        <view class="orders-tool-btn danger" bindtap="onDeleteOrder" data-order="{{item}}" hover-class="tap-button-hover">删除</view>
       </view>
     </view>
   </view>
