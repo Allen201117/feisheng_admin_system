@@ -5,6 +5,7 @@
       <text class="page-header-title">请假提醒</text>
       <text class="page-header-subtitle">{{list.length}} 条记录</text>
     </view>
+    <view class="leave-add-btn tappable" bindtap="openAdd" hover-class="tap-button-hover">代员工请假</view>
   </view>
 
   <view wx:if="{{list.length === 0 && !loading}}" class="empty">
@@ -22,11 +23,65 @@
           <view wx:if="{{!item.boss_read}}" class="leave-new-dot"></view>
           <text class="salary-name">{{item.user_name}}</text>
           <text class="badge badge-solid-red">请假{{item.day_count}}天</text>
+          <text wx:if="{{item.created_by_boss}}" class="badge badge-slate">老板代录</text>
         </view>
         <text class="emp-meta">{{item.monthLabel}}</text>
       </view>
       <text class="leave-dates">{{item.datesText}}</text>
       <text wx:if="{{item.reason}}" class="leave-reason">原因：{{item.reason}}</text>
+    </view>
+  </view>
+
+  <!-- 代员工请假弹窗 -->
+  <view wx:if="{{showAdd}}">
+    <view class="modal-overlay" bindtap="closeAdd"></view>
+    <view class="modal-sheet" catchtap="true">
+      <view class="modal-sheet-title">代员工请假</view>
+      <scroll-view scroll-y class="modal-sheet-body modal-scroll-body" style="text-align:left;">
+        <view class="notice notice-blue" style="margin-bottom:var(--sp-2);">
+          <text class="text-xs">帮不方便自助操作的员工补录请假，可选已过去的日期。请假仅作核对参考，不自动扣工资。</text>
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">选择员工 *</text>
+          <picker mode="selector" range="{{employees}}" range-key="name" value="{{empIndex}}" bindchange="onEmpChange">
+            <view class="picker-field" hover-class="tap-row-hover">
+              <text wx:if="{{empIndex >= 0}}">{{employees[empIndex].name}}</text>
+              <text wx:else class="text-tertiary">请选择员工</text>
+              <text class="picker-arrow">&#x276F;</text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="leave-cal-head">
+          <view class="leave-cal-nav {{canPrev ? '' : 'disabled'}}" bindtap="onAddPrevMonth" hover-class="tap-chip-hover">‹</view>
+          <text class="leave-cal-title">{{addMonthLabel}}</text>
+          <view class="leave-cal-nav" bindtap="onAddNextMonth" hover-class="tap-chip-hover">›</view>
+        </view>
+
+        <view class="leave-week">
+          <text wx:for="{{weekHeaders}}" wx:key="*this" class="leave-week-cell">{{item}}</text>
+        </view>
+
+        <view class="leave-grid">
+          <view wx:for="{{addCells}}" wx:key="key"
+                class="leave-day {{item.empty ? 'empty' : ''}} {{item.selected ? 'selected' : ''}} {{!item.empty && !item.selectable ? 'disabled' : ''}} {{item.isToday ? 'today' : ''}}"
+                bindtap="onAddDayTap" data-cell="{{item}}">
+            <view wx:if="{{!item.empty}}" class="leave-day-inner">{{item.day}}</view>
+          </view>
+        </view>
+
+        <view class="leave-summary" wx:if="{{addSelectedDates.length > 0}}">已选 {{addSummary}} · 共 {{addSelectedDates.length}} 天</view>
+        <view class="leave-summary muted" wx:else>点日历上的日期选择请假（可多选）</view>
+
+        <view class="field-group" style="margin-top:var(--sp-2);">
+          <input class="field-input" placeholder="请假原因（选填，如 事假/病假）" value="{{addReason}}" bindinput="onAddReasonInput" maxlength="50" />
+        </view>
+      </scroll-view>
+      <view class="modal-sheet-footer">
+        <button class="modal-sheet-btn" bindtap="closeAdd" hover-class="tap-row-hover">取消</button>
+        <button class="modal-sheet-btn primary {{empIndex < 0 || addSelectedDates.length === 0 || submitting ? 'btn-disabled' : ''}}" bindtap="onSubmitAdd" hover-class="tap-row-hover">{{submitting ? '提交中...' : '确认添加'}}</button>
+      </view>
     </view>
   </view>
 

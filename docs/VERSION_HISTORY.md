@@ -10,6 +10,18 @@
 
 ## 2026-07-11
 
+### 老板端「代员工请假」：帮不会自助操作的员工补录请假
+
+- 背景：部分大龄员工不会自己在小程序申请请假，只能老板代劳。参照已有的「报工明细老板可编辑/新建」这种老板代操作模式，给请假加同样的老板代录入口。
+- 口径确认（沿用 §2.1 与既有请假口径）：请假仍不进工资、仅作核对参考；代录**允许选已过去的日期**（补登已发生的请假才是核心场景，员工端 `normalizeLeaveDates` 本就只按「属于该月+格式合法」过滤，不要求未来日期，天然一致）；代录记录 `boss_read=true`（老板自己建的不给自己冒红点）并标 `created_by_boss`+操作人。
+- 改动：
+  - 后端 `attendance/index.js` 新增 action `bossAddLeave`：校验 `role==='boss'` + `org`，校验目标员工存在且 `ensureSameOrg`（防跨租户代录），复用 `leaveLogic.normalizeLeaveDates`，写入 `LeaveRecords`（追加 `created_by_boss/operator_id/operator_name`），`writeAudit('leave_add_by_boss', ...)`；`getLeaveRequestsForBoss` 返回补 `created_by_boss` 供前端标注来源。
+  - 新增前端纯函数 `miniprogram/utils/leave-calendar.logic.js`（`buildLeaveCalendar` 带 `allowPast` 开关：员工只能选今天及以后，老板补录可选当月任意日期；含 `summarizeDays/formatMonthLabel/datesToCn/pad2`）+ `tests/leave-calendar.logic.test.js`（5 例，覆盖排布/员工挡过去/老板可补录/闰年/格式化）。
+  - 前端 `pages/boss/leave-records`：页头加「代员工请假」按钮 → 弹窗（选员工 picker + 月份切换（可往前翻 6 个月）+ 日历多选 + 原因），提交走 `bossAddLeave`；列表对代录记录显示「老板代录」标签。日历样式复用员工请假页同款（自包含在本页 wxss，未改动员工请假页）。
+- 数据影响：`LeaveRecords` 追加 `created_by_boss/operator_id/operator_name` 可选字段；无迁移要求，旧记录该字段缺省视为员工自助。
+- 部署影响：需重新部署 `attendance` 云函数 + 前端包。**AI 未部署、未真机验证。** 本轮只做「代录添加」，老板端删除/编辑代录请假暂未做（如需可下一轮补，参照报工的老板编辑/删除）。
+- 验证：`npm run test:unit` 244 项全绿（新增 5）；`node --check` 通过；边界自查（旧记录无新字段前端不显示标签、翻月清空已选、跨厂员工拒绝、未选员工/日期时按钮禁用）。
+
 ### 审查整改首轮：P0 金额浮点显示修复 + 订单详情危险操作分区
 
 - 背景：codex 审查（见上条）指出员工历史工资明细出现 `¥43.470000000000006` 等浮点尾巴，根因是 WXML 模板直接算 `quantity*snapshot_price`；订单详情页概览卡塞满信息，且「清空工价/清空报工」等删数据操作以红色横条平铺在概览里，既乱又易误触。

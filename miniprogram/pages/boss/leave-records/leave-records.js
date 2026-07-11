@@ -1,14 +1,15 @@
 // pages/boss/leave-records/leave-records.js
 // 老板：请假提醒列表。打开即把未读标记为已读（清红点）。
-const { callCloud, showError } = require('../../../utils/util')
+// 「代员工请假」：帮不会自助操作的（多为大龄）员工补录请假，允许选已过去的日期。
+const { callCloud, showError, showSuccess, showConfirm } = require('../../../utils/util')
+const bjTime = require('../../../utils/beijing-time')
+const {
+  buildLeaveCalendar,
+  summarizeDays,
+  formatMonthLabel
+} = require('../../../utils/leave-calendar.logic')
 
-function formatMonthLabel(m) {
-  if (!m || m.length < 7) return m || ''
-  const p = m.split('-')
-  return `${p[0]}年${parseInt(p[1])}月`
-}
-
-// ['2026-06-12','2026-06-13'] → '6月12、13日'
+// 列表展示：['2026-06-12','2026-06-13'] → '6月12、13日'（按月分组更紧凑）
 function formatDatesCn(dates) {
   if (!dates || !dates.length) return ''
   const byMonth = {}
@@ -22,14 +23,38 @@ function formatDatesCn(dates) {
   return Object.keys(byMonth).map((mk) => mk + byMonth[mk].join('、') + '日').join('，')
 }
 
+// 老板补录允许往前翻的月份下限：当前月往前 6 个月
+function calcMinMonth(currentMonth) {
+  let m = currentMonth
+  for (let i = 0; i < 6; i++) m = bjTime.getBeijingPrevMonth(m)
+  return m
+}
+
 Page({
   data: {
     list: [],
-    loading: false
+    loading: false,
+    // 员工列表（代录选人）
+    employees: [],
+    empIndex: -1,
+    // 代录弹窗
+    showAdd: false,
+    weekHeaders: ['日', '一', '二', '三', '四', '五', '六'],
+    addMonth: '',
+    addMonthLabel: '',
+    addToday: '',
+    addMinMonth: '',
+    canPrev: false,
+    addCells: [],
+    addSelectedDates: [],
+    addSummary: '',
+    addReason: '',
+    submitting: false
   },
 
   onShow() {
     this.load()
+    this.loadEmployees()
   },
 
   onPullDownRefresh() {
@@ -51,6 +76,103 @@ Page({
       showError('加载请假记录失败')
     }).then(() => {
       this.setData({ loading: false })
+    })
+  },
+
+  loadEmployees() {
+    return callCloud('user', { action: 'listEmployees' }).then((res) => {
+      this.setData({ employees: res.data || [] })
+    }).catch(() => {})
+  },
+
+  // ===== 代员工请假 =====
+  openAdd() {
+    if (!this.data.employees.length) {
+      showError('暂无可选择员工')
+      this.loadEmployees()
+      return
+    }
+    const month = bjTime.getBeijingMonth()
+    const today = bjTime.getBeijingToday()
+    this.setData({
+      showAdd: true,
+      empIndex: -1,
+      addMonth: month,
+      addMonthLabel: formatMonthLabel(month),
+      addToday: today,
+      addMinMonth: calcMinMonth(month),
+      addSelectedDates: [],
+      addReason: '',
+      submitting: false
+    }, () => this.rebuildAdd())
+  },
+
+  closeAdd() {
+    this.setData({ showAdd: false })
+  },
+
+  rebuildAdd() {
+    this.setData({
+      // allowPast=true：老板补录可选当月任意日期（含已过去的）
+      addCells: buildLeaveCalendar(this.data.addMonth, this.data.addSelectedDates, this.data.addToday, true),
+      canPrev: this.data.addMonth > this.data.addMinMonth,
+      addSummary: summarizeDays(this.data.addSelectedDates)
+    })
+  },
+
+  onEmpChange(e) {
+    this.setData({ empIndex: Number(e.detail.value) })
+  },
+
+  onAddPrevMonth() {
+    if (this.data.addMonth <= this.data.addMinMonth) return
+    const month = bjTime.getBeijingPrevMonth(this.data.addMonth)
+    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelectedDates: [] }, () => this.rebuildAdd())
+  },
+
+  onAddNextMonth() {
+    const month = bjTime.getBeijingNextMonth(this.data.addMonth)
+    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelectedDates: [] }, () => this.rebuildAdd())
+  },
+
+  onAddDayTap(e) {
+    const cell = e.currentTarget.dataset.cell
+    if (!cell || cell.empty || !cell.selectable) return
+    const set = this.data.addSelectedDates.slice()
+    const idx = set.indexOf(cell.dateStr)
+    if (idx >= 0) set.splice(idx, 1)
+    else set.push(cell.dateStr)
+    set.sort()
+    this.setData({ addSelectedDates: set }, () => this.rebuildAdd())
+  },
+
+  onAddReasonInput(e) {
+    this.setData({ addReason: e.detail.value })
+  },
+
+  onSubmitAdd() {
+    const emp = this.data.employees[this.data.empIndex]
+    if (!emp || !emp._id) { showError('请先选择员工'); return }
+    const dates = this.data.addSelectedDates
+    if (!dates.length) { showError('请选择请假日期'); return }
+    showConfirm('确认代录请假', `${emp.name}：${this.data.addMonthLabel} 共 ${dates.length} 天\n${this.data.addSummary}`).then((ok) => {
+      if (!ok) return
+      this.setData({ submitting: true })
+      callCloud('attendance', {
+        action: 'bossAddLeave',
+        user_id: emp._id,
+        month: this.data.addMonth,
+        dates,
+        reason: this.data.addReason
+      }).then(() => {
+        showSuccess('已添加请假')
+        this.setData({ showAdd: false })
+        this.load()
+      }).catch((err) => {
+        showError(err.message || '添加失败')
+      }).then(() => {
+        this.setData({ submitting: false })
+      })
     })
   }
 })
