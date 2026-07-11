@@ -10,6 +10,15 @@
 
 ## 2026-07-12
 
+### UI 修订：订单卡片按钮重叠修复 + 代请假员工改可搜索
+
+- 背景：老板反馈①订单列表卡片底部「状态/完成/删除」三按钮重叠；②代员工请假用 picker 选人，员工多时一个个翻不方便。
+- 改动（纯前端）：
+  - `orders.wxml`：三个操作按钮由 `<button>` 改为 `<view>`。根因是微信 `<button>` 在 CSS grid 里宽度不受控会重叠（静态测试测不出渲染），`<view>`+grid 是项目既有可靠模式（如 order-detail 的 `process-action-btn`）；`.orders-tool-btn` 样式对 view 完全通用，未改。
+  - `leave-records`：代请假选员工由 picker 改为「搜索框 + 员工姓名 chip 单选高亮」，复用 `filterListByKeyword`（按姓名过滤），新增 `emp-pick-grid/emp-pick-chip` 样式。
+- 数据/部署影响：纯前端，重新预览/上传生效。**AI 未真机验证。**
+- 验证：`npm run test:unit` 245 项全绿。
+
 ### 请假补充删除 + 确认全勤口径不分来源
 
 - 背景：老板要求①请假也能删除（代录会录错、员工也可能提报错）；②全勤计算时老板代录与员工提报的请假都算「非全勤」。

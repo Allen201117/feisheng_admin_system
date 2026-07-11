@@ -13,6 +13,28 @@
   font-weight: var(--fw-semibold);
 }
 
+/* 代录弹窗内员工搜索选择 */
+.emp-pick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+.emp-pick-chip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: var(--surface-strong);
+  border: 1rpx solid var(--hairline);
+  color: var(--text-primary);
+  font-size: 26rpx;
+}
+.emp-pick-chip.is-selected {
+  background: var(--blue-50);
+  border-color: var(--blue-600);
+  color: var(--blue-600);
+  font-weight: 600;
+}
+
 /* 代录弹窗内日历（与员工请假页同款视觉） */
 .leave-cal-head {
   display: flex; align-items: center; justify-content: space-between;

@@ -46,14 +46,19 @@
         </view>
 
         <view class="field-group">
-          <text class="field-label">选择员工 *</text>
-          <picker mode="selector" range="{{employees}}" range-key="name" value="{{empIndex}}" bindchange="onEmpChange">
-            <view class="picker-field" hover-class="tap-row-hover">
-              <text wx:if="{{empIndex >= 0}}">{{employees[empIndex].name}}</text>
-              <text wx:else class="text-tertiary">请选择员工</text>
-              <text class="picker-arrow">&#x276F;</text>
+          <text class="field-label">选择员工 *{{selectedEmpName ? '（已选 ' + selectedEmpName + '）' : ''}}</text>
+          <view class="list-search-row">
+            <input class="field-input list-search-input" placeholder="搜索员工姓名" value="{{empKeyword}}" bindinput="onEmpSearchInput" confirm-type="search" />
+            <view wx:if="{{empKeyword}}" class="btn-sm btn-sm-secondary list-search-clear tappable" bindtap="clearEmpSearch" hover-class="tap-button-hover">清除</view>
+          </view>
+          <view class="emp-pick-grid">
+            <view wx:for="{{filteredEmployees}}" wx:key="_id"
+                  class="emp-pick-chip {{selectedEmpId === item._id ? 'is-selected' : ''}}"
+                  bindtap="onSelectEmp" data-id="{{item._id}}" data-name="{{item.name}}" hover-class="tap-chip-hover">
+              {{item.name}}
             </view>
-          </picker>
+          </view>
+          <text wx:if="{{filteredEmployees.length === 0}}" class="text-tertiary text-xs">没有匹配的员工</text>
         </view>
 
         <view class="leave-cal-head">

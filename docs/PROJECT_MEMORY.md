@@ -102,7 +102,7 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/boss/salary/salary`：工资汇总。
 - `pages/boss/salary-detail/salary-detail`：员工工资详情、奖惩、报工修改。
 - `pages/boss/employee-salary/employee-salary`：员工工资档案（某员工全部工资期次+累计总额，点某期下钻 salary-detail）。从员工列表卡片进入。
-- `pages/boss/leave-records/leave-records`：请假提醒列表（谁/哪几天/原因），打开即清未读红点；页头「代员工请假」可代不会自助操作的员工补录请假（选员工+月份+日历多选，允许选已过去日期），代录记录标「老板代录」；每条请假可删除（员工提报的+代录的都可删，软删，删后不再计入全勤）。
+- `pages/boss/leave-records/leave-records`：请假提醒列表（谁/哪几天/原因），打开即清未读红点；页头「代员工请假」可代不会自助操作的员工补录请假（搜索选员工+月份+日历多选，允许选已过去日期），代录记录标「老板代录」；每条请假可删除（员工提报的+代录的都可删，软删，删后不再计入全勤）。
 - `pages/boss/leaderboard/leaderboard`：老板端排行榜。
 - `pages/boss/settings/settings`：系统/工厂设置。
 - `pages/boss/qrcode/qrcode`：打卡二维码管理。

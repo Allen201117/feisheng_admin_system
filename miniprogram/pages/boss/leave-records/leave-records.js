@@ -3,11 +3,15 @@
 // 「代员工请假」：帮不会自助操作的（多为大龄）员工补录请假，允许选已过去的日期。
 const { callCloud, showError, showSuccess, showConfirm } = require('../../../utils/util')
 const bjTime = require('../../../utils/beijing-time')
+const { filterListByKeyword } = require('../../../utils/list-search')
 const {
   buildLeaveCalendar,
   summarizeDays,
   formatMonthLabel
 } = require('../../../utils/leave-calendar.logic')
+
+// listEmployees 只返回 name/role/join_date，按姓名搜索
+const EMP_SEARCH_FIELDS = ['name']
 
 // 列表展示：['2026-06-12','2026-06-13'] → '6月12、13日'（按月分组更紧凑）
 function formatDatesCn(dates) {
@@ -34,9 +38,12 @@ Page({
   data: {
     list: [],
     loading: false,
-    // 员工列表（代录选人）
+    // 员工列表（代录选人，支持搜索）
     employees: [],
-    empIndex: -1,
+    filteredEmployees: [],
+    empKeyword: '',
+    selectedEmpId: '',
+    selectedEmpName: '',
     // 代录弹窗
     showAdd: false,
     weekHeaders: ['日', '一', '二', '三', '四', '五', '六'],
@@ -81,7 +88,11 @@ Page({
 
   loadEmployees() {
     return callCloud('user', { action: 'listEmployees' }).then((res) => {
-      this.setData({ employees: res.data || [] })
+      const employees = res.data || []
+      this.setData({
+        employees,
+        filteredEmployees: filterListByKeyword(employees, this.data.empKeyword, EMP_SEARCH_FIELDS)
+      })
     }).catch(() => {})
   },
 
@@ -96,7 +107,10 @@ Page({
     const today = bjTime.getBeijingToday()
     this.setData({
       showAdd: true,
-      empIndex: -1,
+      empKeyword: '',
+      selectedEmpId: '',
+      selectedEmpName: '',
+      filteredEmployees: this.data.employees,
       addMonth: month,
       addMonthLabel: formatMonthLabel(month),
       addToday: today,
@@ -120,8 +134,25 @@ Page({
     })
   },
 
-  onEmpChange(e) {
-    this.setData({ empIndex: Number(e.detail.value) })
+  // 员工搜索 + 单选
+  onEmpSearchInput(e) {
+    const kw = e.detail.value || ''
+    this.setData({
+      empKeyword: kw,
+      filteredEmployees: filterListByKeyword(this.data.employees, kw, EMP_SEARCH_FIELDS)
+    })
+  },
+
+  clearEmpSearch() {
+    if (!this.data.empKeyword) return
+    this.setData({ empKeyword: '', filteredEmployees: this.data.employees })
+  },
+
+  onSelectEmp(e) {
+    this.setData({
+      selectedEmpId: e.currentTarget.dataset.id,
+      selectedEmpName: e.currentTarget.dataset.name
+    })
   },
 
   onAddPrevMonth() {
@@ -151,16 +182,15 @@ Page({
   },
 
   onSubmitAdd() {
-    const emp = this.data.employees[this.data.empIndex]
-    if (!emp || !emp._id) { showError('请先选择员工'); return }
+    if (!this.data.selectedEmpId) { showError('请先选择员工'); return }
     const dates = this.data.addSelectedDates
     if (!dates.length) { showError('请选择请假日期'); return }
-    showConfirm('确认代录请假', `${emp.name}：${this.data.addMonthLabel} 共 ${dates.length} 天\n${this.data.addSummary}`).then((ok) => {
+    showConfirm('确认代录请假', `${this.data.selectedEmpName}：${this.data.addMonthLabel} 共 ${dates.length} 天\n${this.data.addSummary}`).then((ok) => {
       if (!ok) return
       this.setData({ submitting: true })
       callCloud('attendance', {
         action: 'bossAddLeave',
-        user_id: emp._id,
+        user_id: this.data.selectedEmpId,
         month: this.data.addMonth,
         dates,
         reason: this.data.addReason
