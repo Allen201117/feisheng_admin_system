@@ -109,7 +109,7 @@
         <view wx:if="{{quotaLoading}}" class="text-tertiary text-xs" style="margin-top:var(--sp-1);">正在获取可报数量...</view>
 
         <view wx:if="{{quantity > 0 && !selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
-          <text>预估金额：<text class="font-bold text-accent num">¥{{quantity * selectedProcess.current_price}}</text> <text class="text-tertiary text-xs">（{{quantity}}件 x ¥{{selectedProcess.current_price}}）</text></text>
+          <text>预估金额：<text class="font-bold text-accent num">¥{{estimateText}}</text> <text class="text-tertiary text-xs">（{{quantity}}件 x ¥{{selectedProcess.current_price}}）</text></text>
         </view>
         <view wx:elif="{{quantity > 0 && selectedProcess.price_hidden}}" class="notice notice-amber" style="margin-top:var(--sp-1);">
           <text>预估金额：<text class="text-tertiary">已隐藏</text></text>

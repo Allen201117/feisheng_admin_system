@@ -10,6 +10,17 @@
 
 ## 2026-07-11
 
+### 审查整改首轮：P0 金额浮点显示修复 + 订单详情危险操作分区
+
+- 背景：codex 审查（见上条）指出员工历史工资明细出现 `¥43.470000000000006` 等浮点尾巴，根因是 WXML 模板直接算 `quantity*snapshot_price`；订单详情页概览卡塞满信息，且「清空工价/清空报工」等删数据操作以红色横条平铺在概览里，既乱又易误触。
+- 改动（P0 金额，纯展示，工资口径不变 §2.1）：
+  - `worklog.logic.js` 新增纯函数 `formatLogAmountText(log)`（历史明细，amount 优先、回退 quantity×snapshot_price、隐藏占位）与 `formatEstimateAmount(quantity, price)`（报工预估），均 `toFixed(2)` 两位小数。
+  - `worklog-history.js` 明细在数据层写入 `amount_text`，`worklog-history.wxml` 改用 `{{item.amount_text}}`；`worklog.js` 数量变化时维护 `estimateText`，`worklog.wxml` 预估金额改用 `{{estimateText}}`。模板不再出现任何金额乘法。
+  - 金额结算口径完全不变：仍按报工数量 × 有效结算价，`passed_qty` 不参与；本次只改「显示格式化」。
+- 改动（订单详情 UI，纯前端）：概览卡瘦身（只留订单信息 + 工价隐藏开关）；新增独立「订单管理」卡承载工价记录/工序汇总；危险操作（清空工价/清空报工）圈入独立红色警示区，每条配影响说明，且只有右侧「清空」按钮可点（降低误触）。删除弃用的 `order-action-panel/order-danger-list/row` 样式。
+- 数据/部署影响：无字段/接口/云函数改动；纯前端包，重新预览/上传生效。**AI 未真机验证、未上传。**
+- 验证：`npm run test:unit` 239 项全绿；新增 `formatLogAmountText`/`formatEstimateAmount` 用例（覆盖 `0.33×80`、`0.29×3` 等浮点场景）+ 模板禁止内联金额乘法的静态守护；更新 `ui-apple-style` 对订单详情结构的断言（改为校验订单管理卡 + 危险操作分区）。
+
 ### 沉淀产品、工程与用户体验审查交接
 
 - 背景：基于真实老板/员工测试账号，对产品方向、工程架构和关键用户流程进行只读审查，并补充确认“工资不参考质检数”。

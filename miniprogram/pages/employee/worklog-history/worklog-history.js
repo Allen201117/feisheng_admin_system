@@ -1,7 +1,7 @@
 // pages/employee/worklog-history/worklog-history.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading, formatMoney } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
-const { buildWorklogHistoryView } = require('../worklog/worklog.logic')
+const { buildWorklogHistoryView, formatLogAmountText } = require('../worklog/worklog.logic')
 const { filterListByKeyword } = require('../../../utils/list-search')
 
 const HISTORY_SEARCH_FIELDS = [
@@ -82,8 +82,10 @@ Page({
 
   applyHistorySearch(keyword, sourceLogs) {
     const rawLogs = Array.isArray(sourceLogs) ? sourceLogs : this.data.rawHistoryLogs
-    const historyLogs = filterListByKeyword(rawLogs, keyword, HISTORY_SEARCH_FIELDS)
-    const view = buildWorklogHistoryView(historyLogs)
+    const filtered = filterListByKeyword(rawLogs, keyword, HISTORY_SEARCH_FIELDS)
+    // 明细金额在数据层格式化为两位小数，避免 WXML 模板直接算 quantity*snapshot_price 露出浮点误差
+    const historyLogs = filtered.map((log) => ({ ...log, amount_text: formatLogAmountText(log) }))
+    const view = buildWorklogHistoryView(filtered)
     this.setData({
       historySearchKeyword: keyword,
       historyLogs,

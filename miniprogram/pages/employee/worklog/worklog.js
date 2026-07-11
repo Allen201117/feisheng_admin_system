@@ -1,7 +1,7 @@
 // pages/employee/worklog/worklog.js
 const { callCloud, showError, showSuccess, showLoading, hideLoading } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
-const { normalizeAssignedProcessForEmployee, buildOrderProcessCards } = require('./worklog.logic')
+const { normalizeAssignedProcessForEmployee, buildOrderProcessCards, formatEstimateAmount } = require('./worklog.logic')
 
 Page({
   data: {
@@ -20,6 +20,7 @@ Page({
     selectedProcessIndex: -1,
     initialProcessId: '',
     quantity: 0,
+    estimateText: '0.00',
     quickQuantities: [50, 100, 200, 500],
     quotaInfo: null,
     quotaLoading: false,
@@ -98,29 +99,36 @@ Page({
       selectedProcess: proc,
       showReportModal: true,
       quantity: 0,
+      estimateText: '0.00',
       quotaInfo: null
     })
     this.loadProcessQuota()
   },
 
   closeReportModal() {
-    this.setData({ showReportModal: false, quantity: 0 })
+    this.setData({ showReportModal: false, quantity: 0, estimateText: '0.00' })
+  },
+
+  // 预估金额在数据层格式化为两位小数，避免 WXML 模板直接算 quantity*current_price 露出浮点误差
+  estimateFor(qty) {
+    const price = this.data.selectedProcess ? this.data.selectedProcess.current_price : 0
+    return formatEstimateAmount(qty, price)
   },
 
   onQuantityInput(e) {
     const val = parseInt((e.detail.value || '').replace(/[^0-9]/g, ''), 10) || 0
-    this.setData({ quantity: val })
+    this.setData({ quantity: val, estimateText: this.estimateFor(val) })
     this.warnIfQuantityExceeded(val)
   },
 
   onQuickQuantityTap(e) {
     const val = parseInt(e.currentTarget.dataset.value, 10) || 0
-    this.setData({ quantity: val })
+    this.setData({ quantity: val, estimateText: this.estimateFor(val) })
     this.warnIfQuantityExceeded(val)
   },
 
   onClearQuantity() {
-    this.setData({ quantity: 0 })
+    this.setData({ quantity: 0, estimateText: '0.00' })
   },
 
   async loadProcessQuota() {
@@ -204,7 +212,7 @@ Page({
 
       hideLoading()
       showSuccess('报工成功')
-      this.setData({ quantity: 0, showReportModal: false })
+      this.setData({ quantity: 0, estimateText: '0.00', showReportModal: false })
       this.loadAssignedProcesses()
     } catch (err) {
       hideLoading()
