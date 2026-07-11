@@ -214,6 +214,7 @@ exports.main = async (event, context) => {
     case 'getLeaveRequestsForBoss': return await getLeaveRequestsForBoss(event, wxContext)
     case 'getUnreadLeaveCount': return await getUnreadLeaveCount(event, wxContext)
     case 'markLeavesRead': return await markLeavesRead(event, wxContext)
+    case 'bossAddLeave': return await bossAddLeave(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -1065,6 +1066,7 @@ async function getLeaveRequestsForBoss(event, wxContext) {
         day_count: leaveLogic.countLeaveDays(r),
         reason: r.reason || '',
         boss_read: !!r.boss_read,
+        created_by_boss: !!r.created_by_boss,
         created_at: r.created_at
       }
     })
@@ -1108,5 +1110,61 @@ async function markLeavesRead(event, wxContext) {
   } catch (err) {
     console.error('[attendance] markLeavesRead 失败', err)
     return { code: -1, msg: '操作失败' }
+  }
+}
+
+// 老板代员工补录请假：给不会自助操作的（多为大龄）员工手动登记请假。
+// 与员工自助 requestLeave 的差异：老板权限、给指定员工、允许补录已过去的日期、
+// 自动已读（不给自己冒红点）、标记来源与操作人。日期口径仍复用 normalizeLeaveDates。
+async function bossAddLeave(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '账号未归属工厂' }
+
+  const targetUserId = event.user_id
+  if (!targetUserId) return { code: -1, msg: '请选择员工' }
+  const month = String(event.month || '').trim()
+  if (!/^\d{4}-\d{2}$/.test(month)) return { code: -1, msg: '请假月份格式不正确' }
+  const dates = leaveLogic.normalizeLeaveDates(event.dates, month)
+  if (dates.length === 0) return { code: -1, msg: '请选择请假日期' }
+  if (dates.length > 31) return { code: -1, msg: '请假天数超出范围' }
+  const reason = String(event.reason || '').slice(0, 200)
+
+  try {
+    // org 从登录老板推导，绝不信前端传值；校验目标员工存在且属本厂（防跨租户代录）
+    let target = null
+    try {
+      const tRes = await db.collection('Users').doc(targetUserId).get()
+      target = tRes.data
+    } catch (e) {
+      return { code: -1, msg: '员工不存在' }
+    }
+    if (!target || !ensureSameOrg(target, caller)) return { code: -1, msg: '员工不存在或不属于本厂' }
+
+    // 首次请假时若集合不存在则创建（幂等），与 requestLeave 同口径
+    await safeCreateCollection('LeaveRecords')
+    const addRes = await db.collection('LeaveRecords').add({
+      data: {
+        org_id: orgId,
+        user_id: targetUserId,
+        user_name: target.name || '',
+        month: month,
+        dates: dates,
+        day_count: dates.length,
+        reason: reason,
+        status: 'active',
+        boss_read: true,           // 老板代录，自己已知，不给自己列表冒红点
+        created_by_boss: true,     // 来源标记：区别于员工自助
+        operator_id: caller._id,
+        operator_name: caller.name || '',
+        created_at: db.serverDate()
+      }
+    })
+    await writeAudit('leave_add_by_boss', `operator=${caller._id}; target=${targetUserId}; month=${month}; days=${dates.length}`, orgId)
+    return { code: 0, msg: '已代员工添加请假', data: { _id: addRes._id, day_count: dates.length } }
+  } catch (err) {
+    console.error('[attendance] bossAddLeave 失败', err)
+    return { code: -1, msg: '添加请假失败' }
   }
 }
