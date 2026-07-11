@@ -8,6 +8,16 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-07-12
+
+### 订单列表页卡片底部操作区重排（修排版塌陷）
+
+- 背景：老板反馈订单列表（订单管理页 `pages/boss/orders`）每张卡片底部「查看详情 + 状态/完成/删除」排版乱——「查看详情」被右侧按钮挤成竖排单字，三个按钮 `flex-wrap` 换行堆叠，空间利用率低。codex 报告 6.3 也点了此处。
+- 根因：`.orders-card-footer` 用横向 `flex + space-between`，`.orders-detail-hint` 被压到最小宽度导致中文逐字竖排；`.orders-actions` 多个 `min-width:96rpx` 的胶囊按钮一行放不下而换行。
+- 改动（纯前端 `orders.wxml/.wxss`）：footer 改为纵向两层——「点击卡片查看订单详情 ›」独占一行（提示整卡可点进详情），下面「状态 / 完成·恢复 / 删除」三个按钮用 `grid` 3 列等宽横排、不再换行；按钮圆角由胶囊 999rpx 改为 14rpx 块状、统一高度 66rpx，更协调。交互/handler 不变（仍 `goOrderDetail` / `onChangeStatus` / `onCompleteOrder` / `onReactivateOrder` / `onDeleteOrder`）。
+- 数据/部署影响：无；纯前端包，重新预览/上传生效。**AI 未真机验证。** 注：本次只调排版，未按 codex 建议把「删除」收进更多菜单（避免改变老板既有操作习惯，如需可再议）。
+- 验证：`npm run test:unit` 244 项全绿（含 ui-apple-style 静态检查）。
+
 ## 2026-07-11
 
 ### 老板端「代员工请假」：帮不会自助操作的员工补录请假

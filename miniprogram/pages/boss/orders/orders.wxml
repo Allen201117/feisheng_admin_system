@@ -102,7 +102,7 @@
     <view class="divider"></view>
 
     <view class="orders-card-footer">
-      <text class="orders-detail-hint">查看详情</text>
+      <text class="orders-detail-hint">点击卡片查看订单详情 ›</text>
       <view class="orders-actions" catchtap="stopPropagation">
         <button class="btn-sm btn-sm-ghost orders-tool-btn" bindtap="onChangeStatus" data-order="{{item}}" hover-class="tap-button-hover">状态</button>
         <button wx:if="{{item.status === 'active'}}" class="btn-sm btn-sm-success orders-tool-btn success" bindtap="onCompleteOrder" data-order="{{item}}" hover-class="tap-button-hover">完成</button>
