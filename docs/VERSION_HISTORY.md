@@ -10,6 +10,19 @@
 
 ## 2026-07-12
 
+### 请假补充删除 + 确认全勤口径不分来源
+
+- 背景：老板要求①请假也能删除（代录会录错、员工也可能提报错）；②全勤计算时老板代录与员工提报的请假都算「非全勤」。
+- 口径确认：
+  - **全勤不分来源已是现状，无需改代码**：全勤标识 `salary.js` `attendFull = leaveDays === 0`，`leaveDays` 来自 `getMonthLeaveSummary`→`summarizeMonthLeave`，只按 `status==='active'` 统计、不看 `created_by_boss`，所以老板代录（active）与员工提报同等计入「非全勤」。仅补一条 `tests/leave.logic.test.js` 守护该口径。
+  - 删除采用**软删** `status→cancelled`（与员工撤销同口径），删后该请假自动不再计入全勤（`summarizeMonthLeave` 只算 active），也不再在老板列表显示（`getLeaveRequestsForBoss` 只查 active）。
+- 改动：
+  - 后端 `attendance/index.js` 新增 `bossDeleteLeave`：老板权限 + `ensureSameOrg`（防跨厂删），可删本厂**任意**请假（员工提报+代录），**不限本人/不限日期**（含已开始/已过的也能删，录错要能删）；软删并写 `cancelled_by_boss/cancelled_operator_id/name/cancelled_at`（不覆盖代录的 `operator_*`）；`writeAudit('leave_delete_by_boss', ...)`。
+  - 前端 `pages/boss/leave-records`：每条请假底部加红色「删除」按钮 → 二次确认（提示删后不计入全勤）→ `bossDeleteLeave` → 刷新。
+- 数据影响：`LeaveRecords` 追加删除审计字段（可选）；软删不物理删除记录。
+- 部署影响：需重新部署 `attendance` 云函数 + 前端包。**AI 未部署、未真机验证。**
+- 验证：`npm run test:unit` 245 项全绿（新增全勤口径守护 1 例）；`node --check` 通过。
+
 ### 订单列表页卡片底部操作区重排（修排版塌陷）
 
 - 背景：老板反馈订单列表（订单管理页 `pages/boss/orders`）每张卡片底部「查看详情 + 状态/完成/删除」排版乱——「查看详情」被右侧按钮挤成竖排单字，三个按钮 `flex-wrap` 换行堆叠，空间利用率低。codex 报告 6.3 也点了此处。

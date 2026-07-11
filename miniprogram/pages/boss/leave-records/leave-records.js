@@ -174,5 +174,21 @@ Page({
         this.setData({ submitting: false })
       })
     })
+  },
+
+  // 老板删除请假（员工提报的 + 老板代录的都可删）。软删，删后不再计入全勤。
+  onDeleteLeave(e) {
+    const id = e.currentTarget.dataset.id
+    const name = e.currentTarget.dataset.name || '该员工'
+    if (!id) return
+    showConfirm('删除请假', `确定删除${name}的这条请假吗？\n删除后该请假不再计入全勤统计。`).then((ok) => {
+      if (!ok) return
+      callCloud('attendance', { action: 'bossDeleteLeave', leave_id: id }).then(() => {
+        showSuccess('已删除')
+        this.load()
+      }).catch((err) => {
+        showError(err.message || '删除失败')
+      })
+    })
   }
 })
