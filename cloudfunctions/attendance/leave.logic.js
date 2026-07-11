@@ -28,6 +28,19 @@ function summarizeMonthLeave(records) {
   return map
 }
 
+// 今日请假人数：records 中 status==='active' 且 dates 含 today 的去重员工数。
+// 供老板首页考勤卡展示；来源不分（员工提报 + 老板代录都算），与全勤口径一致。
+function countTodayLeave(records, today) {
+  if (!today) return 0
+  const set = {}
+  ;(records || []).forEach(function (r) {
+    if (!r || r.status !== 'active' || !r.user_id) return
+    const dates = Array.isArray(r.dates) ? r.dates : []
+    if (dates.indexOf(today) >= 0) set[r.user_id] = true
+  })
+  return Object.keys(set).length
+}
+
 // 是否可撤销：仅当 active，且所有请假日期都在今天之后（> 今天，北京日期串 YYYY-MM-DD）。
 // 含今天（已开始）或含过去的请假，不允许员工自行撤销。
 function canCancelLeave(record, todayBeijing) {
@@ -59,6 +72,7 @@ function normalizeLeaveDates(dates, month) {
 module.exports = {
   countLeaveDays,
   summarizeMonthLeave,
+  countTodayLeave,
   canCancelLeave,
   normalizeLeaveDates
 }

@@ -3,6 +3,7 @@ const assert = require('node:assert')
 const {
   countLeaveDays,
   summarizeMonthLeave,
+  countTodayLeave,
   canCancelLeave,
   normalizeLeaveDates
 } = require('../cloudfunctions/attendance/leave.logic')
@@ -43,6 +44,20 @@ test('全勤口径不分来源：老板代录与员工提报都计入，删除(c
   assert.strictEqual(map.u1, 3)
   // u2：唯一一条已删除 → 不计入 → 视为全勤
   assert.strictEqual(map.u2, undefined)
+})
+
+test('countTodayLeave: 今日 active 请假去重人数，不分来源，cancelled/不含今日不计', () => {
+  const today = '2026-07-12'
+  const records = [
+    { user_id: 'u1', status: 'active', dates: ['2026-07-11', '2026-07-12'] },              // 含今日 → 计
+    { user_id: 'u1', status: 'active', dates: ['2026-07-12'], created_by_boss: true },      // 同员工另一条含今日 → 去重
+    { user_id: 'u2', status: 'active', dates: ['2026-07-12'] },                             // 含今日 → 计
+    { user_id: 'u3', status: 'active', dates: ['2026-07-13'] },                             // 不含今日 → 不计
+    { user_id: 'u4', status: 'cancelled', dates: ['2026-07-12'] }                           // 已删除 → 不计
+  ]
+  assert.strictEqual(countTodayLeave(records, today), 2) // u1、u2
+  assert.strictEqual(countTodayLeave(records, ''), 0)
+  assert.strictEqual(countTodayLeave(null, today), 0)
 })
 
 test('canCancelLeave: 全部未来可撤，含今天/过去不可撤', () => {

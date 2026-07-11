@@ -213,6 +213,7 @@ exports.main = async (event, context) => {
     case 'getMonthLeaveSummary': return await getMonthLeaveSummary(event, wxContext)
     case 'getLeaveRequestsForBoss': return await getLeaveRequestsForBoss(event, wxContext)
     case 'getUnreadLeaveCount': return await getUnreadLeaveCount(event, wxContext)
+    case 'getTodayLeaveCount': return await getTodayLeaveCount(event, wxContext)
     case 'markLeavesRead': return await markLeavesRead(event, wxContext)
     case 'bossAddLeave': return await bossAddLeave(event, wxContext)
     case 'bossDeleteLeave': return await bossDeleteLeave(event, wxContext)
@@ -1092,6 +1093,25 @@ async function getUnreadLeaveCount(event, wxContext) {
   } catch (err) {
     console.error('[attendance] getUnreadLeaveCount 失败', err)
     return { code: -1, msg: '获取未读数失败' }
+  }
+}
+
+// 老板首页考勤卡：今日请假人数（本月 active 记录中 dates 含今天，去重员工）
+async function getTodayLeaveCount(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  try {
+    const today = bjTime.getBeijingToday()
+    const month = bjTime.getBeijingMonth()
+    const list = await fetchAllDocs('LeaveRecords', {
+      org_id: getOrgId(caller),
+      month: month,
+      status: 'active'
+    })
+    return { code: 0, data: { count: leaveLogic.countTodayLeave(list, today) } }
+  } catch (err) {
+    console.error('[attendance] getTodayLeaveCount 失败', err)
+    return { code: -1, msg: '获取今日请假失败' }
   }
 }
 

@@ -92,7 +92,7 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/qc/home/home`：质检首页，待检/已检列表。
 - `pages/qc/inspect/inspect`：质检详情与提交。
 - `pages/platform/home/home`：平台管理，工厂列表、工厂资料、工厂管理员、订阅开通。
-- `pages/boss/home/home`：老板工作台。
+- `pages/boss/home/home`：老板工作台。「经营概览」是常用功能入口区，按老板点击频次动态排前 4（本地存储 `boss_menu_usage_<uid>`，纯函数 `utils/menu-usage.logic.js`；默认员工/考勤/报工/订单）；其中考勤卡显示今日出勤+今日请假人数+请假红点。
 - `pages/boss/subscription/subscription`：老板端服务状态与续费说明。
 - `pages/boss/employees/employees`：员工列表。
 - `pages/boss/employee-edit/employee-edit`：员工新增/编辑。
@@ -114,7 +114,7 @@ docs/                               项目文档、验收报告、审计报告
 
 - `login`：`login`、`changePassword`、`verifyToken`、`getConsentStatus`、`recordConsent`。
 - `user`：`list`、`listEmployees`、`get`、`create`、`update`、`updateStatus`、`resetPassword`、`updateJoinDate`。
-- `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`；**请假（LeaveRecords）**：`requestLeave`、`cancelLeave`、`getMyLeaves`（员工）、`getMonthLeaveSummary`、`getLeaveRequestsForBoss`、`getUnreadLeaveCount`、`markLeavesRead`、`bossAddLeave`（老板代员工补录，校验目标员工同 org、允许过去日期、标记 `created_by_boss`+操作人、自动已读）、`bossDeleteLeave`（老板删任意本厂请假=员工提报+代录，软删 status→cancelled，不限本人/日期）。纯逻辑见 `attendance/leave.logic.js`（日期口径）与前端 `utils/leave-calendar.logic.js`（日历渲染，`allowPast` 控制能否选过去日期）。**全勤口径不分来源**：`summarizeMonthLeave` 只按 `status==='active'` 统计，老板代录与员工提报同等计入「非全勤」，删除(cancelled)不计入。
+- `attendance`：`clockIn`、`clockOut`、`getTodayRecord`、`getMonthlyHours`、`getDailyRecords`、`getPeriodRecords`、`getAbnormalRecords`、`supplement`、`getUserMonthlyRecords`、`checkAbnormal`；**请假（LeaveRecords）**：`requestLeave`、`cancelLeave`、`getMyLeaves`（员工）、`getMonthLeaveSummary`、`getLeaveRequestsForBoss`、`getUnreadLeaveCount`、`getTodayLeaveCount`（今日请假去重人数，供首页考勤卡）、`markLeavesRead`、`bossAddLeave`（老板代员工补录，校验目标员工同 org、允许过去日期、标记 `created_by_boss`+操作人、自动已读）、`bossDeleteLeave`（老板删任意本厂请假=员工提报+代录，软删 status→cancelled，不限本人/日期）。纯逻辑见 `attendance/leave.logic.js`（日期口径）与前端 `utils/leave-calendar.logic.js`（日历渲染，`allowPast` 控制能否选过去日期）。**全勤口径不分来源**：`summarizeMonthLeave` 只按 `status==='active'` 统计，老板代录与员工提报同等计入「非全勤」，删除(cancelled)不计入。
 - `order`：`list`、`getDetail`、`create`、`updateOrder`、`copyOrder`、`updateStatus`、`deleteOrder`、`addProcess`、`updateProcessPrice`、`updateProcess`、`deleteProcess`、`assignProcess`、`batchAssignProcesses`、`getAssignedProcesses`、`togglePriceHidden`、`clearOrderPrices`、`clearOrderWorklogs`、`getPriceChangeLogs`。
 - `worklog`：`submit`、`getProcessQuota`、`getTodayEarnings`、`getUserLogs`、`getMonthLogs`、`getPeriodLogs`、`getManageLogs`、`getOrderProgress`、`getPendingLogs`、`getInspectedLogs`、`getLogDetail`、`inspect`、`updateWorkLog`、`deleteWorkLog`、`cancelOwnWorkLog`。
 - `salary`：`getUserMonthlySalary`、`getUserMonthlySalaryByBoss`、`getUserSalaryHistory`（员工工资档案：全部期次+累计总额，复用 calcUserSalary/calcUserOrderSalary 不新增口径）、`getAllMonthlySalary`、`getAllOrderSalary`、`getAllPeriodSalary`、`addAdjustment`、`updateAdjustment`、`deleteAdjustment`、`getAdjustments`、`getDashboard`、`markPaid`、`getPaidStatus`、`getUserPaymentRecords`、`getAvailableMonths`。
