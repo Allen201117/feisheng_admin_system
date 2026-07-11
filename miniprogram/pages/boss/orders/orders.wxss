@@ -132,15 +132,23 @@ button.orders-create-btn::after { border: none; }
 }
 
 .orders-tool-btn {
-  min-width: 96rpx;
-  min-height: 58rpx;
-  border-radius: 999rpx;
+  width: 100%;
+  min-width: 0;
+  min-height: 66rpx;
+  border-radius: 14rpx;
   border: none;
   background: var(--surface-strong);
   color: var(--text-primary);
-  font-size: 25rpx;
-  padding: 0 20rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
+
+.orders-tool-btn::after { border: none; }
 
 .orders-tool-btn.success {
   background: rgba(52,199,89,0.13);
@@ -155,26 +163,22 @@ button.orders-create-btn::after { border: none; }
 
 .orders-card-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
+  flex-direction: column;
+  gap: 14rpx;
   padding-top: 18rpx;
 }
 
 .orders-detail-hint {
-  flex: 1;
-  min-width: 0;
   color: #007AFF;
-  font-size: 26rpx;
+  font-size: 25rpx;
   font-weight: 600;
 }
 
+/* 三个操作按钮横向等宽一行，不再换行堆叠 */
 .orders-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10rpx;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
 }
 
 .badge.tag-success { background: var(--green-100); color: var(--green-600); }
