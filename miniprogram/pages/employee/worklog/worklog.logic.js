@@ -75,6 +75,18 @@ function getLogAmount(log) {
   return (Number(log && log.quantity) || 0) * (Number(log && log.snapshot_price) || 0)
 }
 
+// 历史报工明细单条金额展示文本（两位小数，隐藏时返回占位）。
+// 供页面写入视图字段，避免在 WXML 模板里直接做 quantity*snapshot_price 浮点运算。
+function formatLogAmountText(log) {
+  if (log && log.price_hidden === true) return '已隐藏'
+  return roundMoney(getLogAmount(log)).toFixed(2)
+}
+
+// 报工预估金额展示文本（两位小数）。口径：数量 × 有效工价（未发薪按当前价），与 §2.1 一致。
+function formatEstimateAmount(quantity, price) {
+  return roundMoney((Number(quantity) || 0) * (Number(price) || 0)).toFixed(2)
+}
+
 function buildWorklogHistoryView(logs) {
   const source = Array.isArray(logs) ? logs : []
   const groupMap = {}
@@ -142,5 +154,7 @@ module.exports = {
   normalizeAssignedProcessForEmployee,
   buildOrderProcessCards,
   filterEmployeeVisibleWorkLogs,
-  buildWorklogHistoryView
+  buildWorklogHistoryView,
+  formatLogAmountText,
+  formatEstimateAmount
 }

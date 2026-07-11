@@ -8,7 +8,9 @@ const {
   normalizeAssignedProcessForEmployee,
   buildOrderProcessCards,
   filterEmployeeVisibleWorkLogs,
-  buildWorklogHistoryView
+  buildWorklogHistoryView,
+  formatLogAmountText,
+  formatEstimateAmount
 } = require('../miniprogram/pages/employee/worklog/worklog.logic')
 
 const root = path.join(__dirname, '..')
@@ -84,6 +86,31 @@ test('buildWorklogHistoryView groups historical logs into process overview cards
   assert.equal(view.overviewCards[0].detailText, '2 条明细')
   assert.equal(view.overviewCards[0].lastText, '最近 2026-06-03')
   assert.equal(view.overviewCards[1].amountText, '金额已隐藏')
+})
+
+test('formatLogAmountText renders two-decimal money without float noise', () => {
+  // 0.33 * 80 在 JS 里 = 26.400000000000002，模板直接算会露出浮点尾巴
+  assert.equal(formatLogAmountText({ quantity: 80, snapshot_price: 0.33 }), '26.40')
+  assert.equal(formatLogAmountText({ quantity: 3, snapshot_price: 0.29 }), '0.87')
+  // amount 字段优先（后端已按有效结算价算好时）
+  assert.equal(formatLogAmountText({ quantity: 10, snapshot_price: 0.5, amount: 12.5 }), '12.50')
+  // 隐藏工价返回占位，不泄露金额
+  assert.equal(formatLogAmountText({ quantity: 80, snapshot_price: 0.33, price_hidden: true }), '已隐藏')
+})
+
+test('formatEstimateAmount renders two-decimal money without float noise', () => {
+  assert.equal(formatEstimateAmount(80, 0.33), '26.40')
+  assert.equal(formatEstimateAmount(3, 0.29), '0.87')
+  assert.equal(formatEstimateAmount(0, 1.5), '0.00')
+  assert.equal(formatEstimateAmount(10, undefined), '0.00')
+})
+
+test('employee money templates never compute amounts inline', () => {
+  const history = read('miniprogram/pages/employee/worklog-history/worklog-history.wxml')
+  const submit = read('miniprogram/pages/employee/worklog/worklog.wxml')
+  // 金额必须在 JS 视图层格式化后再进模板，禁止 {{ a * b }} 直接算金额露浮点
+  assert.doesNotMatch(history, /\{\{[^}]*quantity[^}]*\*[^}]*snapshot_price[^}]*\}\}/)
+  assert.doesNotMatch(submit, /\{\{[^}]*quantity[^}]*\*[^}]*current_price[^}]*\}\}/)
 })
 
 test('buildOrderProcessCards filters by order and keyword', () => {

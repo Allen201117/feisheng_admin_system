@@ -43,24 +43,6 @@
       </view>
       <switch checked="{{order.price_hidden}}" bindchange="onTogglePriceHidden" color="#34C759" />
     </view>
-
-    <!-- 工价管理操作 -->
-    <view class="order-action-panel">
-      <view class="order-action-grid">
-        <view class="order-action-item tappable" bindtap="onShowPriceHistory" hover-class="tap-row-hover">
-          <text class="order-action-title">工价记录</text>
-          <text class="order-action-desc">查看变更历史</text>
-        </view>
-        <view class="order-action-item tappable" bindtap="onShowProcessSummary" hover-class="tap-row-hover">
-          <text class="order-action-title">工序汇总</text>
-          <text class="order-action-desc">预览并导出</text>
-        </view>
-      </view>
-      <view class="order-danger-list" wx:if="{{order.status === 'active'}}">
-        <view class="order-danger-row tappable" bindtap="onClearAllPrices" hover-class="tap-row-hover">清空所有工价</view>
-        <view class="order-danger-row amber tappable" bindtap="onClearOrderWorklogs" hover-class="tap-row-hover">清空报工记录</view>
-      </view>
-    </view>
   </view>
 
   <!-- ========== 区块2：工序分配概览 ========== -->
@@ -160,6 +142,43 @@
 
     <view wx:if="{{hasMoreProcesses}}" class="card tappable flex-center" style="min-height:88rpx;padding:var(--sp-1);" bindtap="loadMoreProcesses">
       <text class="text-accent font-medium text-xs">已显示 {{displayedProcesses.length}} / {{filteredProcesses.length}} 道工序，点击加载更多</text>
+    </view>
+  </view>
+
+  <!-- ========== 区块4：订单管理（工具 + 危险操作分区） ========== -->
+  <view class="card-bento order-manage-card">
+    <text class="order-section-title">订单管理</text>
+
+    <view class="order-tool-grid">
+      <view class="order-tool-item tappable" bindtap="onShowPriceHistory" hover-class="tap-row-hover">
+        <text class="order-tool-title">工价记录</text>
+        <text class="order-tool-desc">查看变更历史</text>
+      </view>
+      <view class="order-tool-item tappable" bindtap="onShowProcessSummary" hover-class="tap-row-hover">
+        <text class="order-tool-title">工序汇总</text>
+        <text class="order-tool-desc">预览并导出</text>
+      </view>
+    </view>
+
+    <view class="order-danger-zone" wx:if="{{order.status === 'active'}}">
+      <view class="order-danger-zone-head">
+        <text class="order-danger-zone-title">危险操作</text>
+        <text class="order-danger-zone-desc">以下操作会永久删除数据且不可撤销，请谨慎</text>
+      </view>
+      <view class="order-danger-item">
+        <view class="order-danger-item-copy">
+          <text class="order-danger-item-title">清空所有工价</text>
+          <text class="order-danger-item-desc">移除本订单全部工序的工价，需重新设置</text>
+        </view>
+        <view class="order-danger-item-btn tappable" bindtap="onClearAllPrices" hover-class="tap-button-hover">清空</view>
+      </view>
+      <view class="order-danger-item">
+        <view class="order-danger-item-copy">
+          <text class="order-danger-item-title">清空报工记录</text>
+          <text class="order-danger-item-desc">删除本订单全部报工，工资与统计随之清零</text>
+        </view>
+        <view class="order-danger-item-btn tappable" bindtap="onClearOrderWorklogs" hover-class="tap-button-hover">清空</view>
+      </view>
     </view>
   </view>
 

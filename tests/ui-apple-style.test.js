@@ -166,7 +166,9 @@ test('screenshot-critical pages use compact grouped action layouts', () => {
   const employees = read('miniprogram/pages/boss/employees/employees.wxml')
   const worklog = read('miniprogram/pages/boss/worklog-manage/worklog-manage.wxml')
 
-  assert.match(orderDetail, /\border-action-panel\b/)
+  // 订单管理卡：工具操作与危险操作从概览卡拆出，危险操作独立分区（降低误触）
+  assert.match(orderDetail, /\border-manage-card\b/)
+  assert.match(orderDetail, /\border-danger-zone\b/)
   assert.match(orderDetail, /\bprocess-action-row\b/)
   assert.doesNotMatch(orderDetail, /一键清空报工记录/)
 
