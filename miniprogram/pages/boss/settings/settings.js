@@ -86,7 +86,7 @@ function buildHalfDayReport(data, applied) {
   let headline
   if (status === 'clean') headline = '没有要转换的老记录'
   else if (status === 'applied') headline = `已转换 ${data.applied || 0} 条` + ((data.failed || 0) > 0 ? `，${data.failed} 条失败` : '')
-  else headline = `找到 ${fixCount} 条其实是半天的老记录`
+  else headline = `找到 ${fixCount} 条要修的请假记录`
 
   return {
     status,
@@ -96,7 +96,10 @@ function buildHalfDayReport(data, applied) {
     rows: plan.map((item) => ({
       _id: item._id,
       title: `${item.user_name} ${formatLeaveDates(item.dates)}`,
-      detail: `备注「${item.reason}」· 请假 ${item.old_day_count} 天 → ${item.new_day_count} 天`,
+      // 两种要修的情况分开说清楚：备注里写着半天 / 时段和天数对不上
+      detail: item.fix_type === 'day_count'
+        ? `时段是${HALF_KIND_TEXT[item.kind] || '半天'}但天数按全天记着 · ${item.old_day_count} 天 → ${item.new_day_count} 天`
+        : `备注「${item.reason}」· 请假 ${item.old_day_count} 天 → ${item.new_day_count} 天`,
       kindText: HALF_KIND_TEXT[item.kind] || '半天'
     })),
     unmatched: unmatched.map((item) => ({
@@ -454,27 +457,35 @@ Page({
   },
 
   // ===== 历史半天请假识别（老数据迁移）=====
-  async onCheckLegacyHalfDay() {
-    this.setData({ halfDayChecking: true, halfDayReport: null })
-    showLoading('检查中...')
+  onCheckLegacyHalfDay() {
+    return this.runLegacyHalfDayCheck(false)
+  },
+
+  // silent=true：改完某一条之后的静默刷新。
+  // ⚠️ 不能让它再弹自己的 toast —— 之前就是这个 toast（「没有要转换的」）在几十毫秒内
+  // 盖掉了「已改为上午」的成功提示，看起来就像点了没反应。
+  async runLegacyHalfDayCheck(silent) {
+    this.setData({ halfDayChecking: true })
+    if (!silent) showLoading('检查中...')
     try {
       const res = await callCloud('attendance', { action: 'repairLegacyHalfDayLeaves', dry_run: true })
-      hideLoading()
+      if (!silent) hideLoading()
       const report = buildHalfDayReport(res.data || {}, false)
       this.setData({ halfDayChecking: false, halfDayReport: report })
+      if (silent) return
       if (report.status === 'clean') showSuccess('没有要转换的')
       else wx.showToast({ title: report.headline, icon: 'none', duration: 2500 })
     } catch (err) {
-      hideLoading()
+      if (!silent) hideLoading()
       this.setData({ halfDayChecking: false })
-      showError(err.message || '检查失败')
+      if (!silent) showError(err.message || '检查失败')
     }
   },
 
   async onApplyLegacyHalfDay() {
     const report = this.data.halfDayReport
     if (!report || !report.total_fix_count) return
-    const ok = await showConfirm('确认转换', `将把 ${report.total_fix_count} 条老请假从整天改成半天，请假天数会相应减半。全勤统计会跟着变。`)
+    const ok = await showConfirm('确认转换', `将修正 ${report.total_fix_count} 条请假记录的天数（备注里写着半天的转成半天，时段和天数对不上的按时段重算）。全勤统计会跟着变。`)
     if (!ok) return
 
     this.setData({ halfDayChecking: true })
@@ -526,7 +537,8 @@ Page({
         icon: 'none',
         duration: 2500
       })
-      this.onCheckLegacyHalfDay()
+      // 静默刷新：让下面那行的时段徽章跟着变，但别再弹一个 toast 把上面的成功提示盖掉
+      this.runLegacyHalfDayCheck(true)
     } catch (err) {
       hideLoading()
       showError(buildCloudActionError(err, 'attendance'))

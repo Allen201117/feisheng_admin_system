@@ -25,6 +25,20 @@
 - 数据/部署影响：需部署 `salary`、`order` 云函数（`export`/`leaderboard`/`worklog` 因共享 logic 副本同步部署）+ 前端包。**AI 未部署、未真机验证。**
 - 验证：`npm run test:unit` 259 项全绿（新增 `tests/settlement-repair.logic.test.js` 8 例，含线上脏数据形状复现：同工序两条报工分别冻结 ¥0.3 / ¥0.2、实发按当前价结算的对账修复）。
 
+### 再修改时段：成功提示被第二个 toast 盖掉 + half_days 与 day_count 对不上
+
+- 背景：老板反馈改完时段「提示的不是修改成功，而是没有可转换的」，并且列表里出现「上午 · 1 天」这种自相矛盾的行。
+- 根因：
+  1. **提示被盖**：`applyLeaveKind` 弹完「已改为上午」的 toast 之后立刻调 `onCheckLegacyHalfDay()`，后者又弹了自己的 toast（「没有要转换的」），几十毫秒内把前一个覆盖。上一轮只改了面板标题，没管这个嵌套 toast。
+  2. **两个字段对不上**：存在 `half_days` 已标半天、但 `day_count` 还是全天数值的记录，列表显示成「上午 · 1 天」，全勤天数也跟着多算。
+- 改动：
+  - `onCheckLegacyHalfDay` 拆出 `runLegacyHalfDayCheck(silent)`；改完某条之后走 `silent=true` 的静默刷新（只更新列表徽章，不弹 toast）。
+  - `planLegacyHalfDayMigration` 从「只认备注」扩展成两种修法，用 `fix_type` 区分：`reason`（备注里写着半天但按全天记）与 `day_count`（half_days 已标半天但天数没跟上，只修天数不动 half_days）。两种都只在「算出来的天数 ≠ 库里存的天数」时入清单，**仍然幂等**。
+  - 清单里 unmatched 行的天数改为按 `dates + half_days` **现算**，不直接读库里可能已经脏掉的 `day_count`。
+  - 检查结果标题、逐行说明、确认弹窗文案跟着改成覆盖两种情况。
+- 数据/部署影响：需重新部署 `attendance` 云函数 + 前端包。无数据迁移（修复由老板手动点触发、默认只读）。
+- 验证：`npm run test:unit` 294 项全绿（新增对账型修复 3 例，含两种修法的幂等验证）。
+
 ### 修「改时段点了像没生效」：保存成功被界面吃掉
 
 - 背景：老板反馈「历史半天请假」里点『改时段』无法保存，面板一直显示「没有要转换的老记录」。
