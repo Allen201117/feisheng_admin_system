@@ -183,9 +183,9 @@ test('迁移计划：备注写着上午的老记录转成半天，天数 1 → 0
   assert.equal(plan[0].new_day_count, 0.5)
 })
 
-test('迁移只碰没标过半天的记录：已用新功能标过的、备注读不出的、已撤销的都不动', () => {
+test('迁移不碰：已标过半天且天数对得上的、备注读不出的、已撤销的', () => {
   const plan = planLegacyHalfDayMigration([
-    // 已经用新功能标过半天 → 不动
+    // 已经标过半天且 day_count 对得上 → 不动
     { _id: 'done', status: 'active', user_id: 'u1', dates: ['2026-08-01'], half_days: { '2026-08-01': 'pm' }, day_count: 0.5, reason: '下午有事' },
     // 备注读不出半天 → 不动
     { _id: 'plain', status: 'active', user_id: 'u1', dates: ['2026-08-02'], day_count: 1, reason: '家里有事' },
@@ -229,4 +229,39 @@ test('迁移出来的 half（不知道哪半天）在日历上算半天，不算
   assert.equal(day.leave_kind, 'half')
   assert.equal(overview.employees[0].leave_days, 0.5)
   assert.equal(overview.employees[0].present_days, 30.5)
+})
+
+test('half_days 标了半天但 day_count 还是全天 → 认成对不上账，修 day_count 不动 half_days', () => {
+  // 线上真实踩到：列表上出现「上午 · 1 天」这种自相矛盾的行，全勤天数跟着多算
+  const plan = planLegacyHalfDayMigration([
+    { _id: 'bad', status: 'active', user_id: 'u1', user_name: '闫茹茹', dates: ['2026-07-01'], half_days: { '2026-07-01': 'am' }, day_count: 1, reason: '有事请假' }
+  ])
+  assert.equal(plan.length, 1)
+  assert.equal(plan[0].fix_type, 'day_count')
+  assert.equal(plan[0].kind, 'am')
+  assert.deepEqual(plan[0].half_days, { '2026-07-01': 'am' })  // half_days 保持不变
+  assert.equal(plan[0].old_day_count, 1)
+  assert.equal(plan[0].new_day_count, 0.5)
+})
+
+test('备注型迁移带上 fix_type=reason，跟对账型区分得开', () => {
+  const plan = planLegacyHalfDayMigration([
+    { _id: 'r1', status: 'active', user_id: 'u1', dates: ['2026-08-16'], day_count: 1, reason: '上午休息' }
+  ])
+  assert.equal(plan[0].fix_type, 'reason')
+})
+
+test('两种修法都幂等：修完再扫一遍都扫不出来', () => {
+  const records = [
+    { _id: 'a', status: 'active', user_id: 'u1', dates: ['2026-08-16'], day_count: 1, reason: '上午休息' },
+    { _id: 'b', status: 'active', user_id: 'u1', dates: ['2026-07-01'], half_days: { '2026-07-01': 'am' }, day_count: 1, reason: '有事请假' }
+  ]
+  const plan = planLegacyHalfDayMigration(records)
+  assert.equal(plan.length, 2)
+
+  const fixed = records.map((r) => {
+    const item = plan.find(p => p._id === r._id)
+    return { ...r, half_days: item.half_days, day_count: item.new_day_count }
+  })
+  assert.deepEqual(planLegacyHalfDayMigration(fixed), [])
 })

@@ -1328,7 +1328,9 @@ async function repairLegacyHalfDayLeaves(event, wxContext) {
           dates: r.dates || [],
           reason: r.reason || '',
           current_kind: uniform ? kinds[0] : 'full',
-          day_count: leaveLogic.countLeaveDays(r)
+          // 按 dates + half_days 现算，不直接读库里的 day_count ——
+          // 两者对不上的记录会被上面的 plan 捞去修，这里先按真实口径显示，别展示脏值
+          day_count: leaveLogic.computeLeaveDays(r.dates, half)
         }
       })
 

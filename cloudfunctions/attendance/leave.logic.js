@@ -55,24 +55,39 @@ function detectHalfDayFromReason(reason) {
   return ''
 }
 
-// 挑出「备注里其实写着半天、但库里按全天记着」的老记录，返回待迁移清单（纯函数）。
-// 只碰完全没有半天标记的记录：已经用新功能标过半天的一律不动，重复跑也不会改坏。
+// 挑出需要修的请假记录，返回待修清单（纯函数）。两种情况：
+//   fix_type='reason'   —— 备注里其实写着半天、但库里按全天记着（半天功能上线前的老数据）
+//   fix_type='day_count'—— half_days 已经标了半天，但 day_count 还是按全天记着（两个字段对不上）
+// 第二种是真实踩到的：列表上会出现「上午 · 1 天」这种自相矛盾的行，全勤天数也跟着多算。
+// 都只在「算出来的天数 ≠ 库里存的天数」时才进清单，所以幂等、可重复跑。
 function planLegacyHalfDayMigration(records) {
   const plan = []
   ;(records || []).forEach(function (r) {
     if (!r || r.status !== 'active') return
     const dates = Array.isArray(r.dates) ? r.dates : []
     if (dates.length === 0) return
+
     const existing = normalizeHalfDays(r.half_days, dates)
-    if (Object.keys(existing).length > 0) return // 已经标过半天，不动
-
-    const kind = detectHalfDayFromReason(r.reason)
-    if (!kind) return
-
-    const halfDays = {}
-    dates.forEach(function (d) { halfDays[String(d)] = kind })
-    const newDayCount = computeLeaveDays(dates, halfDays)
     const oldDayCount = countLeaveDays(r)
+
+    let halfDays
+    let kind
+    let fixType
+    if (Object.keys(existing).length > 0) {
+      // 已经标过半天：不动 half_days，只看 day_count 对不对得上
+      halfDays = existing
+      const kinds = Object.keys(existing).map(function (k) { return existing[k] })
+      kind = kinds.every(function (k) { return k === kinds[0] }) ? kinds[0] : 'half'
+      fixType = 'day_count'
+    } else {
+      kind = detectHalfDayFromReason(r.reason)
+      if (!kind) return
+      halfDays = {}
+      dates.forEach(function (d) { halfDays[String(d)] = kind })
+      fixType = 'reason'
+    }
+
+    const newDayCount = computeLeaveDays(dates, halfDays)
     if (newDayCount === oldDayCount) return
 
     plan.push({
@@ -83,6 +98,7 @@ function planLegacyHalfDayMigration(records) {
       dates: dates.slice(),
       reason: r.reason || '',
       kind: kind,
+      fix_type: fixType,
       half_days: halfDays,
       old_day_count: oldDayCount,
       new_day_count: newDayCount
