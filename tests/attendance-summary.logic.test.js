@@ -11,7 +11,9 @@ const {
   normalizeHalfDays,
   buildMonthLeaveMap,
   isFullAttendance,
-  countLeaveDays
+  countLeaveDays,
+  detectHalfDayFromReason,
+  planLegacyHalfDayMigration
 } = require('../cloudfunctions/attendance/leave.logic')
 
 test('getDaysInMonth 处理闰年二月', () => {
@@ -154,4 +156,77 @@ test('未来已报备的请假照样标红，不会因为日子没到就当成�
   // 未来的请假不计进「已出勤天数」，但计进全勤判定用的请假总天数
   assert.equal(overview.employees[0].present_days, 5)
   assert.equal(overview.employees[0].leave_days, 1)
+})
+
+// ===== 老数据迁移：半天功能上线前，「上午/下午」只能写在备注里 =====
+
+test('从备注认出半天：先认上午/下午，再兜底认「半天」，认不出返回空', () => {
+  assert.equal(detectHalfDayFromReason('上午休息'), 'am')
+  assert.equal(detectHalfDayFromReason('早上有事'), 'am')
+  assert.equal(detectHalfDayFromReason('下午看病'), 'pm')
+  assert.equal(detectHalfDayFromReason('后半天请假'), 'pm')
+  // 只说半天没说哪半 → 'half'，宁可标不确定也不瞎猜上午还是下午
+  assert.equal(detectHalfDayFromReason('请半天事假'), 'half')
+  assert.equal(detectHalfDayFromReason('感冒'), '')
+  assert.equal(detectHalfDayFromReason(''), '')
+  assert.equal(detectHalfDayFromReason(null), '')
+})
+
+test('迁移计划：备注写着上午的老记录转成半天，天数 1 → 0.5', () => {
+  const plan = planLegacyHalfDayMigration([
+    { _id: 'r1', status: 'active', user_id: 'u1', user_name: '张三', month: '2026-08', dates: ['2026-08-16'], day_count: 1, reason: '上午休息' }
+  ])
+  assert.equal(plan.length, 1)
+  assert.equal(plan[0].kind, 'am')
+  assert.deepEqual(plan[0].half_days, { '2026-08-16': 'am' })
+  assert.equal(plan[0].old_day_count, 1)
+  assert.equal(plan[0].new_day_count, 0.5)
+})
+
+test('迁移只碰没标过半天的记录：已用新功能标过的、备注读不出的、已撤销的都不动', () => {
+  const plan = planLegacyHalfDayMigration([
+    // 已经用新功能标过半天 → 不动
+    { _id: 'done', status: 'active', user_id: 'u1', dates: ['2026-08-01'], half_days: { '2026-08-01': 'pm' }, day_count: 0.5, reason: '下午有事' },
+    // 备注读不出半天 → 不动
+    { _id: 'plain', status: 'active', user_id: 'u1', dates: ['2026-08-02'], day_count: 1, reason: '家里有事' },
+    // 已撤销 → 不动
+    { _id: 'gone', status: 'cancelled', user_id: 'u1', dates: ['2026-08-03'], day_count: 1, reason: '上午休息' },
+    // 没备注 → 不动
+    { _id: 'noreason', status: 'active', user_id: 'u1', dates: ['2026-08-04'], day_count: 1 }
+  ])
+  assert.deepEqual(plan, [])
+})
+
+test('迁移可重复跑：转换过的记录第二次扫不出来（幂等）', () => {
+  const record = { _id: 'r1', status: 'active', user_id: 'u1', dates: ['2026-08-16'], day_count: 1, reason: '上午休息' }
+  const first = planLegacyHalfDayMigration([record])
+  assert.equal(first.length, 1)
+
+  // 模拟写库后的样子
+  const migrated = { ...record, half_days: first[0].half_days, day_count: first[0].new_day_count }
+  assert.deepEqual(planLegacyHalfDayMigration([migrated]), [])
+})
+
+test('一条请假带多天时，备注里的半天口径套用到这条记录的每一天', () => {
+  const plan = planLegacyHalfDayMigration([
+    { _id: 'r1', status: 'active', user_id: 'u1', dates: ['2026-08-10', '2026-08-11'], day_count: 2, reason: '下午有事' }
+  ])
+  assert.deepEqual(plan[0].half_days, { '2026-08-10': 'pm', '2026-08-11': 'pm' })
+  assert.equal(plan[0].new_day_count, 1)
+})
+
+test('迁移出来的 half（不知道哪半天）在日历上算半天，不算全天', () => {
+  const overview = buildMonthAttendanceOverview({
+    month: '2026-08',
+    today: '2026-08-31',
+    users: [{ _id: 'u1', name: '张三', role: 'employee' }],
+    leaves: [
+      { user_id: 'u1', status: 'active', dates: ['2026-08-05'], half_days: { '2026-08-05': 'half' }, day_count: 0.5, reason: '请半天' }
+    ]
+  })
+  const day = overview.employees[0].days.find(d => d.date === '2026-08-05')
+  assert.equal(day.status, 'half')
+  assert.equal(day.leave_kind, 'half')
+  assert.equal(overview.employees[0].leave_days, 0.5)
+  assert.equal(overview.employees[0].present_days, 30.5)
 })

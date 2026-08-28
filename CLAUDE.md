@@ -75,7 +75,9 @@
 
 ### 2.10 考勤 / 请假 / 全勤口径 ✅（2026-08-29 老板确认）
 - **全勤 = 当月 active 请假合计 ≤ 2 天**（此前口径是「一天都不能请」，已废弃）。阈值真源 `cloudfunctions/attendance/leave.logic.js` 的 `FULL_ATTENDANCE_MAX_LEAVE_DAYS`；前端 `miniprogram/utils/attendance-calendar.logic.js` 是同口径副本（同 beijing-time 模式），`tests/attendance-calendar.logic.test.js` 校验两边一致，**改一处必须同步另一处**。
-- **请假支持半天**：`LeaveRecords.half_days = { 'YYYY-MM-DD': 'am' | 'pm' }`，半天记 **0.5 天**；没有该字段的老记录一律当全天，向后兼容。前端交互是**连点同一天循环**：未选 → 全天 → 上午 → 下午 → 未选。
+- **请假支持半天**：`LeaveRecords.half_days = { 'YYYY-MM-DD': 'am' | 'pm' | 'half' }`，半天记 **0.5 天**；没有该字段的老记录一律当全天，向后兼容。前端交互是**连点同一天循环**：未选 → 全天 → 上午 → 下午 → 未选。
+  - `'half'` = **只知道是半天、不知道哪半天**，只会由老数据迁移产生（`detectHalfDayFromReason` 从备注里只读出「半天」二字时），UI 不产出这个值。日历标「半」角标。**宁可标不确定也不瞎猜上午还是下午。**
+- **历史半天请假迁移**：半天功能 2026-08-29 才上线，此前老板只能把「上午休息」写进备注、库里按整天记。`attendance.repairLegacyHalfDayLeaves`（boss only，默认 `dry_run`）用 `planLegacyHalfDayMigration` 从备注里认出半天并补 `half_days` + 重算 `day_count`。**只碰完全没有半天标记的 active 记录，幂等可重复跑**；备注读不出的单独列出来让老板删了重录。入口：老板端「设置 → 数据维护 → 历史半天请假」。
 - **考勤不看打卡，只看请假**（2026-08-29 老板口径，`暂时`如此）：工厂默认天天开工，**没请假就是出勤**。打卡数据照常采集、异常补签那条线还在用，但**不参与「这天算不算出勤」的判定**。想改回按打卡卡人，改 `attendance-summary.logic.js` 的 `buildDayStatuses` 一处即可。
 - **每天四态**（`attendance-summary.logic.js`）：`present` 已过去且没请假（**绿**）｜`leave` 全天请假（**红**）｜`half` 只请半天（**红绿对半** + 上/下角标）｜`future` 日期还没到且没报备请假（**不上色**）。未来的日子**不标绿**是有意的——把还没发生的日子标成出勤等于替员工保证他会来，是假数据；但**未来已报备的请假照样标红**。
 - 出勤天数只数已过去的日子：没请假记 1 天，请半天记 0.5 天。请假天数按整月算（含未来已报备的），用于全勤判定。

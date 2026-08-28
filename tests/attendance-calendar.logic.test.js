@@ -56,6 +56,15 @@ test('考勤日历补齐周内前导空格并翻译状态样式（只有绿/红�
   assert.equal(cells.find(c => c.key === '2026-08-20').statusClass, 'att-future')
 })
 
+test('老数据迁移出来的 half（不知道哪半天）在日历上标「半」角标', () => {
+  const cells = buildAttendanceCalendar('2026-08', [
+    { day: 5, date: '2026-08-05', status: 'half', leave_kind: 'half', is_today: false }
+  ])
+  const d5 = cells.find(c => c.key === '2026-08-05')
+  assert.equal(d5.statusClass, 'att-half')
+  assert.equal(d5.badge, '半')
+})
+
 test('天数文案：0.5 天说人话叫「半天」', () => {
   assert.equal(formatDays(0), '0天')
   assert.equal(formatDays(0.5), '半天')

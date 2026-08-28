@@ -134,10 +134,13 @@
     </view>
   </view>
 
-  <!-- 数据体检 -->
+  <!-- ============ 数据维护 ============ -->
+  <text class="settings-section">数据维护</text>
+
+  <!-- 结算价对账 -->
   <view class="card-bento">
     <view class="settings-head">
-      <text class="settings-title">数据体检</text>
+      <text class="settings-title">结算价对账</text>
     </view>
     <text class="settings-desc">检查历史报工的结算价有没有跟工序当前工价对齐。改过工价的老数据会在这里被找出来，确认后可一键对齐。</text>
     <button class="btn btn-outline btn-block" bindtap="onCheckSettlementPrices" disabled="{{repairing}}" hover-class="tap-button-hover">{{repairing ? '检查中...' : '检查结算价'}}</button>
@@ -168,6 +171,43 @@
       </view>
 
       <button wx:if="{{repairReport.total_fix_count > 0}}" class="btn-primary btn-block settings-gap" bindtap="onApplySettlementRepair" disabled="{{repairing}}" hover-class="tap-button-hover">一键对齐这 {{repairReport.total_fix_count}} 条</button>
+    </view>
+  </view>
+
+  <!-- 历史半天请假识别 -->
+  <view class="card-bento">
+    <view class="settings-head">
+      <text class="settings-title">历史半天请假</text>
+    </view>
+    <text class="settings-desc">半天请假是新功能。在这之前记的假，「上午/下午」只能写在备注里，系统按整天算。这里把备注里能读出半天的老记录找出来，转成真正的半天（请假天数会从 1 天变 0.5 天）。</text>
+    <button class="btn btn-outline btn-block" bindtap="onCheckLegacyHalfDay" disabled="{{halfDayChecking}}" hover-class="tap-button-hover">{{halfDayChecking ? '检查中...' : '检查历史请假备注'}}</button>
+
+    <view wx:if="{{halfDayReport}}" class="settings-gap">
+      <view class="settings-result {{halfDayReport.status === 'dirty' ? 'is-warn' : 'is-ok'}}">
+        <text class="settings-result-icon">{{halfDayReport.status === 'dirty' ? '!' : '✓'}}</text>
+        <view class="flex-1">
+          <text class="settings-result-title">{{halfDayReport.headline}}</text>
+          <text class="settings-result-desc">{{halfDayReport.summaryText}}</text>
+        </view>
+      </view>
+
+      <view wx:for="{{halfDayReport.rows}}" wx:key="_id" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.title}}</text>
+          <text class="list-row-subtitle">{{item.detail}}</text>
+        </view>
+        <text class="badge badge-amber">{{item.kindText}}</text>
+      </view>
+
+      <view wx:if="{{halfDayReport.unmatched.length > 0}}" class="notice notice-amber settings-gap-sm">下面这些备注读不出是不是半天，没有动。确实是半天的，删了重新按半天录一次：</view>
+      <view wx:for="{{halfDayReport.unmatched}}" wx:key="_id" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.title}}</text>
+          <text class="list-row-subtitle">备注：{{item.reason}}</text>
+        </view>
+      </view>
+
+      <button wx:if="{{halfDayReport.total_fix_count > 0}}" class="btn-primary btn-block settings-gap" bindtap="onApplyLegacyHalfDay" disabled="{{halfDayChecking}}" hover-class="tap-button-hover">转换这 {{halfDayReport.total_fix_count}} 条</button>
     </view>
   </view>
 

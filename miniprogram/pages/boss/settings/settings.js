@@ -57,10 +57,52 @@ function buildRepairReport(data, applied) {
   }
 }
 
+// 历史半天请假迁移报告 → 可直接渲染的文案
+const HALF_KIND_TEXT = { am: '上午', pm: '下午', half: '半天' }
+
+function formatLeaveDates(dates) {
+  return (dates || []).map((d) => {
+    const p = String(d).split('-')
+    return parseInt(p[1], 10) + '月' + parseInt(p[2], 10) + '日'
+  }).join('、')
+}
+
+function buildHalfDayReport(data, applied) {
+  const plan = data.plan || []
+  const unmatched = data.unmatched || []
+  const fixCount = data.total_fix_count || 0
+  const status = applied ? 'applied' : (fixCount === 0 ? 'clean' : 'dirty')
+
+  let headline
+  if (status === 'clean') headline = '没有要转换的老记录'
+  else if (status === 'applied') headline = `已转换 ${data.applied || 0} 条` + ((data.failed || 0) > 0 ? `，${data.failed} 条失败` : '')
+  else headline = `找到 ${fixCount} 条其实是半天的老记录`
+
+  return {
+    status,
+    total_fix_count: fixCount,
+    headline,
+    summaryText: `扫描请假记录 ${data.scanned || 0} 条 · 读不出半天的 ${unmatched.length} 条`,
+    rows: plan.map((item) => ({
+      _id: item._id,
+      title: `${item.user_name} ${formatLeaveDates(item.dates)}`,
+      detail: `备注「${item.reason}」· 请假 ${item.old_day_count} 天 → ${item.new_day_count} 天`,
+      kindText: HALF_KIND_TEXT[item.kind] || '半天'
+    })),
+    unmatched: unmatched.map((item) => ({
+      _id: item._id,
+      title: `${item.user_name} ${formatLeaveDates(item.dates)}`,
+      reason: item.reason
+    }))
+  }
+}
+
 Page({
   data: {
     repairing: false,
     repairReport: null,
+    halfDayChecking: false,
+    halfDayReport: null,
     checkpointTotal: 0,
     factory_latitude: '',
     factory_longitude: '',
@@ -394,6 +436,45 @@ Page({
       hideLoading()
       this.setData({ repairing: false })
       showError(err.message || '对齐失败')
+    }
+  },
+
+  // ===== 历史半天请假识别（老数据迁移）=====
+  async onCheckLegacyHalfDay() {
+    this.setData({ halfDayChecking: true, halfDayReport: null })
+    showLoading('检查中...')
+    try {
+      const res = await callCloud('attendance', { action: 'repairLegacyHalfDayLeaves', dry_run: true })
+      hideLoading()
+      const report = buildHalfDayReport(res.data || {}, false)
+      this.setData({ halfDayChecking: false, halfDayReport: report })
+      if (report.status === 'clean') showSuccess('没有要转换的')
+      else wx.showToast({ title: report.headline, icon: 'none', duration: 2500 })
+    } catch (err) {
+      hideLoading()
+      this.setData({ halfDayChecking: false })
+      showError(err.message || '检查失败')
+    }
+  },
+
+  async onApplyLegacyHalfDay() {
+    const report = this.data.halfDayReport
+    if (!report || !report.total_fix_count) return
+    const ok = await showConfirm('确认转换', `将把 ${report.total_fix_count} 条老请假从整天改成半天，请假天数会相应减半。全勤统计会跟着变。`)
+    if (!ok) return
+
+    this.setData({ halfDayChecking: true })
+    showLoading('转换中...')
+    try {
+      const res = await callCloud('attendance', { action: 'repairLegacyHalfDayLeaves', dry_run: false })
+      hideLoading()
+      const next = buildHalfDayReport(res.data || {}, true)
+      this.setData({ halfDayChecking: false, halfDayReport: next })
+      showSuccess(next.headline)
+    } catch (err) {
+      hideLoading()
+      this.setData({ halfDayChecking: false })
+      showError(err.message || '转换失败')
     }
   },
 
