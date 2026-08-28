@@ -137,3 +137,21 @@
   font-size: 24rpx;
   font-weight: 600;
 }
+
+/* 半天请假：连点日期在 全天/上午/下午 间循环，半天用浅底+角标区分于全天的实心蓝 */
+.leave-day-inner { position: relative; }
+.leave-day.selected.half .leave-day-inner {
+  background: var(--blue-50);
+  color: var(--blue-600);
+  border: 2rpx solid var(--blue-500);
+  box-shadow: none;
+}
+.leave-day-half {
+  position: absolute;
+  right: -6rpx; bottom: -6rpx;
+  min-width: 28rpx; height: 28rpx;
+  padding: 0 4rpx;
+  border-radius: 999rpx;
+  background: var(--blue-600); color: #fff;
+  font-size: 18rpx; line-height: 28rpx; text-align: center;
+}

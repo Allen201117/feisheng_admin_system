@@ -14,20 +14,23 @@
 
     <view class="leave-grid">
       <view wx:for="{{cells}}" wx:key="key"
-            class="leave-day {{item.empty ? 'empty' : ''}} {{item.selected ? 'selected' : ''}} {{!item.empty && !item.selectable ? 'disabled' : ''}} {{item.isToday ? 'today' : ''}}"
+            class="leave-day {{item.empty ? 'empty' : ''}} {{item.selected ? 'selected' : ''}} {{item.half ? 'half' : ''}} {{!item.empty && !item.selectable ? 'disabled' : ''}} {{item.isToday ? 'today' : ''}}"
             bindtap="onDayTap" data-cell="{{item}}">
-        <view wx:if="{{!item.empty}}" class="leave-day-inner">{{item.day}}</view>
+        <view wx:if="{{!item.empty}}" class="leave-day-inner">
+          <text>{{item.day}}</text>
+          <text wx:if="{{item.halfLabel}}" class="leave-day-half">{{item.halfLabel}}</text>
+        </view>
       </view>
     </view>
 
-    <view class="leave-summary" wx:if="{{selectedDates.length > 0}}">已选 {{selectedSummary}} · 共 {{selectedDates.length}} 天</view>
-    <view class="leave-summary muted" wx:else>点日历上的日期选择请假（可多选）</view>
+    <view class="leave-summary" wx:if="{{selectedCount > 0}}">已选 {{selectedSummary}} · 共 {{selectedDayCount}} 天</view>
+    <view class="leave-summary muted" wx:else>点日期选请假：连点切换 全天 → 上午 → 下午 → 取消</view>
 
     <view class="field-group" style="margin-top:var(--sp-2);">
       <input class="field-input" placeholder="请假原因（选填，如 事假/病假）" value="{{reason}}" bindinput="onReasonInput" maxlength="50" />
     </view>
 
-    <button class="btn-primary btn-block {{selectedDates.length === 0 || submitting ? 'btn-disabled' : ''}}" bindtap="onSubmit">{{submitting ? '提交中...' : '提交请假'}}</button>
+    <button class="btn-primary btn-block {{selectedCount === 0 || submitting ? 'btn-disabled' : ''}}" bindtap="onSubmit">{{submitting ? '提交中...' : '提交请假'}}</button>
   </view>
 
   <!-- 我的请假 -->

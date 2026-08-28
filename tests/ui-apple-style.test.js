@@ -218,7 +218,7 @@ test('long list pages expose keyword search when no specialized search exists', 
 
 test('secondary long list pages also expose keyword search', () => {
   const pages = [
-    ['miniprogram/pages/boss/attendance/attendance.wxml', 'onAttendanceSearchInput', 'clearAttendanceSearch', '搜索姓名、日期、状态'],
+    ['miniprogram/pages/boss/attendance/attendance.wxml', 'onAttendanceSearchInput', 'clearAttendanceSearch', '搜索员工姓名'],
     ['miniprogram/pages/boss/salary-detail/salary-detail.wxml', 'onSalaryDetailSearchInput', 'clearSalaryDetailSearch', '搜索订单、工序、日期、奖惩原因'],
     ['miniprogram/pages/boss/export/export.wxml', 'onExportHistorySearchInput', 'clearExportHistorySearch', '搜索导出文件、类型、时间'],
     ['miniprogram/pages/boss/leaderboard/leaderboard.wxml', 'onRankSearchInput', 'clearRankSearch', '搜索员工姓名'],

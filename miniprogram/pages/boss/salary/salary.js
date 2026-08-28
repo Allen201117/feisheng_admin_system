@@ -1,6 +1,7 @@
 // pages/boss/salary/salary.js
 const { callCloud, showError, formatMoney } = require('../../../utils/util')
 const { filterListByKeyword } = require('../../../utils/list-search')
+const { isFullAttendance, formatDays } = require('../../../utils/attendance-calendar.logic')
 
 const SALARY_SEARCH_FIELDS = [
   'user_name',
@@ -186,6 +187,8 @@ Page({
         const isPaid = !!(paidMap[emp.user_id] && paidMap[emp.user_id].paid)
         if (isPaid) paidCount++
         const leaveDays = leaveMap[emp.user_id] || 0
+        // 全勤口径：当月请假合计 ≤ 2 天仍算全勤（2026-08-29 老板口径，半天记 0.5 天）
+        const attendFull = isFullAttendance(leaveDays)
         return {
           ...emp,
           baseSalary: formatMoney(emp.piece_rate || 0),
@@ -193,8 +196,8 @@ Page({
           finalSalary: formatMoney(emp.total || 0),
           paid: isPaid,
           leaveDays: leaveDays,
-          attendFull: leaveDays === 0,
-          attendBadgeText: leaveDays === 0 ? '全勤' : ('请假' + leaveDays + '天')
+          attendFull: attendFull,
+          attendBadgeText: leaveDays === 0 ? '全勤' : ('请假' + formatDays(leaveDays) + (attendFull ? '·全勤' : ''))
         }
       })
       this.setData({
