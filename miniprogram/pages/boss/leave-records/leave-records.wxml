@@ -30,6 +30,7 @@
       <text class="leave-dates">{{item.datesText}}</text>
       <text wx:if="{{item.reason}}" class="leave-reason">原因：{{item.reason}}</text>
       <view class="leave-item-actions">
+        <view class="leave-kind-btn tappable" catchtap="onFixLeaveKind" data-id="{{item._id}}" data-name="{{item.user_name}}" hover-class="tap-button-hover">改时段</view>
         <view class="leave-del-btn tappable" catchtap="onDeleteLeave" data-id="{{item._id}}" data-name="{{item.user_name}}" hover-class="tap-button-hover">删除</view>
       </view>
     </view>
@@ -67,6 +68,15 @@
           <view class="leave-cal-nav" bindtap="onAddNextMonth" hover-class="tap-chip-hover">›</view>
         </view>
 
+        <view class="leave-kind-row">
+          <text class="leave-kind-label">请假时段</text>
+          <view class="leave-kind-seg">
+            <view wx:for="{{leaveKinds}}" wx:for-item="k" wx:key="value"
+                  class="leave-kind-item {{addKind === k.value ? 'active' : ''}}"
+                  data-kind="{{k.value}}" bindtap="onAddKindTap" hover-class="tap-chip-hover">{{k.label}}</view>
+          </view>
+        </view>
+
         <view class="leave-week">
           <text wx:for="{{weekHeaders}}" wx:key="*this" class="leave-week-cell">{{item}}</text>
         </view>
@@ -83,7 +93,7 @@
         </view>
 
         <view class="leave-summary" wx:if="{{addSelectedCount > 0}}">已选 {{addSummary}} · 共 {{addDayCount}} 天</view>
-        <view class="leave-summary muted" wx:else>点日期选请假：连点切换 全天 → 上午 → 下午 → 取消</view>
+        <view class="leave-summary muted" wx:else>先选上面的时段，再点日历上要请假的日子（可多选）</view>
 
         <view class="field-group" style="margin-top:var(--sp-2);">
           <input class="field-input" placeholder="请假原因（选填，如 事假/病假）" value="{{addReason}}" bindinput="onAddReasonInput" maxlength="50" />

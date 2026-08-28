@@ -10,7 +10,8 @@ const {
   FULL_ATTENDANCE_MAX_LEAVE_DAYS
 } = require('../miniprogram/utils/attendance-calendar.logic')
 const {
-  cycleLeaveSelection,
+  applyLeaveKind,
+  LEAVE_KINDS,
   selectionDates,
   selectionHalfDays,
   selectionDayCount,
@@ -116,16 +117,37 @@ test('概览文案', () => {
   assert.equal(text.leaveTodayText, '1')
 })
 
-test('请假选中态连点循环：未选 → 全天 → 上午 → 下午 → 未选', () => {
+test('请假时段三选一：全天/上午/下午', () => {
+  assert.deepEqual(LEAVE_KINDS.map(k => k.value), ['full', 'am', 'pm'])
+})
+
+test('按当前时段点日期：没选过→选上，同时段再点→取消，不同时段→直接改过去', () => {
   let sel = {}
-  sel = cycleLeaveSelection(sel, '2026-08-01')
+  // 没选过 → 按当前时段选上
+  sel = applyLeaveKind(sel, '2026-08-01', 'full')
   assert.equal(sel['2026-08-01'], 'full')
-  sel = cycleLeaveSelection(sel, '2026-08-01')
-  assert.equal(sel['2026-08-01'], 'am')
-  sel = cycleLeaveSelection(sel, '2026-08-01')
-  assert.equal(sel['2026-08-01'], 'pm')
-  sel = cycleLeaveSelection(sel, '2026-08-01')
+  // 已选且同时段 → 取消
+  sel = applyLeaveKind(sel, '2026-08-01', 'full')
   assert.equal(sel['2026-08-01'], undefined)
+  // 不同时段 → 不用先取消，直接改过去
+  sel = applyLeaveKind(sel, '2026-08-02', 'am')
+  assert.equal(sel['2026-08-02'], 'am')
+  sel = applyLeaveKind(sel, '2026-08-02', 'pm')
+  assert.equal(sel['2026-08-02'], 'pm')
+  sel = applyLeaveKind(sel, '2026-08-02', 'full')
+  assert.equal(sel['2026-08-02'], 'full')
+})
+
+test('一次请假可以混着选：3 号全天 + 5 号上午', () => {
+  let sel = applyLeaveKind({}, '2026-08-03', 'full')
+  sel = applyLeaveKind(sel, '2026-08-05', 'am')
+  assert.deepEqual(sel, { '2026-08-03': 'full', '2026-08-05': 'am' })
+  assert.equal(selectionDayCount(sel), 1.5)
+})
+
+test('非法时段一律按全天处理，不让脏值进选中态', () => {
+  const sel = applyLeaveKind({}, '2026-08-01', 'evening')
+  assert.equal(sel['2026-08-01'], 'full')
 })
 
 test('选中态：天数统计半天记 0.5，只把半天项发给云函数', () => {

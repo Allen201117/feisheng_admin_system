@@ -199,12 +199,13 @@
         <text class="badge badge-amber">{{item.kindText}}</text>
       </view>
 
-      <view wx:if="{{halfDayReport.unmatched.length > 0}}" class="notice notice-amber settings-gap-sm">下面这些备注读不出是不是半天，没有动。确实是半天的，删了重新按半天录一次：</view>
+      <view wx:if="{{halfDayReport.unmatched.length > 0}}" class="notice notice-amber settings-gap-sm">下面这些备注看不出是不是半天，都按全天算着。本来就是全天的（事假 / 病假 / 有事）不用管；确实是半天的，点右边「改时段」。</view>
       <view wx:for="{{halfDayReport.unmatched}}" wx:key="_id" class="list-row">
         <view class="flex-1">
           <text class="list-row-title">{{item.title}}</text>
           <text class="list-row-subtitle">备注：{{item.reason}}</text>
         </view>
+        <text class="settings-inline-btn" data-id="{{item._id}}" data-title="{{item.title}}" bindtap="onFixLeaveKind" hover-class="tap-chip-hover">改时段</text>
       </view>
 
       <button wx:if="{{halfDayReport.total_fix_count > 0}}" class="btn-primary btn-block settings-gap" bindtap="onApplyLegacyHalfDay" disabled="{{halfDayChecking}}" hover-class="tap-button-hover">转换这 {{halfDayReport.total_fix_count}} 条</button>

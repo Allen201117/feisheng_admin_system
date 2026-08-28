@@ -6,7 +6,10 @@
 //   因为老板代录的本质是补登已发生的请假。
 //
 // 半天请假（2026-08-29）：选中状态不再是「选没选」两态，而是一个 { [date]: 'full'|'am'|'pm' } 映射。
-// 交互上不加控件，直接**连点同一天循环切换**：未选 → 全天 → 上午 → 下午 → 未选。
+// 交互：页面上先选「本次请假时段」（全天 / 上午 / 下午 三个按钮），再点日历上的日期。
+//   点一个没选过的日子 → 按当前时段选上
+//   点一个已选中、且时段相同的日子 → 取消
+//   点一个已选中、但时段不同的日子 → 改成当前时段（不用先取消再点）
 // 老接口传数组（['2026-08-01', ...]）仍然可用，一律当全天，向后兼容。
 
 function isLeap(y) {
@@ -44,15 +47,20 @@ function normalizeSelection(selection) {
   return out
 }
 
-// 连点循环：未选 → 全天 → 上午 → 下午 → 未选。返回新映射（不改原对象）。
-const LEAVE_CYCLE = { '': 'full', full: 'am', am: 'pm', pm: '' }
+// 可选的请假时段（页面上的三个按钮）
+const LEAVE_KINDS = [
+  { value: 'full', label: '全天' },
+  { value: 'am', label: '上午' },
+  { value: 'pm', label: '下午' }
+]
 
-function cycleLeaveSelection(selection, dateStr) {
+// 按当前时段点一个日期：没选过→选上；已选且同时段→取消；已选但不同时段→直接改成当前时段。
+// 返回新映射（不改原对象）。
+function applyLeaveKind(selection, dateStr, kind) {
   const next = normalizeSelection(selection)
-  const cur = next[dateStr] || ''
-  const to = LEAVE_CYCLE[cur]
-  if (to) next[dateStr] = to
-  else delete next[dateStr]
+  const target = kind === 'am' || kind === 'pm' ? kind : 'full'
+  if (next[dateStr] === target) delete next[dateStr]
+  else next[dateStr] = target
   return next
 }
 
@@ -139,7 +147,8 @@ module.exports = {
   firstWeekday,
   daysInMonth,
   normalizeSelection,
-  cycleLeaveSelection,
+  LEAVE_KINDS,
+  applyLeaveKind,
   selectionDates,
   selectionHalfDays,
   selectionDayCount,

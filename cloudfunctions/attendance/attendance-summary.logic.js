@@ -13,7 +13,7 @@
 //   half    半天 —— 当天只请了半天（红绿对半，角标标上午/下午）
 //   future  未到 —— 日期还没到且没报备请假（不上色；标成绿色等于替他保证会来，是假数据）
 
-const { buildMonthLeaveMap, countLeaveDays, isFullAttendance } = require('./leave.logic')
+const { buildMonthLeaveMap, summarizeMonthLeave, isFullAttendance } = require('./leave.logic')
 
 function isLeap(y) {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
@@ -79,7 +79,7 @@ function buildLeaveDetails(leaves, userId) {
     const dates = Array.isArray(r.dates) ? r.dates : []
     const half = (r.half_days && typeof r.half_days === 'object') ? r.half_days : {}
     dates.forEach((d) => {
-      const kind = half[d] === 'am' || half[d] === 'pm' ? half[d] : 'full'
+      const kind = (half[d] === 'am' || half[d] === 'pm' || half[d] === 'half') ? half[d] : 'full'
       rows.push({
         date: String(d),
         kind,
@@ -100,12 +100,11 @@ function buildMonthAttendanceOverview(input) {
   const users = (input && input.users) || []
   const leaves = (input && input.leaves) || []
 
+  // 请假天数按「去重后的日期」算，不是把多条记录的 day_count 相加 ——
+  // 实际数据里同一员工同一天被两条请假记录覆盖是存在的（见 summarizeMonthLeave 注释），
+  // 直接相加会多算天数，把本来全勤的人误判成不全勤。
   const leaveMap = buildMonthLeaveMap(leaves)
-  const leaveDaysByUser = {}
-  leaves.forEach((r) => {
-    if (!r || r.status !== 'active' || !r.user_id) return
-    leaveDaysByUser[r.user_id] = (leaveDaysByUser[r.user_id] || 0) + countLeaveDays(r)
-  })
+  const leaveDaysByUser = summarizeMonthLeave(leaves)
 
   const elapsed = countElapsedDays(month, today)
 
