@@ -58,7 +58,17 @@ function buildRepairReport(data, applied) {
 }
 
 // 历史半天请假迁移报告 → 可直接渲染的文案
-const HALF_KIND_TEXT = { am: '上午', pm: '下午', half: '半天' }
+const HALF_KIND_TEXT = { am: '上午', pm: '下午', half: '半天', full: '全天' }
+
+// 云函数还没重新上传时会返回「未知操作」，直接把这句话翻译成能照做的提示，
+// 免得看到一句「未知操作」不知道是代码坏了还是没部署。
+function buildCloudActionError(err, fnName) {
+  const msg = (err && err.message) || '操作失败'
+  if (msg.indexOf('未知操作') >= 0) {
+    return `${fnName} 云函数还是旧版本，请在开发者工具里右键 cloudfunctions/${fnName} 重新上传并部署`
+  }
+  return msg
+}
 
 function formatLeaveDates(dates) {
   return (dates || []).map((d) => {
@@ -82,7 +92,7 @@ function buildHalfDayReport(data, applied) {
     status,
     total_fix_count: fixCount,
     headline,
-    summaryText: `扫描请假记录 ${data.scanned || 0} 条 · 读不出半天的 ${unmatched.length} 条`,
+    summaryText: `扫描请假记录 ${data.scanned || 0} 条 · 需你自己判断的 ${data.unmatched_total || unmatched.length} 条`,
     rows: plan.map((item) => ({
       _id: item._id,
       title: `${item.user_name} ${formatLeaveDates(item.dates)}`,
@@ -92,7 +102,11 @@ function buildHalfDayReport(data, applied) {
     unmatched: unmatched.map((item) => ({
       _id: item._id,
       title: `${item.user_name} ${formatLeaveDates(item.dates)}`,
-      reason: item.reason
+      reason: item.reason,
+      // 当前时段直接显示出来：老板点完「改时段」能亲眼看到这里从「全天」变成「上午」
+      kindText: HALF_KIND_TEXT[item.current_kind] || '全天',
+      kindClass: item.current_kind && item.current_kind !== 'full' ? 'badge-amber' : 'badge-slate',
+      dayText: `${item.day_count} 天`
     }))
   }
 }
@@ -503,13 +517,19 @@ Page({
   async applyLeaveKind(leaveId, kind, title) {
     showLoading('保存中...')
     try {
-      await callCloud('attendance', { action: 'updateLeaveHalfDay', leave_id: leaveId, kind })
+      const res = await callCloud('attendance', { action: 'updateLeaveHalfDay', leave_id: leaveId, kind })
       hideLoading()
-      showSuccess(`${title} 已更新`)
+      const days = res.data && res.data.day_count
+      // 报清楚改成了什么、天数变成多少；下面列表里那一行的时段徽章也会跟着变
+      wx.showToast({
+        title: `${title} → ${HALF_KIND_TEXT[kind] || '全天'}${days === undefined ? '' : '，' + days + '天'}`,
+        icon: 'none',
+        duration: 2500
+      })
       this.onCheckLegacyHalfDay()
     } catch (err) {
       hideLoading()
-      showError(err.message || '修改失败')
+      showError(buildCloudActionError(err, 'attendance'))
     }
   },
 
