@@ -25,6 +25,19 @@
 - 数据/部署影响：需部署 `salary`、`order` 云函数（`export`/`leaderboard`/`worklog` 因共享 logic 副本同步部署）+ 前端包。**AI 未部署、未真机验证。**
 - 验证：`npm run test:unit` 259 项全绿（新增 `tests/settlement-repair.logic.test.js` 8 例，含线上脏数据形状复现：同工序两条报工分别冻结 ¥0.3 / ¥0.2、实发按当前价结算的对账修复）。
 
+### 考勤管理重做：按月员工列表 + 日历抽屉 + 半天请假 + 全勤口径改为「月请假 ≤ 2 天」
+
+- 背景：老板反馈考勤页只能一天一天翻，看不出「这个月谁全勤谁不全勤」，也没法下钻看某个人整月的出勤情况；同时请假只能整天请，且全勤口径过严（请一天就不全勤）。
+- 改动：
+  - **口径（CLAUDE.md 新增 §2.10）**：全勤 = 当月 active 请假合计 **≤ 2 天**（半天记 0.5 天）。阈值真源 `attendance/leave.logic.js` 的 `FULL_ATTENDANCE_MAX_LEAVE_DAYS`，前端 `utils/attendance-calendar.logic.js` 同口径副本，测试校验两边一致。
+  - **半天请假**：`LeaveRecords` 新增 `half_days = { 'YYYY-MM-DD': 'am'|'pm' }`，`day_count` 改为可含 0.5；没有该字段的老记录一律当全天，向后兼容。`requestLeave` / `bossAddLeave` 接收并 `normalizeHalfDays` 清洗（只认 dates 里存在且值为 am/pm 的项）。交互不加控件，**连点同一天循环**：未选 → 全天 → 上午 → 下午 → 未选，员工请假页与老板代录页共用 `utils/leave-calendar.logic.js` 同一套选中态算法（顺带把员工页里重复实现的一套日历算法删掉，改为复用）。
+  - **新云函数 action `attendance.getMonthAttendanceOverview`**：一次返回指定月全部员工的出勤/请假/缺勤统计 + 每人每天状态清单（present/leave/absent/future）。纯逻辑 `attendance/attendance-summary.logic.js`。一次取完是有意的——几十号人 × 31 天数据量很小，换来点开抽屉即时出日历、不用二次请求。
+  - **老板考勤页重做**：‹ 月份 › 切换（可回看 7 月/8 月）+ 本月概览四宫格（全勤人数/不全勤/今日出勤/今日请假）+ 员工列表（不全勤的排最前，每行带出勤/请假/缺勤天数与全勤徽章）+ **点员工弹日历抽屉**（绿=出勤 橙=请假 红=缺勤 灰=未到，请假带 假/上/下 角标；下附当月明细与异常日补签）。保留「异常补签」tab。视觉全部复用现有 Token 与既有日历样式，未新增设计语言。
+  - `boss/salary` 的全勤徽章跟随新口径（≤2 天显示「请假N天·全勤」）。
+- 性能/健壮性：列表行剥掉每人 31 天明细（`buildEmployeeRows` 删 `days`），明细挂页面实例按 user_id 取，避免几十号人 × 31 天塞进 `setData` 顶到 1MB；`LeaveRecords` 集合未创建时单独兜底空数组，不让整个考勤总览挂掉。
+- 数据/部署影响：需部署 `attendance` 云函数 + 前端包。`LeaveRecords` 新增 `half_days` 字段，**无需数据迁移**（缺字段即全天）。**AI 未部署、未真机验证。**
+- 验证：`npm run test:unit` 281 项全绿（新增 `tests/attendance-summary.logic.test.js` 10 例、`tests/attendance-calendar.logic.test.js` 12 例）。
+
 ## 2026-07-30
 
 ### 新增无敏感竖版 4K 产品演示片

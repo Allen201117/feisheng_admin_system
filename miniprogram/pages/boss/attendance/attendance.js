@@ -1,55 +1,142 @@
 // pages/boss/attendance/attendance.js
-const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm, formatDate, getToday } = require('../../../utils/util')
+// 老板端考勤管理（2026-08-29 重做）：
+//   一级视图 = 员工列表（按月），一眼看谁全勤谁不全勤；
+//   二级视图 = 点员工弹出日历抽屉，当月每天绿=出勤 / 橙=请假 / 红=缺勤 / 灰=未到，下面附出勤明细和补签。
+// 全勤口径：当月请假合计 ≤ 2 天算全勤（半天记 0.5 天），见 cloudfunctions/attendance/leave.logic.js。
+const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { filterListByKeyword } = require('../../../utils/list-search')
+const bjTime = require('../../../utils/beijing-time')
+const { formatMonthLabel } = require('../../../utils/leave-calendar.logic')
+const {
+  buildAttendanceCalendar,
+  buildEmployeeRows,
+  buildDaysIndex,
+  buildOverviewText
+} = require('../../../utils/attendance-calendar.logic')
 
-const ATTENDANCE_SEARCH_FIELDS = [
+const EMP_SEARCH_FIELDS = ['user_name']
+
+const ABNORMAL_SEARCH_FIELDS = [
   'user_name',
   'date',
-  'clock_in_display',
-  'clock_out_display',
-  'hours',
-  (record) => record.status === 'normal' ? '正常' : (record.status === 'abnormal' ? '异常' : '已补签')
+  'clock_in_display'
 ]
+
+// 抽屉里的出勤明细：只列已经发生过的日子（未到的日期没什么可看）
+function buildDetailRows(days) {
+  return (days || [])
+    .filter(d => d.status !== 'future')
+    .map(d => ({
+      ...d,
+      statusText: d.status === 'present' ? '出勤' : (d.status === 'leave' ? '请假' : '缺勤'),
+      statusClass: d.status === 'present' ? 'badge-green' : (d.status === 'leave' ? 'badge-amber' : 'badge-red'),
+      timeText: d.status === 'present'
+        ? `${d.clock_in_display || '--'} → ${d.clock_out_display || '--'}`
+        : (d.status === 'leave' ? (d.leave_kind === 'am' ? '请假 上午' : (d.leave_kind === 'pm' ? '请假 下午' : '请假 全天')) : '无打卡记录'),
+      canSupplement: d.att_status === 'abnormal'
+    }))
+    .reverse()
+}
 
 Page({
   data: {
-    rawRecords: [],
-    records: [],
+    weekHeaders: ['日', '一', '二', '三', '四', '五', '六'],
+    month: '',
+    monthLabel: '',
+    canNext: false,
+    loading: false,
+    activeTab: 'employees',
+
+    overview: null,
+    rawEmployees: [],
+    employees: [],
+    empKeyword: '',
+
     rawAbnormalRecords: [],
     abnormalRecords: [],
-    attendanceSearchKeyword: '',
-    selectedDate: '',
-    activeTab: 'today',
-    loading: false,
+
+    // 员工日历抽屉
+    showDrawer: false,
+    drawerEmp: null,
+    drawerCells: [],
+    drawerDetails: [],
+
     showSupplement: false,
-    supplementData: {
-      user_id: '',
-      user_name: '',
-      date: '',
-      clock_out_time: ''
-    },
-    employees: [],
+    supplementData: { attendance_id: '', user_id: '', user_name: '', date: '', clock_out_time: '' },
     leaveUnread: 0
   },
 
   onLoad() {
-    this.setData({ selectedDate: getToday() })
+    const month = bjTime.getBeijingMonth()
+    this.setData({ month, monthLabel: formatMonthLabel(month) })
   },
 
   onShow() {
-    this.loadTodayRecords()
+    this.loadOverview()
     this.loadAbnormalRecords()
-    this.loadEmployees()
     this.loadLeaveUnread()
   },
 
-  async loadLeaveUnread() {
-    try {
-      const res = await callCloud('attendance', { action: 'getUnreadLeaveCount' })
+  onPullDownRefresh() {
+    Promise.all([this.loadOverview(), this.loadAbnormalRecords()])
+      .catch(() => {})
+      .then(() => wx.stopPullDownRefresh())
+  },
+
+  // ===== 月份切换 =====
+  onPrevMonth() {
+    const month = bjTime.getBeijingPrevMonth(this.data.month)
+    this.setData({ month, monthLabel: formatMonthLabel(month) }, () => this.loadOverview())
+  },
+
+  onNextMonth() {
+    if (this.data.month >= bjTime.getBeijingMonth()) return
+    const month = bjTime.getBeijingNextMonth(this.data.month)
+    this.setData({ month, monthLabel: formatMonthLabel(month) }, () => this.loadOverview())
+  },
+
+  loadOverview() {
+    this.setData({ loading: true })
+    return callCloud('attendance', {
+      action: 'getMonthAttendanceOverview',
+      month: this.data.month
+    }).then((res) => {
+      const data = res.data || {}
+      const rawEmployees = buildEmployeeRows(data.employees || [])
+      // 每天的明细挂在页面实例上，不进 setData（见 buildEmployeeRows 注释）
+      this._daysIndex = buildDaysIndex(data.employees || [])
+      this.setData({
+        overview: buildOverviewText(data.summary),
+        rawEmployees,
+        canNext: this.data.month < bjTime.getBeijingMonth()
+      })
+      this.refreshEmpFilter()
+      // 抽屉开着时跟着刷新，避免看到上个月的日历
+      if (this.data.showDrawer && this.data.drawerEmp) {
+        const fresh = rawEmployees.find(e => e.user_id === this.data.drawerEmp.user_id)
+        if (fresh) this.openDrawerFor(fresh)
+        else this.closeDrawer()
+      }
+    }).catch((err) => {
+      showError(err.message || '加载考勤总览失败')
+    }).then(() => {
+      this.setData({ loading: false })
+    })
+  },
+
+  loadAbnormalRecords() {
+    return callCloud('attendance', { action: 'getAbnormalRecords' }).then((res) => {
+      this.setData({ rawAbnormalRecords: res.data || [] })
+      this.refreshEmpFilter()
+    }).catch(() => {})
+  },
+
+  loadLeaveUnread() {
+    return callCloud('attendance', { action: 'getUnreadLeaveCount' }).then((res) => {
       this.setData({ leaveUnread: (res.data && res.data.count) || 0 })
-    } catch (e) {
+    }).catch(() => {
       // 静默：红点失败不影响考勤主流程
-    }
+    })
   },
 
   goLeaveRecords() {
@@ -60,74 +147,56 @@ Page({
     this.setData({ activeTab: e.currentTarget.dataset.tab })
   },
 
-  async loadTodayRecords() {
-    this.setData({ loading: true })
-    try {
-      const res = await callCloud('attendance', {
-        action: 'getDailyRecords',
-        date: this.data.selectedDate
-      })
-      this.setData({ rawRecords: res.data || [] })
-      this.refreshAttendanceSearch()
-    } catch (e) {
-      showError('加载考勤记录失败')
-    } finally {
-      this.setData({ loading: false })
-    }
-  },
-
-  async loadAbnormalRecords() {
-    try {
-      const res = await callCloud('attendance', {
-        action: 'getAbnormalRecords'
-      })
-      this.setData({ rawAbnormalRecords: res.data || [] })
-      this.refreshAttendanceSearch()
-    } catch (e) {
-      console.error('加载异常记录失败', e)
-    }
-  },
-
-  refreshAttendanceSearch() {
+  // ===== 搜索 =====
+  refreshEmpFilter() {
     this.setData({
-      records: filterListByKeyword(this.data.rawRecords, this.data.attendanceSearchKeyword, ATTENDANCE_SEARCH_FIELDS),
-      abnormalRecords: filterListByKeyword(this.data.rawAbnormalRecords, this.data.attendanceSearchKeyword, ATTENDANCE_SEARCH_FIELDS)
+      employees: filterListByKeyword(this.data.rawEmployees, this.data.empKeyword, EMP_SEARCH_FIELDS),
+      abnormalRecords: filterListByKeyword(this.data.rawAbnormalRecords, this.data.empKeyword, ABNORMAL_SEARCH_FIELDS)
     })
   },
 
   onAttendanceSearchInput(e) {
-    this.setData({ attendanceSearchKeyword: e.detail.value }, () => this.refreshAttendanceSearch())
+    this.setData({ empKeyword: e.detail.value }, () => this.refreshEmpFilter())
   },
 
   clearAttendanceSearch() {
-    if (!this.data.attendanceSearchKeyword) return
-    this.setData({ attendanceSearchKeyword: '' }, () => this.refreshAttendanceSearch())
+    if (!this.data.empKeyword) return
+    this.setData({ empKeyword: '' }, () => this.refreshEmpFilter())
   },
 
-  async loadEmployees() {
-    try {
-      const res = await callCloud('user', {
-        action: 'listEmployees'
-      })
-      this.setData({ employees: res.data || [] })
-    } catch (e) {
-      console.error(e)
-    }
+  // ===== 员工日历抽屉 =====
+  onEmployeeTap(e) {
+    const emp = e.currentTarget.dataset.emp
+    if (!emp) return
+    this.openDrawerFor(emp)
   },
 
-  onDateChange(e) {
-    this.setData({ selectedDate: e.detail.value })
-    this.loadTodayRecords()
+  openDrawerFor(emp) {
+    const days = (this._daysIndex || {})[emp.user_id] || []
+    this.setData({
+      showDrawer: true,
+      drawerEmp: emp,
+      drawerCells: buildAttendanceCalendar(this.data.month, days),
+      drawerDetails: buildDetailRows(days)
+    })
   },
 
+  closeDrawer() {
+    this.setData({ showDrawer: false, drawerEmp: null, drawerCells: [], drawerDetails: [] })
+  },
+
+  noop() {},
+
+  // ===== 补签 =====
   showSupplementForm(e) {
     const record = e.currentTarget.dataset.record
+    if (!record) return
     this.setData({
       showSupplement: true,
       supplementData: {
-        attendance_id: record._id,
-        user_id: record.user_id,
-        user_name: record.user_name,
+        attendance_id: record._id || record.attendance_id || '',
+        user_id: record.user_id || (this.data.drawerEmp && this.data.drawerEmp.user_id) || '',
+        user_name: record.user_name || (this.data.drawerEmp && this.data.drawerEmp.user_name) || '',
         date: record.date,
         clock_out_time: '18:00'
       }
@@ -164,7 +233,7 @@ Page({
       hideLoading()
       showSuccess('补签成功')
       this.setData({ showSupplement: false })
-      this.loadTodayRecords()
+      this.loadOverview()
       this.loadAbnormalRecords()
     } catch (err) {
       hideLoading()

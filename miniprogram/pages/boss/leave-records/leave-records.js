@@ -6,7 +6,11 @@ const bjTime = require('../../../utils/beijing-time')
 const { filterListByKeyword } = require('../../../utils/list-search')
 const {
   buildLeaveCalendar,
-  summarizeDays,
+  cycleLeaveSelection,
+  selectionDates,
+  selectionHalfDays,
+  selectionDayCount,
+  summarizeLeaveSelection,
   formatMonthLabel
 } = require('../../../utils/leave-calendar.logic')
 
@@ -14,17 +18,26 @@ const {
 const EMP_SEARCH_FIELDS = ['name']
 
 // 列表展示：['2026-06-12','2026-06-13'] → '6月12、13日'（按月分组更紧凑）
-function formatDatesCn(dates) {
+// 有半天的日期单独摊开成 '6月12日上午'，不然按月合并会把「上午/下午」信息丢掉。
+function formatDatesCn(dates, halfDays) {
   if (!dates || !dates.length) return ''
+  const half = halfDays || {}
   const byMonth = {}
+  const halfParts = []
   dates.forEach((d) => {
     const parts = String(d).split('-')
     if (parts.length < 3) return
+    const kind = half[d]
+    if (kind === 'am' || kind === 'pm') {
+      halfParts.push(parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日' + (kind === 'am' ? '上午' : '下午'))
+      return
+    }
     const mk = parseInt(parts[1]) + '月'
     if (!byMonth[mk]) byMonth[mk] = []
     byMonth[mk].push(parseInt(parts[2]))
   })
-  return Object.keys(byMonth).map((mk) => mk + byMonth[mk].join('、') + '日').join('，')
+  const fullText = Object.keys(byMonth).map((mk) => mk + byMonth[mk].join('、') + '日').join('，')
+  return [fullText, halfParts.join('，')].filter(Boolean).join('，')
 }
 
 // 老板补录允许往前翻的月份下限：当前月往前 6 个月
@@ -53,7 +66,9 @@ Page({
     addMinMonth: '',
     canPrev: false,
     addCells: [],
-    addSelectedDates: [],
+    addSelection: {},
+    addSelectedCount: 0,
+    addDayCount: 0,
     addSummary: '',
     addReason: '',
     submitting: false
@@ -74,7 +89,7 @@ Page({
       const list = (res.data || []).map((r) => ({
         ...r,
         monthLabel: formatMonthLabel(r.month),
-        datesText: formatDatesCn(r.dates)
+        datesText: formatDatesCn(r.dates, r.half_days)
       }))
       this.setData({ list })
       // 打开请假列表即清红点
@@ -115,7 +130,7 @@ Page({
       addMonthLabel: formatMonthLabel(month),
       addToday: today,
       addMinMonth: calcMinMonth(month),
-      addSelectedDates: [],
+      addSelection: {},
       addReason: '',
       submitting: false
     }, () => this.rebuildAdd())
@@ -126,11 +141,14 @@ Page({
   },
 
   rebuildAdd() {
+    const selection = this.data.addSelection
     this.setData({
       // allowPast=true：老板补录可选当月任意日期（含已过去的）
-      addCells: buildLeaveCalendar(this.data.addMonth, this.data.addSelectedDates, this.data.addToday, true),
+      addCells: buildLeaveCalendar(this.data.addMonth, selection, this.data.addToday, true),
       canPrev: this.data.addMonth > this.data.addMinMonth,
-      addSummary: summarizeDays(this.data.addSelectedDates)
+      addSelectedCount: selectionDates(selection).length,
+      addDayCount: selectionDayCount(selection),
+      addSummary: summarizeLeaveSelection(selection)
     })
   },
 
@@ -158,23 +176,18 @@ Page({
   onAddPrevMonth() {
     if (this.data.addMonth <= this.data.addMinMonth) return
     const month = bjTime.getBeijingPrevMonth(this.data.addMonth)
-    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelectedDates: [] }, () => this.rebuildAdd())
+    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelection: {} }, () => this.rebuildAdd())
   },
 
   onAddNextMonth() {
     const month = bjTime.getBeijingNextMonth(this.data.addMonth)
-    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelectedDates: [] }, () => this.rebuildAdd())
+    this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelection: {} }, () => this.rebuildAdd())
   },
 
   onAddDayTap(e) {
     const cell = e.currentTarget.dataset.cell
     if (!cell || cell.empty || !cell.selectable) return
-    const set = this.data.addSelectedDates.slice()
-    const idx = set.indexOf(cell.dateStr)
-    if (idx >= 0) set.splice(idx, 1)
-    else set.push(cell.dateStr)
-    set.sort()
-    this.setData({ addSelectedDates: set }, () => this.rebuildAdd())
+    this.setData({ addSelection: cycleLeaveSelection(this.data.addSelection, cell.dateStr) }, () => this.rebuildAdd())
   },
 
   onAddReasonInput(e) {
@@ -183,9 +196,10 @@ Page({
 
   onSubmitAdd() {
     if (!this.data.selectedEmpId) { showError('请先选择员工'); return }
-    const dates = this.data.addSelectedDates
+    const selection = this.data.addSelection
+    const dates = selectionDates(selection)
     if (!dates.length) { showError('请选择请假日期'); return }
-    showConfirm('确认代录请假', `${this.data.selectedEmpName}：${this.data.addMonthLabel} 共 ${dates.length} 天\n${this.data.addSummary}`).then((ok) => {
+    showConfirm('确认代录请假', `${this.data.selectedEmpName}：${this.data.addMonthLabel} 共 ${this.data.addDayCount} 天\n${this.data.addSummary}`).then((ok) => {
       if (!ok) return
       this.setData({ submitting: true })
       callCloud('attendance', {
@@ -193,6 +207,7 @@ Page({
         user_id: this.data.selectedEmpId,
         month: this.data.addMonth,
         dates,
+        half_days: selectionHalfDays(selection),
         reason: this.data.addReason
       }).then(() => {
         showSuccess('已添加请假')

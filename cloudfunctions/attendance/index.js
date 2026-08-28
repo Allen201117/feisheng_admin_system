@@ -4,6 +4,7 @@ const { comprehensiveCheckIn, buildCheckInLog } = require('./geofence-enhanced')
 const { normalizeFactorySettings } = require('./factory-settings.logic')
 const bjTime = require('./beijing-time')
 const leaveLogic = require('./leave.logic')
+const { buildMonthAttendanceOverview } = require('./attendance-summary.logic')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
@@ -205,6 +206,7 @@ exports.main = async (event, context) => {
     case 'getAbnormalRecords': return await getAbnormalRecords(event, wxContext)
     case 'supplement': return await supplement(event, wxContext)
     case 'getUserMonthlyRecords': return await getUserMonthlyRecords(event)
+    case 'getMonthAttendanceOverview': return await getMonthAttendanceOverview(event, wxContext)
     case 'checkAbnormal': return await checkAbnormalAttendances()
     // ===== 请假（LeaveRecords）=====
     case 'requestLeave': return await requestLeave(event, wxContext)
@@ -943,6 +945,9 @@ async function requestLeave(event, wxContext) {
   const dates = leaveLogic.normalizeLeaveDates(event.dates, month)
   if (dates.length === 0) return { code: -1, msg: '请选择请假日期' }
   if (dates.length > 31) return { code: -1, msg: '请假天数超出范围' }
+  // 半天请假：half_days = { 'YYYY-MM-DD': 'am' | 'pm' }，只对 dates 里的日期生效，半天记 0.5 天
+  const halfDays = leaveLogic.normalizeHalfDays(event.half_days, dates)
+  const dayCount = leaveLogic.computeLeaveDays(dates, halfDays)
   const reason = String(event.reason || '').slice(0, 200)
 
   try {
@@ -955,15 +960,16 @@ async function requestLeave(event, wxContext) {
         user_name: caller.name || '',
         month: month,
         dates: dates,
-        day_count: dates.length,
+        half_days: halfDays,
+        day_count: dayCount,
         reason: reason,
         status: 'active',
         boss_read: false,
         created_at: db.serverDate()
       }
     })
-    await writeAudit('leave_request', `user_id=${caller._id}; month=${month}; days=${dates.length}`, orgId)
-    return { code: 0, msg: '请假已提交', data: { _id: addRes._id, day_count: dates.length } }
+    await writeAudit('leave_request', `user_id=${caller._id}; month=${month}; days=${dayCount}`, orgId)
+    return { code: 0, msg: '请假已提交', data: { _id: addRes._id, day_count: dayCount } }
   } catch (err) {
     console.error('[attendance] requestLeave 失败', err)
     return { code: -1, msg: '请假提交失败' }
@@ -1016,6 +1022,7 @@ async function getMyLeaves(event, wxContext) {
         _id: r._id,
         month: r.month,
         dates: r.dates || [],
+        half_days: r.half_days || {},
         day_count: leaveLogic.countLeaveDays(r),
         reason: r.reason || '',
         status: r.status,
@@ -1065,6 +1072,7 @@ async function getLeaveRequestsForBoss(event, wxContext) {
         user_name: r.user_name || '',
         month: r.month,
         dates: r.dates || [],
+        half_days: r.half_days || {},
         day_count: leaveLogic.countLeaveDays(r),
         reason: r.reason || '',
         boss_read: !!r.boss_read,
@@ -1150,6 +1158,8 @@ async function bossAddLeave(event, wxContext) {
   const dates = leaveLogic.normalizeLeaveDates(event.dates, month)
   if (dates.length === 0) return { code: -1, msg: '请选择请假日期' }
   if (dates.length > 31) return { code: -1, msg: '请假天数超出范围' }
+  const halfDays = leaveLogic.normalizeHalfDays(event.half_days, dates)
+  const dayCount = leaveLogic.computeLeaveDays(dates, halfDays)
   const reason = String(event.reason || '').slice(0, 200)
 
   try {
@@ -1172,7 +1182,8 @@ async function bossAddLeave(event, wxContext) {
         user_name: target.name || '',
         month: month,
         dates: dates,
-        day_count: dates.length,
+        half_days: halfDays,
+        day_count: dayCount,
         reason: reason,
         status: 'active',
         boss_read: true,           // 老板代录，自己已知，不给自己列表冒红点
@@ -1182,8 +1193,8 @@ async function bossAddLeave(event, wxContext) {
         created_at: db.serverDate()
       }
     })
-    await writeAudit('leave_add_by_boss', `operator=${caller._id}; target=${targetUserId}; month=${month}; days=${dates.length}`, orgId)
-    return { code: 0, msg: '已代员工添加请假', data: { _id: addRes._id, day_count: dates.length } }
+    await writeAudit('leave_add_by_boss', `operator=${caller._id}; target=${targetUserId}; month=${month}; days=${dayCount}`, orgId)
+    return { code: 0, msg: '已代员工添加请假', data: { _id: addRes._id, day_count: dayCount } }
   } catch (err) {
     console.error('[attendance] bossAddLeave 失败', err)
     return { code: -1, msg: '添加请假失败' }
@@ -1223,5 +1234,64 @@ async function bossDeleteLeave(event, wxContext) {
   } catch (err) {
     console.error('[attendance] bossDeleteLeave 失败', err)
     return { code: -1, msg: '删除失败' }
+  }
+}
+
+// 老板端月度考勤总览：一次返回本月所有员工的出勤/请假/缺勤统计 + 每人每天的状态清单。
+// 一次取完是有意的——工厂几十号人 × 31 天的数据量很小，换来点开员工抽屉即时出日历，不用二次请求。
+async function getMonthAttendanceOverview(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '账号未归属工厂' }
+
+  const month = /^\d{4}-\d{2}$/.test(String(event.month || '')) ? event.month : bjTime.getBeijingMonth()
+  const range = bjTime.getBeijingMonthRange(month)
+  const today = bjTime.getBeijingToday()
+
+  try {
+    const [users, attendances, leaves] = await Promise.all([
+      // 注意：本云函数的 fetchAllDocs 第三个参数是 pageSize，不支持字段投影，别照搬 salary/order 的写法
+      fetchAllDocs('Users', {
+        org_id: orgId,
+        role: _.in(['employee', 'qc']),
+        status: 'active'
+      }),
+      fetchAllDocs('Attendances', {
+        org_id: orgId,
+        date: _.gte(range.startDate).and(_.lt(range.endDate))
+      }),
+      // LeaveRecords 是「第一次有人请假」才创建的集合：没建过时查询会直接报错，
+      // 不能让整个考勤总览跟着挂掉，所以这里单独兜底成空数组。
+      fetchAllDocs('LeaveRecords', {
+        org_id: orgId,
+        month: month,
+        status: 'active'
+      }).catch(() => [])
+    ])
+
+    return {
+      code: 0,
+      data: buildMonthAttendanceOverview({
+        month,
+        today,
+        // 只喂纯函数需要的字段：Users 里有手机号/密码等敏感字段，绝不整条往前端带
+        users: users.map(u => ({ _id: u._id, name: u.name, role: u.role })),
+        attendances: attendances.map(a => ({
+          _id: a._id,
+          user_id: a.user_id,
+          date: a.date,
+          hours: a.hours,
+          status: a.status,
+          clock_in_time: a.clock_in_time,
+          clock_in_display: a.clock_in_time ? formatTimeStr(a.clock_in_time) : '',
+          clock_out_display: a.clock_out_time ? formatTimeStr(a.clock_out_time) : ''
+        })),
+        leaves
+      })
+    }
+  } catch (err) {
+    console.error('[attendance] getMonthAttendanceOverview 失败', err)
+    return { code: -1, msg: '获取考勤总览失败' }
   }
 }

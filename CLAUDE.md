@@ -73,6 +73,12 @@
 ### 2.8 隐私合规
 见 §1.6。
 
+### 2.10 考勤 / 请假 / 全勤口径 ✅（2026-08-29 老板确认）
+- **全勤 = 当月 active 请假合计 ≤ 2 天**（此前口径是「一天都不能请」，已废弃）。阈值真源 `cloudfunctions/attendance/leave.logic.js` 的 `FULL_ATTENDANCE_MAX_LEAVE_DAYS`；前端 `miniprogram/utils/attendance-calendar.logic.js` 是同口径副本（同 beijing-time 模式），`tests/attendance-calendar.logic.test.js` 校验两边一致，**改一处必须同步另一处**。
+- **请假支持半天**：`LeaveRecords.half_days = { 'YYYY-MM-DD': 'am' | 'pm' }`，半天记 **0.5 天**；没有该字段的老记录一律当全天，向后兼容。前端交互是**连点同一天循环**：未选 → 全天 → 上午 → 下午 → 未选。
+- **每天的考勤状态四态**（`attendance-summary.logic.js`，优先级从高到低）：`present` 有签到时间（绿）→ `leave` 当天有 active 请假（橙）→ `absent` 已过去且既没打卡也没请假（红）→ `future` 日期还没到（灰，不算缺勤）。**请假单独一色不并进红色**：否则「请假 2 天内还算全勤」在日历上会自相矛盾。
+- 请假永不进计件工资（§2.1），只是老板核对工资时的参考标记。
+
 ### 2.9 老板视角必显「实时工价」✅
 - **所有老板可见的报工/工资「明细」与「统计」里，每条/每工序都要显示对应工序的实时工价 = `Processes.current_price`（当前价，不是冻结的 `snapshot_price`）。**
 - 工资金额仍按 `snapshot_price` 结算（§2.1 不变）；实时工价是**额外展示字段**。当 `snapshot_price ≠ current_price`（多为已发薪历史）时，明细要同时标清「结算价(snapshot) / 当前价(current)」，避免老板困惑。

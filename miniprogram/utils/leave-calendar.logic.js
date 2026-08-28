@@ -4,6 +4,10 @@
 // 员工自助请假：只能选今天及以后（allowPast=false）。
 // 老板代员工补录：允许选当月任意日期，含已过去的（allowPast=true），
 //   因为老板代录的本质是补登已发生的请假。
+//
+// 半天请假（2026-08-29）：选中状态不再是「选没选」两态，而是一个 { [date]: 'full'|'am'|'pm' } 映射。
+// 交互上不加控件，直接**连点同一天循环切换**：未选 → 全天 → 上午 → 下午 → 未选。
+// 老接口传数组（['2026-08-01', ...]）仍然可用，一律当全天，向后兼容。
 
 function isLeap(y) {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
@@ -25,15 +29,71 @@ function pad2(n) {
   return n < 10 ? '0' + n : '' + n
 }
 
-// 构建某月日历格子。selectedDates=已选中的 YYYY-MM-DD 数组；today=北京今天。
+// 把「数组 或 映射」统一成 { [date]: 'full'|'am'|'pm' } 映射
+function normalizeSelection(selection) {
+  const out = {}
+  if (Array.isArray(selection)) {
+    selection.forEach((d) => { out[String(d)] = 'full' })
+    return out
+  }
+  const src = selection && typeof selection === 'object' ? selection : {}
+  Object.keys(src).forEach((k) => {
+    const v = String(src[k])
+    if (v === 'full' || v === 'am' || v === 'pm') out[k] = v
+  })
+  return out
+}
+
+// 连点循环：未选 → 全天 → 上午 → 下午 → 未选。返回新映射（不改原对象）。
+const LEAVE_CYCLE = { '': 'full', full: 'am', am: 'pm', pm: '' }
+
+function cycleLeaveSelection(selection, dateStr) {
+  const next = normalizeSelection(selection)
+  const cur = next[dateStr] || ''
+  const to = LEAVE_CYCLE[cur]
+  if (to) next[dateStr] = to
+  else delete next[dateStr]
+  return next
+}
+
+function selectionDates(selection) {
+  return Object.keys(normalizeSelection(selection)).sort()
+}
+
+// 只把半天项摘出来给云函数：{ [date]: 'am'|'pm' }（全天项不需要标记）
+function selectionHalfDays(selection) {
+  const map = normalizeSelection(selection)
+  const out = {}
+  Object.keys(map).forEach((k) => { if (map[k] !== 'full') out[k] = map[k] })
+  return out
+}
+
+// 半天记 0.5 天
+function selectionDayCount(selection) {
+  const map = normalizeSelection(selection)
+  let total = 0
+  Object.keys(map).forEach((k) => { total += map[k] === 'full' ? 1 : 0.5 })
+  return Math.round(total * 2) / 2
+}
+
+// '1 全天、3 上午、5 下午'
+function summarizeLeaveSelection(selection) {
+  const map = normalizeSelection(selection)
+  const label = { full: '全天', am: '上午', pm: '下午' }
+  return Object.keys(map).sort().map((d) => {
+    return parseInt(String(d).split('-')[2], 10) + ' ' + label[map[d]]
+  }).join('、')
+}
+
+// 构建某月日历格子。selection=已选中的日期（数组或 {date:'full'|'am'|'pm'} 映射）；today=北京今天。
 // allowPast=true 时当月所有日期可选（老板补录）；否则仅今天及以后（员工自助）。
-function buildLeaveCalendar(month, selectedDates, today, allowPast) {
+function buildLeaveCalendar(month, selection, today, allowPast) {
   const parts = String(month).split('-')
   const y = parseInt(parts[0])
   const m = parseInt(parts[1])
   const lead = firstWeekday(y, m)
   const total = daysInMonth(y, m)
-  const selected = Array.isArray(selectedDates) ? selectedDates : []
+  const selectedMap = normalizeSelection(selection)
   const cells = []
   for (let i = 0; i < lead; i++) cells.push({ empty: true, key: 'e' + i })
   for (let d = 1; d <= total; d++) {
@@ -44,7 +104,9 @@ function buildLeaveCalendar(month, selectedDates, today, allowPast) {
       day: d,
       dateStr,
       selectable: allowPast ? true : dateStr >= today,
-      selected: selected.indexOf(dateStr) >= 0,
+      selected: !!selectedMap[dateStr],
+      half: selectedMap[dateStr] === 'full' ? '' : (selectedMap[dateStr] || ''),
+      halfLabel: selectedMap[dateStr] === 'am' ? '上' : (selectedMap[dateStr] === 'pm' ? '下' : ''),
       isToday: dateStr === today
     })
   }
@@ -74,6 +136,14 @@ function datesToCn(dates) {
 
 module.exports = {
   pad2,
+  firstWeekday,
+  daysInMonth,
+  normalizeSelection,
+  cycleLeaveSelection,
+  selectionDates,
+  selectionHalfDays,
+  selectionDayCount,
+  summarizeLeaveSelection,
   buildLeaveCalendar,
   formatMonthLabel,
   summarizeDays,
