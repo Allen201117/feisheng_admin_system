@@ -107,7 +107,7 @@ test('monthly paid records keep historical price for the whole paid month', () =
 
 test('settlement price helper copies match the common source for cloud deployment', () => {
   const canonical = fs.readFileSync(path.join(root, 'cloudfunctions/common/settlement-price.logic.js'), 'utf8')
-  ;['worklog', 'salary', 'export', 'leaderboard'].forEach((dir) => {
+  ;['worklog', 'salary', 'export', 'leaderboard', 'order'].forEach((dir) => {
     const copy = fs.readFileSync(path.join(root, `cloudfunctions/${dir}/settlement-price.logic.js`), 'utf8')
     assert.equal(copy, canonical, `${dir}/settlement-price.logic.js differs from common source`)
   })

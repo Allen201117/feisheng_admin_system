@@ -6,7 +6,8 @@ const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
 const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid } = require('./payment-record.logic')
-const { applyCurrentPricesToUnpaidLogs } = require('./settlement-price.logic')
+const { applyCurrentPricesToUnpaidLogs, selectWorklogSyncUpdates } = require('./settlement-price.logic')
+const { planPaidGroupRepairs } = require('./settlement-repair.logic')
 
 function normalizePageSize(value, fallback = 100) {
   const parsed = parseInt(value, 10)
@@ -107,6 +108,78 @@ async function applySettlementPricesToLogs(logs, orgId, paidRecords) {
 // 老板视角实时工价：未发薪报工按 Processes.current_price 结算；已发薪保留 snapshot_price。
 async function attachCurrentPriceToLogs(logs, orgId) {
   return await applySettlementPricesToLogs(logs, orgId)
+}
+
+async function buildProcessMapsForLogs(logs, orgId) {
+  const list = logs || []
+  const processIds = Array.from(new Set(list.map(l => l.process_id).filter(Boolean)))
+  const priceMap = {}
+  const nameMap = {}
+  for (let i = 0; i < processIds.length; i += 50) {
+    const chunk = processIds.slice(i, i + 50)
+    const procs = await fetchAllByWhere('Processes', {
+      org_id: orgId,
+      _id: _.in(chunk)
+    }, { field: { _id: true, current_price: true, process_name: true } })
+    procs.forEach(p => {
+      priceMap[String(p._id)] = p.current_price != null ? p.current_price : null
+      nameMap[String(p._id)] = p.process_name || ''
+    })
+  }
+  return { priceMap, nameMap }
+}
+
+// 发薪固化结算价（CLAUDE.md §2.1/§2.3）——本次修复的根因所在。
+// 背景：未发薪报工的结算价是「读时按工序当前价覆盖」，一旦发薪锁定，读回的就是 WorkLogs 里存的 snapshot_price。
+// 如果发薪那一刻不把结算价写死回 DB，只要历史 snapshot_price 与当前工价不一致（改价同步漏网 / 旧部署 / 超时半同步），
+// 发薪瞬间明细就会从「当前价」翻回「旧 snapshot 价」，于是出现「结算价 ¥0.3 · 当前价 ¥0.2」且和实发总额对不上。
+// 所以：markPaid 打勾之前，先把本次发薪范围内所有「尚未发薪」报工的 snapshot_price/amount/process_name 落库固化。
+// 已发薪报工（本次范围外的按月/按订单锁）由 selectWorklogSyncUpdates 的 lockedPolicy='skip' 排除，绝不触碰。
+async function freezeSettlementPricesForPayroll({ orgId, userId, orderId, month }) {
+  const where = { org_id: orgId, user_id: userId }
+  if (orderId) {
+    where.order_id = orderId
+  } else {
+    const range = getMonthRange(month)
+    where.date = _.gte(range.startDate).and(_.lt(range.endDate))
+  }
+
+  const logs = await fetchAllByWhere('WorkLogs', where, {
+    field: { _id: true, user_id: true, order_id: true, process_id: true, process_name: true, quantity: true, snapshot_price: true, amount: true, date: true }
+  })
+  if (logs.length === 0) return { frozenCount: 0, failedCount: 0 }
+
+  const [maps, payments] = await Promise.all([
+    buildProcessMapsForLogs(logs, orgId),
+    fetchPaidRecordsForLogs(logs, orgId)
+  ])
+
+  const updates = selectWorklogSyncUpdates({
+    logs,
+    processPriceMap: maps.priceMap,
+    processNameMap: maps.nameMap,
+    payments,
+    lockedPolicy: 'skip'
+  })
+
+  let frozenCount = 0
+  let failedCount = 0
+  for (let i = 0; i < updates.length; i += 20) {
+    const chunk = updates.slice(i, i + 20)
+    const results = await Promise.all(chunk.map(async (item) => {
+      try {
+        await db.collection('WorkLogs').doc(item._id).update({
+          data: { ...item.data, updated_at: db.serverDate() }
+        })
+        return true
+      } catch (err) {
+        console.error('[salary] 发薪固化结算价失败', item._id, err)
+        return false
+      }
+    }))
+    results.forEach((ok) => { ok ? frozenCount++ : failedCount++ })
+  }
+  return { frozenCount, failedCount }
 }
 
 function getMonthRange(monthStr) {
@@ -468,6 +541,7 @@ exports.main = async (event, context) => {
     case 'getPaidStatus': return await getPaidStatus(event, wxContext)
     case 'getUserPaymentRecords': return await getUserPaymentRecords(event, wxContext)
     case 'getAvailableMonths': return await getAvailableMonths(event, wxContext)
+    case 'repairSettlementPrices': return await repairSettlementPrices(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -1391,6 +1465,27 @@ async function markPaid(event, wxContext) {
       if (!ensureSameOrg(orderRes.data, caller)) return { code: -1, msg: '无权操作该订单工资' }
       resolvedOrderName = resolvedOrderName || orderRes.data.order_name || ''
       orderStatus = orderRes.data.status || ''
+    }
+
+    // 发薪前先把结算价固化回 WorkLogs，再算总额：保证「记在 SalaryPayments 里的钱」
+    // 和「锁定后明细里读到的钱」永远是同一个数（CLAUDE.md §2.1/§2.3）。
+    if (paid) {
+      const freezeResult = await freezeSettlementPricesForPayroll({
+        orgId: getOrgId(caller),
+        userId: user_id,
+        orderId: order_id,
+        month: currentMonth
+      })
+      if (freezeResult.failedCount > 0) {
+        return {
+          code: -1,
+          msg: `发薪前固化结算价失败 ${freezeResult.failedCount} 条，已中止发薪，请重试`,
+          data: freezeResult
+        }
+      }
+    }
+
+    if (order_id) {
       const orderSalary = await calcUserOrderSalary(user_id, order_id, getOrgId(caller))
       totalAmount = orderSalary.total
     } else {
@@ -1576,4 +1671,151 @@ function sortPaymentRecords(records) {
     const right = String(b.paid_at || b.month || '')
     return right.localeCompare(left)
   })
+}
+
+
+// ============ 一次性存量结算价对账修复 ============
+// 背景与口径见 settlement-repair.logic.js 顶部。默认 dry_run（只报告不写库）。
+// 修的三类：
+//   1) 未发薪报工：snapshot_price/amount/process_name 与工序当前值不一致 → 直接对齐（本来就该是当前价）。
+//   2) 已发薪报工的工序名：改名纯展示、不动钱 → 一并对齐，省得老板对着旧工序名一条条猜。
+//   3) 已发薪报工的结算价：只在「按发薪当时口径重算的总额 == SalaryPayments.total_amount」时才写，
+//      即 DB 没固化但钱是对的；对不上账的组一律不动，进 manual_review。
+async function repairSettlementPrices(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '工厂信息缺失' }
+
+  const dryRun = event.dry_run !== false
+  const repairPaidPrice = event.repair_paid_price !== false
+
+  try {
+    const [processes, logs, payments, adjustments] = await Promise.all([
+      fetchAllByWhere('Processes', { org_id: orgId }, {
+        field: { _id: true, current_price: true, process_name: true }
+      }),
+      fetchAllByWhere('WorkLogs', { org_id: orgId }, {
+        field: { _id: true, user_id: true, user_name: true, order_id: true, order_name: true, process_id: true, process_name: true, quantity: true, snapshot_price: true, amount: true, date: true }
+      }),
+      fetchAllByWhere('SalaryPayments', { org_id: orgId, paid: true }, {
+        field: { _id: true, user_id: true, user_name: true, month: true, order_id: true, order_name: true, paid: true, total_amount: true }
+      }),
+      fetchAllByWhere('SalaryAdjustments', { org_id: orgId }, {
+        field: { user_id: true, month: true, order_id: true, type: true, amount: true }
+      })
+    ])
+
+    const priceMap = {}
+    const nameMap = {}
+    processes.forEach((p) => {
+      priceMap[String(p._id)] = p.current_price != null ? p.current_price : null
+      nameMap[String(p._id)] = p.process_name || ''
+    })
+
+    // 未发薪报工（价+名）+ 已发薪报工（仅工序名）
+    const safeUpdates = selectWorklogSyncUpdates({
+      logs,
+      processPriceMap: priceMap,
+      processNameMap: nameMap,
+      payments,
+      lockedPolicy: 'name-only'
+    })
+
+    const plan = planPaidGroupRepairs({
+      payments,
+      logs,
+      adjustments,
+      processPriceMap: priceMap
+    })
+
+    // 合并：同一条报工可能同时要改名（safe）和改价（plan）
+    const merged = {}
+    safeUpdates.forEach((item) => {
+      merged[item._id] = { _id: item._id, locked: item.locked, data: { ...item.data } }
+    })
+    let paidPriceFixCount = 0
+    if (repairPaidPrice) {
+      plan.repairable.forEach((group) => {
+        group.updates.forEach((item) => {
+          if (!merged[item._id]) merged[item._id] = { _id: item._id, locked: true, data: {} }
+          Object.assign(merged[item._id].data, item.data)
+          paidPriceFixCount += 1
+        })
+      })
+    }
+
+    const updates = Object.keys(merged).map(k => merged[k])
+    const logMap = {}
+    logs.forEach((l) => { logMap[l._id] = l })
+
+    const samples = updates.slice(0, 30).map((item) => {
+      const log = logMap[item._id] || {}
+      return {
+        worklog_id: item._id,
+        user_name: log.user_name || '',
+        order_name: log.order_name || '',
+        date: log.date || '',
+        locked: item.locked,
+        process_name_from: log.process_name || '',
+        process_name_to: item.data.process_name === undefined ? null : item.data.process_name,
+        price_from: log.snapshot_price === undefined ? null : log.snapshot_price,
+        price_to: item.data.snapshot_price === undefined ? null : item.data.snapshot_price
+      }
+    })
+
+    const summary = {
+      dry_run: dryRun,
+      scanned: { processes: processes.length, worklogs: logs.length, paid_payments: payments.length },
+      total_fix_count: updates.length,
+      unpaid_fix_count: updates.filter(u => !u.locked).length,
+      paid_fix_count: updates.filter(u => u.locked).length,
+      paid_price_fix_count: paidPriceFixCount,
+      manual_review: plan.manualReview,
+      samples
+    }
+
+    if (dryRun || updates.length === 0) {
+      return { code: 0, msg: dryRun ? '试运行完成（未写库）' : '没有需要修复的报工', data: summary }
+    }
+
+    let applied = 0
+    let failed = 0
+    for (let i = 0; i < updates.length; i += 20) {
+      const chunk = updates.slice(i, i + 20)
+      const results = await Promise.all(chunk.map(async (item) => {
+        try {
+          await db.collection('WorkLogs').doc(item._id).update({
+            data: { ...item.data, updated_at: db.serverDate() }
+          })
+          return true
+        } catch (err) {
+          console.error('[salary] 结算价修复写入失败', item._id, err)
+          return false
+        }
+      }))
+      results.forEach((ok) => { ok ? applied++ : failed++ })
+    }
+
+    await db.collection('audit_logs').add({
+      data: {
+        org_id: orgId,
+        operator_id: caller._id,
+        operator_name: caller.name,
+        action: 'repair_settlement_prices',
+        target_id: orgId,
+        details: `结算价对账修复：扫描报工 ${logs.length} 条，修复 ${applied} 条（其中已发薪重写单价 ${paidPriceFixCount} 条），失败 ${failed} 条，待人工确认 ${plan.manualReview.length} 组`,
+        created_at: db.serverDate()
+      }
+    })
+
+    return {
+      code: 0,
+      msg: `修复完成：成功 ${applied} 条，失败 ${failed} 条`,
+      data: { ...summary, applied, failed }
+    }
+  } catch (err) {
+    console.error('[salary] repairSettlementPrices 失败', err)
+    return { code: -1, msg: '结算价修复失败: ' + err.message }
+  }
 }

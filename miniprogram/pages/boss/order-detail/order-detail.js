@@ -337,7 +337,7 @@ Page({
 
     showLoading('保存中...')
     try {
-      await callCloud('order', {
+      const res = await callCloud('order', {
         action: 'updateProcess',
         process_id: editProcessId,
         process_name: editProcessName,
@@ -345,7 +345,8 @@ Page({
         current_price: price
       })
       hideLoading()
-      showSuccess('工序已更新')
+      // 云函数会回报「同步了多少条未发薪报工」，直接透传给老板，改完就知道历史报工跟没跟上
+      showSuccess(res.msg || '工序已更新')
       this.setData({ showEditProcess: false })
       this.loadOrderDetail()
     } catch (err) {

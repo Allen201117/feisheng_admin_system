@@ -8,6 +8,32 @@
 - 记录保持简短：背景、改动、数据/部署影响、验证方式。
 - 提交前确认本文件、`docs/PROJECT_MEMORY.md`、必要时 `docs/ARCHITECTURE.md` 已同步。
 
+## 2026-08-29
+
+### 修复「改了工价，历史报工结算价没跟上」——发薪时固化结算价 + 改工序同步名/价 + 存量对账修复
+
+- 背景：老板把某工序从「¥0.3」改名改价为「¥0.2」后，改价前那条报工在薪资详情里仍显示「结算价 ¥0.3 · 当前价 ¥0.2」，与改价后那条 ¥0.2 并存，看着像两套价。
+- 根因（两层，缺一不可）：
+  1. **发薪不固化**：`applyCurrentPricesToUnpaidLogs` 是**读时**口径——未发薪按 `Processes.current_price` 覆盖，已发薪读回 `WorkLogs.snapshot_price`。`markPaid` 只把算出来的总额写进 `SalaryPayments.total_amount`，**没有把结算价写回 WorkLogs**。于是只要 DB 里的 `snapshot_price` 和当前工价不一致，发薪那一刻明细就从「当前价」翻回「旧 snapshot 价」，既出现双价，又和实发总额对不上。
+  2. **改价同步不可靠**：`syncZeroPriceWorklogsForProcess` 逐条 `await` 更新（工序报工上百条时会把云函数拖到超时 → 价改了、报工只同步一半），失败被外层 catch 吞掉，且**只同步单价、不同步工序名**，所以旧报工还挂着旧工序名。
+- 改动：
+  - `common/settlement-price.logic.js`（+5 份云函数副本，新增 `order/` 一份）：新增纯函数 `selectWorklogSyncUpdates`（幂等挑出「DB 值 ≠ 工序当前值」的最小写回集合）与 `buildProcessNameMap`。`lockedPolicy`：`skip` 已发薪一律不动（§2.2 默认）｜`name-only` 已发薪只同步工序名｜`all` 已发薪也重写价（仅存量对账用）。工价为空/≤0 视为未设置，不改价。
+  - `salary/index.js`：新增 `freezeSettlementPricesForPayroll`，**`markPaid(paid:true)` 打勾前先把本次发薪范围内所有未发薪报工的 `snapshot_price`/`amount`/`process_name` 固化落库**，固化失败直接中止发薪（不产生对不上账的发薪记录）。
+  - `order/index.js`：`syncZeroPriceWorklogsForProcess` → `syncWorklogsForProcess`，改价**和改名**都同步未发薪报工；分块并发（20/批）避免超时；失败条数回报给老板并提示重试，不再静默。`order-detail` 保存工序后透传云函数文案（「已同步 N 条未发薪报工」）。
+  - 存量修复：新增纯函数文件 `salary/settlement-repair.logic.js` + 云函数 action `salary.repairSettlementPrices`（boss only，默认 `dry_run:true` 只报告）。未发薪报工直接对齐；已发薪报工的工序名一并对齐（不动钱）；已发薪报工的**结算价只在「按发薪当时口径重算的总额 == `SalaryPayments.total_amount`」时才写**，对不上账的组一律不动并列进 `manual_review`。入口：老板端「设置 → 数据体检 → 检查结算价」，先看清单再一键对齐。
+- 口径说明（§2.2 例外）：`repairSettlementPrices` 会改写**已发薪**报工的 `snapshot_price`，这不是改价而是对账——只在能证明「发薪那一刻用的就是当前工价、只是没固化回 DB」时才写，且全程 audit_logs 留痕。
+- 数据/部署影响：需部署 `salary`、`order` 云函数（`export`/`leaderboard`/`worklog` 因共享 logic 副本同步部署）+ 前端包。**AI 未部署、未真机验证。**
+- 验证：`npm run test:unit` 259 项全绿（新增 `tests/settlement-repair.logic.test.js` 8 例，含线上脏数据形状复现：同工序两条报工分别冻结 ¥0.3 / ¥0.2、实发按当前价结算的对账修复）。
+
+## 2026-07-30
+
+### 新增无敏感竖版 4K 产品演示片
+
+- 背景：需要一支能说明产品完整业务闭环的丝滑产品演示片，同时不能展示真实账号、手机号、密码或生产数据。
+- 改动：新增 `demo/` 可重渲染源、分镜与说明。成片按「订单 → 工序分配 → 员工报工 → 质检 → 工资核算 → 报表导出」组织，所有画面基于现有源码做确定性产品安全重建，并持续标注「示例数据 · 无真实生产数据」。
+- 数据/部署影响：无；仅新增本地演示素材，不上传、不部署、不改小程序业务逻辑。
+- 验证：先输出 1080×1920/30fps 审片版，逐帧检查开场、每个证明画面、转场与结尾；再输出 2160×3840/60fps H.264 成片并做完整解码与规格校验。
+
 ## 2026-07-12
 
 ### 老板首页：考勤卡加今日请假+红点 + 经营概览按使用频次动态排序
