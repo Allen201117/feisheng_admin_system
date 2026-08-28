@@ -4,7 +4,8 @@ const {
   showError,
   showSuccess,
   showLoading,
-  hideLoading
+  hideLoading,
+  showConfirm
 } = require('../../../utils/util')
 const {
   sampleLocationAndPickBest,
@@ -19,8 +20,35 @@ const {
   normalizePayrollMode
 } = require('./settings.logic')
 
+// 把云函数返回的修复报告拍平成可直接渲染的文案（WXML 里不做计算，遵循项目现有约定）
+function buildRepairReport(data) {
+  const samples = (data.samples || []).map((item) => {
+    const parts = []
+    if (item.price_to !== null && item.price_to !== undefined) {
+      parts.push(`结算价 ¥${item.price_from} → ¥${item.price_to}`)
+    }
+    if (item.process_name_to) {
+      parts.push(`工序名 ${item.process_name_from} → ${item.process_name_to}`)
+    }
+    return {
+      worklog_id: item.worklog_id,
+      title: `${item.user_name || ''} ${item.order_name || ''} ${item.date || ''}`.trim(),
+      detail: `${item.locked ? '[已发薪] ' : ''}${parts.join('；')}`
+    }
+  })
+  const manual = data.manual_review || []
+  return {
+    total_fix_count: data.total_fix_count || 0,
+    summaryText: `扫描报工 ${(data.scanned && data.scanned.worklogs) || 0} 条：需对齐 ${data.total_fix_count || 0} 条（未发薪 ${data.unpaid_fix_count || 0}、已发薪 ${data.paid_fix_count || 0}），需人工确认 ${manual.length} 组` + (data.applied === undefined ? '' : `；本次已写入 ${data.applied} 条，失败 ${data.failed} 条`),
+    samples,
+    manual_review: manual
+  }
+}
+
 Page({
   data: {
+    repairing: false,
+    repairReport: null,
     factory_latitude: '',
     factory_longitude: '',
     geofence_radius: '100',
@@ -306,6 +334,41 @@ Page({
       } else {
         showError('获取位置失败：' + errMsg)
       }
+    }
+  },
+
+  // 结算价体检：先试运行（不写库）列出差异，老板确认后再一键对齐
+  async onCheckSettlementPrices() {
+    this.setData({ repairing: true, repairReport: null })
+    showLoading('检查中...')
+    try {
+      const res = await callCloud('salary', { action: 'repairSettlementPrices', dry_run: true })
+      hideLoading()
+      this.setData({ repairing: false, repairReport: buildRepairReport(res.data || {}) })
+    } catch (err) {
+      hideLoading()
+      this.setData({ repairing: false })
+      showError(err.message || '检查失败')
+    }
+  },
+
+  async onApplySettlementRepair() {
+    const report = this.data.repairReport
+    if (!report || !report.total_fix_count) return
+    const ok = await showConfirm('确认对齐', `将把 ${report.total_fix_count} 条报工的结算价/工序名对齐到当前工价。已发薪且金额对不上账的记录不会被改动。`)
+    if (!ok) return
+
+    this.setData({ repairing: true })
+    showLoading('对齐中...')
+    try {
+      const res = await callCloud('salary', { action: 'repairSettlementPrices', dry_run: false })
+      hideLoading()
+      this.setData({ repairing: false, repairReport: buildRepairReport(res.data || {}) })
+      showSuccess(res.msg || '对齐完成')
+    } catch (err) {
+      hideLoading()
+      this.setData({ repairing: false })
+      showError(err.message || '对齐失败')
     }
   },
 

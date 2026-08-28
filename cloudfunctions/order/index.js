@@ -12,6 +12,7 @@ const {
   selectOrderScopedPaidPayments,
   findMonthLockedConflicts
 } = require('./pay-lock.logic')
+const { selectWorklogSyncUpdates } = require('./settlement-price.logic')
 const {
   collectAssignedUserIds,
   buildUserNameMap,
@@ -552,21 +553,24 @@ async function fetchDocsByIds(collectionName, fieldName, ids) {
   return all
 }
 
-async function syncZeroPriceWorklogsForProcess(processId, newPrice, orgId) {
-  const normalizedPrice = Number(newPrice)
-  if (!processId || !Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
-    return { updatedCount: 0 }
-  }
+// 工序改价/改名后同步未发薪报工（CLAUDE.md §2.2）。
+// 口径：未发薪报工的 snapshot_price/amount/process_name 一律跟随 Processes 当前值；已发薪报工一律不动。
+// 加固点（2026-08-29）：
+//   - 幂等：只写真正有差异的记录，重复调用不产生多余写入；
+//   - 并发分块：改掉逐条 await（工序报工上百条时会把云函数拖到超时，导致「价改了、报工没同步」的脏数据）；
+//   - 失败不静默：把失败条数返回给调用方，由调用方明确提示老板重试。
+async function syncWorklogsForProcess(processId, orgId, options = {}) {
+  if (!processId) return { updatedCount: 0, failedCount: 0 }
 
   const worklogs = await fetchAllDocs('WorkLogs', {
     org_id: orgId,
     process_id: processId
   }, {
-    field: { _id: true, user_id: true, date: true, order_id: true, quantity: true, snapshot_price: true }
+    field: { _id: true, user_id: true, date: true, order_id: true, process_id: true, process_name: true, quantity: true, snapshot_price: true, amount: true }
   })
 
   if (worklogs.length === 0) {
-    return { updatedCount: 0 }
+    return { updatedCount: 0, failedCount: 0 }
   }
 
   const userIds = Array.from(new Set(worklogs.map(log => log.user_id).filter(Boolean)))
@@ -580,25 +584,34 @@ async function syncZeroPriceWorklogsForProcess(processId, newPrice, orgId) {
     })
     : []
 
-  // 选「未发薪」报工重写：与改价闸门 findProcessPaidWorklogConflicts 完全同口径（buildPaidSets + isWorklogPaid），
-  // 避免按订单发薪记录的 month 被当整月锁导致漏改价（CLAUDE.md §2.2）；已发薪报工仍被正确排除。
-  const paidSets = buildPaidSets(payments)
-  const targetLogs = worklogs.filter((log) => !isWorklogPaid(log, paidSets))
+  const updates = selectWorklogSyncUpdates({
+    logs: worklogs,
+    processPriceMap: { [String(processId)]: options.price === undefined ? null : options.price },
+    processNameMap: { [String(processId)]: options.name === undefined ? '' : options.name },
+    payments,
+    lockedPolicy: 'skip',
+    syncName: options.name !== undefined
+  })
 
   let updatedCount = 0
-  for (const log of targetLogs) {
-    const quantity = parseInt(log.quantity || 0, 10) || 0
-    await db.collection('WorkLogs').doc(log._id).update({
-      data: {
-        snapshot_price: normalizedPrice,
-        amount: Math.round(quantity * normalizedPrice * 100) / 100,
-        updated_at: db.serverDate()
+  let failedCount = 0
+  for (let i = 0; i < updates.length; i += 20) {
+    const chunk = updates.slice(i, i + 20)
+    const results = await Promise.all(chunk.map(async (item) => {
+      try {
+        await db.collection('WorkLogs').doc(item._id).update({
+          data: { ...item.data, updated_at: db.serverDate() }
+        })
+        return true
+      } catch (err) {
+        console.error('[order] 同步未发薪报工失败', item._id, err)
+        return false
       }
-    })
-    updatedCount += 1
+    }))
+    results.forEach((ok) => { ok ? updatedCount++ : failedCount++ })
   }
 
-  return { updatedCount }
+  return { updatedCount, failedCount }
 }
 
 async function deleteOrder(event, caller) {
@@ -745,7 +758,7 @@ async function updateProcessPrice(event, caller) {
       }
     })
 
-    const syncResult = await syncZeroPriceWorklogsForProcess(process_id, parsedPrice, getOrgId(caller))
+    const syncResult = await syncWorklogsForProcess(process_id, getOrgId(caller), { price: parsedPrice })
 
     // 记录改价日志
     await db.collection('audit_logs').add({
@@ -764,7 +777,14 @@ async function updateProcessPrice(event, caller) {
       }
     })
 
-    return { code: 0, msg: '单价更新成功（未发薪报工已同步为新单价）' }
+    if (syncResult.failedCount > 0) {
+      return {
+        code: -1,
+        msg: `单价已更新，但有 ${syncResult.failedCount} 条未发薪报工同步失败，请再改一次单价重试`,
+        data: { updatedCount: syncResult.updatedCount, failedCount: syncResult.failedCount }
+      }
+    }
+    return { code: 0, msg: '单价更新成功（未发薪报工已同步为新单价）', data: { updatedCount: syncResult.updatedCount } }
   } catch (err) {
     return { code: -1, msg: '更新失败' }
   }
@@ -819,9 +839,15 @@ async function updateProcess(event, caller) {
 
     await db.collection('Processes').doc(process_id).update({ data: updateData })
 
-    let syncResult = { updatedCount: 0 }
-    if (current_price !== undefined && parseFloat(current_price) !== oldProcess.current_price) {
-      syncResult = await syncZeroPriceWorklogsForProcess(process_id, parseFloat(current_price), getOrgId(caller))
+    // 改价 + 改名都要同步未发薪报工：老板改完工序后，历史未发薪报工不应再显示旧名旧价（CLAUDE.md §2.2）
+    let syncResult = { updatedCount: 0, failedCount: 0 }
+    const priceChanged = updateData.current_price !== undefined
+    const nameChanged = updateData.process_name !== undefined
+    if (priceChanged || nameChanged) {
+      syncResult = await syncWorklogsForProcess(process_id, getOrgId(caller), {
+        price: priceChanged ? updateData.current_price : undefined,
+        name: nameChanged ? updateData.process_name : undefined
+      })
     }
 
     const hasPrice = changes.some(c => c.startsWith('单价'))
@@ -851,7 +877,18 @@ async function updateProcess(event, caller) {
       }
     })
 
-    return { code: 0, msg: hasPrice ? '工序已更新（未发薪报工已同步为新单价）' : '工序已更新' }
+    if (syncResult.failedCount > 0) {
+      return {
+        code: -1,
+        msg: `工序已更新，但有 ${syncResult.failedCount} 条未发薪报工同步失败，请再保存一次重试`,
+        data: { updatedCount: syncResult.updatedCount, failedCount: syncResult.failedCount }
+      }
+    }
+    return {
+      code: 0,
+      msg: syncResult.updatedCount > 0 ? `工序已更新（已同步 ${syncResult.updatedCount} 条未发薪报工）` : '工序已更新',
+      data: { updatedCount: syncResult.updatedCount }
+    }
   } catch (err) {
     return { code: -1, msg: '更新失败' }
   }

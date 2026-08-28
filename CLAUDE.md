@@ -42,6 +42,9 @@
 ### 2.2 改工序单价规则 ✅（最易出错，§2.1 之外的第二红线）
 - **已发薪的工序/订单：禁止改价。** 老板点改单价时**直接拦截**，提示「该工序/订单已发薪，单价不可修改」。已发薪报工的 `snapshot_price`/`amount` **永不被改价触碰**。
 - **未发薪：允许改价，且全平台同步。** 改价后把该工序**所有未发薪报工**的 `snapshot_price` 与 `amount(=quantity×新价)` 一并重写。
+- ✅ **发薪即固化（2026-08-29）**：`salary.markPaid(paid:true)` 打勾前先跑 `freezeSettlementPricesForPayroll`，把本次发薪范围内所有未发薪报工的 `snapshot_price`/`amount`/`process_name` 写死回 `WorkLogs`，再算 `total_amount`。**这是「结算价 ≠ 当前价」双价问题的根治点**——结算价平时是「读时按 `Processes.current_price` 覆盖」，不在发薪那一刻固化，锁定后就会翻回旧 snapshot，既显示双价又与实发总额对不上。固化失败直接中止发薪。
+- ✅ **改工序同步名+价（2026-08-29）**：`syncWorklogsForProcess`（原 `syncZeroPriceWorklogsForProcess`）在改价**和改名**时都重写未发薪报工，幂等 + 分块并发（避免逐条 await 超时造成半同步脏数据），失败条数回报老板要求重试，不再静默吞错。
+- ✅ **存量对账修复（2026-08-29）**：`salary.repairSettlementPrices`（boss only，默认 `dry_run`）。**§2.2「已发薪报工 snapshot_price 永不被触碰」的唯一例外**：只有当「按发薪当时口径重算的总额 == `SalaryPayments.total_amount`」时才重写，属对账不属改价；对不上账的组一律不动并列入 `manual_review`。入口在老板端设置页「数据体检」。
 - ✅ 已实现（2026-06-11）：`order.updateProcessPrice` / `updateProcess` 改价前先 `findProcessPaidWorklogConflicts`（`pay-lock.logic.js`，按月+按订单两种发薪都查），命中任一已发薪报工**整体拒绝**并提示「该工序已发薪，单价不可修改」；未发薪走 `syncZeroPriceWorklogsForProcess` 同步重写（注意：按**未发薪**过滤，不是按零价，函数名有误导），成功文案已改为「未发薪报工已同步为新单价」。
 
 ### 2.3 发薪锁定 + 发薪即完成 ✅

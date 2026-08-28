@@ -114,6 +114,29 @@
     </view>
   </view>
 
+  <!-- 数据体检：结算价对账修复（一次性存量修复入口） -->
+  <view class="card-bento" style="margin-top:var(--sp-2);">
+    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">数据体检</text>
+    <text class="text-tertiary text-xs" style="display:block;margin-bottom:var(--sp-1);">检查历史报工的结算价是否和工序当前工价对齐。改过工价的老数据会在这里被找出来并一键对齐。</text>
+    <button class="btn btn-outline btn-block" bindtap="onCheckSettlementPrices" disabled="{{repairing}}" hover-class="tap-button-hover">{{repairing ? '检查中...' : '检查结算价'}}</button>
+    <view wx:if="{{repairReport}}" style="margin-top:var(--sp-2);">
+      <text class="text-secondary text-xs" style="display:block;">{{repairReport.summaryText}}</text>
+      <view wx:for="{{repairReport.samples}}" wx:key="worklog_id" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.title}}</text>
+          <text class="list-row-subtitle">{{item.detail}}</text>
+        </view>
+      </view>
+      <view wx:for="{{repairReport.manual_review}}" wx:key="scopeKey" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title text-red">{{item.user_name}} · {{item.scope}}</text>
+          <text class="list-row-subtitle">实发 ¥{{item.recordedTotal}}｜{{item.reason}}</text>
+        </view>
+      </view>
+      <button wx:if="{{repairReport.total_fix_count > 0}}" class="btn-primary btn-block" style="margin-top:var(--sp-2);" bindtap="onApplySettlementRepair" disabled="{{repairing}}" hover-class="tap-button-hover">一键对齐这 {{repairReport.total_fix_count}} 条</button>
+    </view>
+  </view>
+
   <!-- 协议与隐私 -->
   <view class="card-bento" style="margin-top:var(--sp-2);">
     <text class="menu-group-title" style="margin-bottom:var(--sp-1);">协议与隐私</text>
