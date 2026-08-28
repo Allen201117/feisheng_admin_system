@@ -43,3 +43,156 @@
   line-height: 1.35;
   color: var(--text-secondary);
 }
+
+/* ===== 设置页排版（2026-08-29 整理）=====
+   原来是 7 张同级卡片平铺 + 满屏内联样式，看不出哪些设置是一类的。
+   现在按「考勤打卡 / 工资与统计 / 账号与服务」分三段，段内卡片统一
+   头部(settings-head) + 说明(settings-desc) + 参数行(settings-row)，
+   内联样式全部收进这里。 */
+
+/* 分段标题 */
+.settings-section {
+  display: block;
+  margin: var(--sp-3) var(--sp-1) var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-tertiary);
+  letter-spacing: 1rpx;
+}
+
+/* 卡片头部 */
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8rpx;
+}
+.settings-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+}
+.settings-count {
+  font-size: var(--fs-2xs);
+  color: var(--text-tertiary);
+}
+.settings-desc {
+  display: block;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/* 参数行：左边标题+说明，右边输入框/开关，宽度统一 */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1rpx solid var(--border-light);
+}
+.settings-row-last { border-bottom: none; }
+.settings-row-main { flex: 1; min-width: 0; }
+.settings-row-title {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+.settings-row-desc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+.settings-row-input {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  flex-shrink: 0;
+}
+.settings-input {
+  width: 140rpx;
+  text-align: right;
+}
+.settings-unit {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  width: 40rpx;
+}
+
+/* 打卡点子卡片 */
+.settings-sub-card {
+  margin: var(--sp-2) 0;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--bg-card-soft);
+  border: 1rpx solid var(--hairline);
+}
+.settings-action-row {
+  display: flex;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+.settings-ghost-btn {
+  border: 1rpx solid var(--border);
+  color: var(--text-secondary);
+}
+.settings-remove {
+  flex-shrink: 0;
+  padding: 8rpx 16rpx;
+  font-size: var(--fs-xs);
+  color: var(--red-600);
+}
+.settings-toggle {
+  text-align: center;
+  padding: var(--sp-1) 0;
+}
+.settings-arrow {
+  flex-shrink: 0;
+  font-size: 40rpx;
+  line-height: 1;
+  color: var(--text-tertiary);
+}
+
+.settings-gap { margin-top: var(--sp-2); }
+.settings-gap-sm { margin-top: var(--sp-1); }
+
+/* 数据体检结果条：绿=没问题 / 橙=查出问题，一眼分得清 */
+.settings-result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1rpx solid var(--hairline);
+}
+.settings-result.is-ok { background: var(--surface-green); border-color: var(--green-500); }
+.settings-result.is-warn { background: var(--surface-amber); border-color: var(--amber-500); }
+.settings-result-icon {
+  flex-shrink: 0;
+  width: 40rpx; height: 40rpx;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 40rpx;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: #fff;
+}
+.settings-result.is-ok .settings-result-icon { background: var(--green-600); }
+.settings-result.is-warn .settings-result-icon { background: var(--amber-600); }
+.settings-result-title {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+.settings-result-desc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: var(--fs-2xs);
+  line-height: 1.4;
+  color: var(--text-secondary);
+}

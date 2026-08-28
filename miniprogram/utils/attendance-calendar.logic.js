@@ -1,7 +1,11 @@
 // 考勤日历纯函数（可被 node:test 单测，不依赖 wx / new Date）。
-// 云函数 attendance.getMonthAttendanceOverview 已经算好每人每天的状态（present/leave/absent/future），
+// 云函数 attendance.getMonthAttendanceOverview 已经算好每人每天的状态，
 // 这里只负责补上周内对齐的空格子 + 把状态翻译成 WXML 直接能用的 class 和角标文案。
 // WXML 里不做任何计算（项目既有约定），所以文案/样式类一律在这里拍平。
+//
+// 配色只有两种（2026-08-29 老板口径：考勤不看打卡，只有出勤和请假）：
+//   绿 = 出勤（没请假的已过去的日子）｜红 = 请假｜半天请假 = 红绿对半 + 上/下角标
+//   还没到的日子不上色 —— 标绿等于替员工保证他会来，是假数据。
 
 const { firstWeekday, daysInMonth, pad2 } = require('./leave-calendar.logic')
 
@@ -17,14 +21,14 @@ function isFullAttendance(leaveDays) {
 const STATUS_CLASS = {
   present: 'att-present',
   leave: 'att-leave',
-  absent: 'att-absent',
+  half: 'att-half',
   future: 'att-future'
 }
 
 const STATUS_TEXT = {
   present: '出勤',
   leave: '请假',
-  absent: '缺勤',
+  half: '请假半天',
   future: '未到'
 }
 
@@ -59,9 +63,8 @@ function buildAttendanceCalendar(month, days) {
       date,
       status: info.status,
       statusClass: STATUS_CLASS[info.status] || STATUS_CLASS.future,
-      badge: info.status === 'leave' ? (LEAVE_BADGE[info.leave_kind] || '假') : '',
-      // 出勤当天又请了半天：绿底 + 角标，别让老板漏掉「这天只干了半天」
-      subBadge: info.status === 'present' && info.leave_kind ? (LEAVE_BADGE[info.leave_kind] || '') : '',
+      // 半天请假标「上」/「下」，全天请假标「假」，出勤不加角标（一片绿最干净）
+      badge: info.status === 'half' ? (LEAVE_BADGE[info.leave_kind] || '半') : (info.status === 'leave' ? '假' : ''),
       isToday: !!info.is_today
     })
   }
@@ -75,20 +78,23 @@ function buildEmployeeRows(employees) {
   return (employees || []).map((e) => {
     const row = { ...e }
     delete row.days
+    delete row.leave_details
     return {
       ...row,
       leaveText: formatDays(e.leave_days),
-      statText: `出勤 ${e.present_days} 天 · 请假 ${formatDays(e.leave_days)} · 缺勤 ${e.absent_days} 天`,
+      statText: `出勤 ${formatDays(e.present_days)} · 请假 ${formatDays(e.leave_days)}`,
       badgeText: e.is_full_attendance ? '全勤' : `请假${formatDays(e.leave_days)}`,
       badgeClass: e.is_full_attendance ? 'badge-green' : 'badge-red'
     }
   })
 }
 
-// user_id → 当月每天状态，供抽屉即时出日历（不进 setData）
+// user_id → { days, leaveDetails }，供抽屉即时出日历和请假明细（不进 setData）
 function buildDaysIndex(employees) {
   const index = {}
-  ;(employees || []).forEach((e) => { index[e.user_id] = e.days || [] })
+  ;(employees || []).forEach((e) => {
+    index[e.user_id] = { days: e.days || [], leaveDetails: e.leave_details || [] }
+  })
   return index
 }
 
@@ -109,7 +115,7 @@ function buildOverviewText(summary) {
     notFullText: String(s.not_full_count || 0),
     presentTodayText: String(s.present_today || 0),
     leaveTodayText: String(s.leave_today || 0),
-    absentText: String(s.total_absent_days || 0)
+    totalLeaveText: formatDays(s.total_leave_days || 0)
   }
 }
 

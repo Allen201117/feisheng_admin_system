@@ -25,40 +25,35 @@ test('前后端全勤阈值必须一致（前端是同口径副本，改一处�
   assert.equal(FULL_ATTENDANCE_MAX_LEAVE_DAYS, BACKEND_THRESHOLD)
 })
 
-test('考勤日历补齐周内前导空格并翻译状态样式', () => {
+test('考勤日历补齐周内前导空格并翻译状态样式（只有绿/红两色）', () => {
   // 2026-08-01 是周六 → 前面补 6 个空格子
   const cells = buildAttendanceCalendar('2026-08', [
-    { day: 1, date: '2026-08-01', status: 'present', leave_kind: '', hours: 8, is_today: false },
-    { day: 2, date: '2026-08-02', status: 'leave', leave_kind: 'am', hours: 0, is_today: false },
-    { day: 3, date: '2026-08-03', status: 'absent', leave_kind: '', hours: 0, is_today: true }
+    { day: 1, date: '2026-08-01', status: 'present', leave_kind: '', is_today: false },
+    { day: 2, date: '2026-08-02', status: 'half', leave_kind: 'am', is_today: false },
+    { day: 3, date: '2026-08-03', status: 'leave', leave_kind: 'full', is_today: true }
   ])
 
   assert.equal(cells.filter(c => c.empty).length, 6)
   assert.equal(cells.length, 6 + 31)
 
+  // 出勤：绿，不加角标（一片绿最干净）
   const d1 = cells.find(c => c.key === '2026-08-01')
   assert.equal(d1.statusClass, 'att-present')
   assert.equal(d1.badge, '')
 
+  // 半天请假：红绿对半 + 上/下角标
   const d2 = cells.find(c => c.key === '2026-08-02')
-  assert.equal(d2.statusClass, 'att-leave')
+  assert.equal(d2.statusClass, 'att-half')
   assert.equal(d2.badge, '上')
 
+  // 全天请假：红 + 「假」角标
   const d3 = cells.find(c => c.key === '2026-08-03')
-  assert.equal(d3.statusClass, 'att-absent')
+  assert.equal(d3.statusClass, 'att-leave')
+  assert.equal(d3.badge, '假')
   assert.equal(d3.isToday, true)
 
-  // 云函数没返回的日子兜底为「未到」，不会渲染成缺勤吓人
+  // 云函数没返回的日子兜底为「未到」，不上色
   assert.equal(cells.find(c => c.key === '2026-08-20').statusClass, 'att-future')
-})
-
-test('出勤当天又请半天：绿底 + 半天角标，别让老板漏掉只干了半天', () => {
-  const cells = buildAttendanceCalendar('2026-08', [
-    { day: 1, date: '2026-08-01', status: 'present', leave_kind: 'pm', hours: 4, is_today: false }
-  ])
-  const d1 = cells.find(c => c.key === '2026-08-01')
-  assert.equal(d1.statusClass, 'att-present')
-  assert.equal(d1.subBadge, '下')
 })
 
 test('天数文案：0.5 天说人话叫「半天」', () => {
@@ -70,28 +65,38 @@ test('天数文案：0.5 天说人话叫「半天」', () => {
 
 test('员工列表行拍平成文案 + 全勤徽章样式', () => {
   const rows = buildEmployeeRows([
-    { user_id: 'u1', user_name: '张三', present_days: 20, leave_days: 0.5, absent_days: 1, is_full_attendance: true },
-    { user_id: 'u2', user_name: '李四', present_days: 10, leave_days: 3, absent_days: 5, is_full_attendance: false }
+    { user_id: 'u1', user_name: '张三', present_days: 20.5, leave_days: 0.5, is_full_attendance: true },
+    { user_id: 'u2', user_name: '李四', present_days: 10, leave_days: 3, is_full_attendance: false }
   ])
   assert.equal(rows[0].badgeText, '全勤')
   assert.equal(rows[0].badgeClass, 'badge-green')
-  assert.equal(rows[0].statText, '出勤 20 天 · 请假 半天 · 缺勤 1 天')
+  assert.equal(rows[0].statText, '出勤 20天半 · 请假 半天')
   assert.equal(rows[1].badgeText, '请假3天')
   assert.equal(rows[1].badgeClass, 'badge-red')
 })
 
-test('列表行剥掉每天明细，明细单独建索引（避免 setData 顶到 1MB）', () => {
+test('列表行剥掉每天明细和请假明细，两者单独建索引（避免 setData 顶到 1MB）', () => {
   const employees = [
-    { user_id: 'u1', user_name: '张三', present_days: 1, leave_days: 0, absent_days: 0, is_full_attendance: true, days: [{ day: 1, date: '2026-08-01', status: 'present' }] }
+    {
+      user_id: 'u1',
+      user_name: '张三',
+      present_days: 1,
+      leave_days: 0,
+      is_full_attendance: true,
+      days: [{ day: 1, date: '2026-08-01', status: 'present' }],
+      leave_details: [{ date: '2026-08-02', kind: 'full', reason: '事假' }]
+    }
   ]
   const rows = buildEmployeeRows(employees)
   assert.equal(rows[0].days, undefined)
+  assert.equal(rows[0].leave_details, undefined)
   // 原始数据不能被就地改坏
   assert.equal(employees[0].days.length, 1)
 
   const index = buildDaysIndex(employees)
-  assert.equal(index.u1.length, 1)
-  assert.equal(index.u1[0].date, '2026-08-01')
+  assert.equal(index.u1.days.length, 1)
+  assert.equal(index.u1.days[0].date, '2026-08-01')
+  assert.equal(index.u1.leaveDetails[0].reason, '事假')
 })
 
 test('概览文案', () => {

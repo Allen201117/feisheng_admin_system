@@ -1,7 +1,9 @@
 // pages/boss/attendance/attendance.js
 // 老板端考勤管理（2026-08-29 重做）：
 //   一级视图 = 员工列表（按月），一眼看谁全勤谁不全勤；
-//   二级视图 = 点员工弹出日历抽屉，当月每天绿=出勤 / 橙=请假 / 红=缺勤 / 灰=未到，下面附出勤明细和补签。
+//   二级视图 = 点员工弹出日历抽屉，当月每天绿=出勤 / 红=请假（半天对半分），下面列请假明细。
+// 考勤口径：不看打卡记录，只看请假（2026-08-29 老板口径），细节见
+// cloudfunctions/attendance/attendance-summary.logic.js 顶部注释。
 // 全勤口径：当月请假合计 ≤ 2 天算全勤（半天记 0.5 天），见 cloudfunctions/attendance/leave.logic.js。
 const { callCloud, showError, showSuccess, showLoading, hideLoading, showConfirm } = require('../../../utils/util')
 const { filterListByKeyword } = require('../../../utils/list-search')
@@ -22,20 +24,17 @@ const ABNORMAL_SEARCH_FIELDS = [
   'clock_in_display'
 ]
 
-// 抽屉里的出勤明细：只列已经发生过的日子（未到的日期没什么可看）
-function buildDetailRows(days) {
-  return (days || [])
-    .filter(d => d.status !== 'future')
-    .map(d => ({
-      ...d,
-      statusText: d.status === 'present' ? '出勤' : (d.status === 'leave' ? '请假' : '缺勤'),
-      statusClass: d.status === 'present' ? 'badge-green' : (d.status === 'leave' ? 'badge-amber' : 'badge-red'),
-      timeText: d.status === 'present'
-        ? `${d.clock_in_display || '--'} → ${d.clock_out_display || '--'}`
-        : (d.status === 'leave' ? (d.leave_kind === 'am' ? '请假 上午' : (d.leave_kind === 'pm' ? '请假 下午' : '请假 全天')) : '无打卡记录'),
-      canSupplement: d.att_status === 'abnormal'
-    }))
-    .reverse()
+// 抽屉里的请假明细：考勤只看请假，所以这里只列请假的日子（出勤在日历上一片绿已经够看了）
+const LEAVE_KIND_TEXT = { am: '上午', pm: '下午', full: '全天' }
+
+function buildLeaveDetailRows(details) {
+  return (details || []).map(d => ({
+    ...d,
+    kindText: LEAVE_KIND_TEXT[d.kind] || '全天',
+    kindClass: d.kind === 'full' ? 'badge-red' : 'badge-amber',
+    sourceText: d.created_by_boss ? '老板代录' : '员工提报',
+    reasonText: d.reason || '未填原因'
+  }))
 }
 
 Page({
@@ -59,7 +58,7 @@ Page({
     showDrawer: false,
     drawerEmp: null,
     drawerCells: [],
-    drawerDetails: [],
+    drawerLeaves: [],
 
     showSupplement: false,
     supplementData: { attendance_id: '', user_id: '', user_name: '', date: '', clock_out_time: '' },
@@ -172,17 +171,17 @@ Page({
   },
 
   openDrawerFor(emp) {
-    const days = (this._daysIndex || {})[emp.user_id] || []
+    const entry = (this._daysIndex || {})[emp.user_id] || { days: [], leaveDetails: [] }
     this.setData({
       showDrawer: true,
       drawerEmp: emp,
-      drawerCells: buildAttendanceCalendar(this.data.month, days),
-      drawerDetails: buildDetailRows(days)
+      drawerCells: buildAttendanceCalendar(this.data.month, entry.days),
+      drawerLeaves: buildLeaveDetailRows(entry.leaveDetails)
     })
   },
 
   closeDrawer() {
-    this.setData({ showDrawer: false, drawerEmp: null, drawerCells: [], drawerDetails: [] })
+    this.setData({ showDrawer: false, drawerEmp: null, drawerCells: [], drawerLeaves: [] })
   },
 
   noop() {},
