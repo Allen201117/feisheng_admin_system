@@ -15,6 +15,8 @@ const {
   formatMonthLabel
 } = require('../../../utils/leave-calendar.logic')
 
+const KIND_TEXT = { am: '上午半天', pm: '下午半天', half: '半天', full: '全天' }
+
 // listEmployees 只返回 name/role/join_date，按姓名搜索
 const EMP_SEARCH_FIELDS = ['name']
 
@@ -250,11 +252,22 @@ Page({
         const picked = options[res.tapIndex]
         if (!picked) return
         callCloud('attendance', { action: 'updateLeaveHalfDay', leave_id: leaveId, kind: picked.kind })
-          .then(() => {
-            showSuccess(name + ' 已更新')
+          .then((res) => {
+            const days = res && res.data && res.data.day_count
+            wx.showToast({
+              title: `${name} → ${KIND_TEXT[picked.kind]}${days === undefined ? '' : '，' + days + '天'}`,
+              icon: 'none',
+              duration: 2500
+            })
             this.load()
           })
-          .catch((err) => showError(err.message || '修改失败'))
+          .catch((err) => {
+            const msg = (err && err.message) || '修改失败'
+            // 云函数没重新上传时会返回「未知操作」，翻译成能照做的提示
+            showError(msg.indexOf('未知操作') >= 0
+              ? 'attendance 云函数还是旧版本，请在开发者工具里重新上传并部署'
+              : msg)
+          })
       },
       fail: () => {}
     })

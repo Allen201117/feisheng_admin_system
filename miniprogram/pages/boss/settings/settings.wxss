@@ -205,3 +205,12 @@
   font-size: var(--fs-xs);
   color: var(--blue-600);
 }
+
+.settings-kind-cell {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  margin-right: var(--sp-1);
+}

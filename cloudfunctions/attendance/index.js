@@ -1307,26 +1307,38 @@ async function repairLegacyHalfDayLeaves(event, wxContext) {
 
     const plan = leaveLogic.planLegacyHalfDayMigration(records)
 
-    // 备注里带字但读不出半天的，单独列出来让老板自己看一眼（比如写「有事」「家里事」）
-    const unmatched = records
+    // 备注里带字但读不出半天的，列出来让老板自己判断（比如写「有事」「10.30走」）。
+    // ⚠️ 这里**不能**把「已经设过半天的」过滤掉：老板点「改时段」改完后，
+    // 行如果直接消失、面板又还是「没有要转换的老记录」，看起来就像根本没保存。
+    // 所以保留整行、附上它**当前的时段**，改完 badge 会跟着变 —— 这才是能看见的确认。
+    const unmatchedAll = records
       .filter(r => r && r.status === 'active' && (r.reason || '').trim())
       .filter(r => !plan.some(p => p._id === r._id))
-      .filter(r => Object.keys(leaveLogic.normalizeHalfDays(r.half_days, r.dates)).length === 0)
-      .slice(0, 20)
-      .map(r => ({
-        _id: r._id,
-        user_name: r.user_name || '',
-        month: r.month || '',
-        dates: r.dates || [],
-        reason: r.reason || ''
-      }))
+    const unmatched = unmatchedAll
+      .slice(0, 50)
+      .map(r => {
+        const half = leaveLogic.normalizeHalfDays(r.half_days, r.dates)
+        const kinds = Object.keys(half).map(k => half[k])
+        // 整条记录时段一致才报具体半天，否则按全天显示（混着的极少见）
+        const uniform = kinds.length > 0 && kinds.length === (r.dates || []).length && kinds.every(k => k === kinds[0])
+        return {
+          _id: r._id,
+          user_name: r.user_name || '',
+          month: r.month || '',
+          dates: r.dates || [],
+          reason: r.reason || '',
+          current_kind: uniform ? kinds[0] : 'full',
+          day_count: leaveLogic.countLeaveDays(r)
+        }
+      })
 
     const summary = {
       dry_run: dryRun,
       scanned: records.length,
       total_fix_count: plan.length,
       plan: plan.slice(0, 30),
-      unmatched
+      unmatched,
+      unmatched_total: unmatchedAll.length
     }
 
     if (dryRun || plan.length === 0) {
