@@ -37,7 +37,7 @@
         <text class="att-stat-label">今日请假</text>
       </view>
     </view>
-    <text class="att-rule-hint">全勤口径：当月请假合计不超过 2 天（半天算 0.5 天）</text>
+    <text class="att-rule-hint">考勤只看请假（不看打卡）。全勤 = 当月请假合计不超过 2 天，半天算 0.5 天。</text>
   </view>
 
   <!-- 选项卡 -->
@@ -132,7 +132,6 @@
           <view wx:if="{{!item.empty}}" class="att-day-inner">
             <text class="att-day-num">{{item.day}}</text>
             <text wx:if="{{item.badge}}" class="att-day-badge">{{item.badge}}</text>
-            <text wx:if="{{item.subBadge}}" class="att-day-sub">{{item.subBadge}}</text>
           </view>
         </view>
       </view>
@@ -140,25 +139,21 @@
       <view class="att-legend">
         <view class="att-legend-item"><view class="att-dot att-present"></view><text>出勤</text></view>
         <view class="att-legend-item"><view class="att-dot att-leave"></view><text>请假</text></view>
-        <view class="att-legend-item"><view class="att-dot att-absent"></view><text>缺勤</text></view>
+        <view class="att-legend-item"><view class="att-dot att-half"></view><text>请半天</text></view>
         <view class="att-legend-item"><view class="att-dot att-future"></view><text>未到</text></view>
       </view>
 
-      <!-- 出勤明细 -->
-      <text class="menu-group-title" style="display:block;margin:var(--sp-2) 0 var(--sp-1);">当月明细</text>
-      <view wx:if="{{drawerDetails.length === 0}}" class="empty" style="padding:var(--sp-2) 0;">
-        <text class="empty-desc">本月还没有可查看的记录</text>
+      <!-- 请假明细 -->
+      <text class="menu-group-title att-detail-title">当月请假明细</text>
+      <view wx:if="{{drawerLeaves.length === 0}}" class="empty att-detail-empty">
+        <text class="empty-desc">本月一天假都没请</text>
       </view>
-      <view wx:for="{{drawerDetails}}" wx:key="date" class="list-row">
+      <view wx:for="{{drawerLeaves}}" wx:key="date" class="list-row">
         <view class="flex-1">
           <text class="list-row-title">{{item.date}}</text>
-          <text class="list-row-subtitle" style="display:block;">{{item.timeText}}</text>
+          <text class="list-row-subtitle">{{item.reasonText}} · {{item.sourceText}}</text>
         </view>
-        <view class="flex-col" style="align-items:flex-end;">
-          <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
-          <text wx:if="{{item.status === 'present'}}" class="text-tertiary text-xs" style="margin-top:4rpx;">{{item.hours}}h</text>
-        </view>
-        <button wx:if="{{item.canSupplement}}" class="btn-sm btn-sm-ghost" style="border:1rpx solid var(--amber-600);color:var(--amber-600);flex-shrink:0;margin-left:var(--sp-1);" catchtap="showSupplementForm" data-record="{{item}}" hover-class="tap-button-hover">补签</button>
+        <text class="badge {{item.kindClass}}">{{item.kindText}}</text>
       </view>
       <view class="safe-bottom"></view>
     </scroll-view>

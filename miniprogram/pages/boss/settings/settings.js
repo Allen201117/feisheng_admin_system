@@ -21,7 +21,8 @@ const {
 } = require('./settings.logic')
 
 // 把云函数返回的修复报告拍平成可直接渲染的文案（WXML 里不做计算，遵循项目现有约定）
-function buildRepairReport(data) {
+// status：clean=全部对齐无需处理｜dirty=查出差异待确认｜applied=刚写完库
+function buildRepairReport(data, applied) {
   const samples = (data.samples || []).map((item) => {
     const parts = []
     if (item.price_to !== null && item.price_to !== undefined) {
@@ -37,9 +38,20 @@ function buildRepairReport(data) {
     }
   })
   const manual = data.manual_review || []
+  const fixCount = data.total_fix_count || 0
+  const scanned = (data.scanned && data.scanned.worklogs) || 0
+  const status = applied ? 'applied' : (fixCount === 0 && manual.length === 0 ? 'clean' : 'dirty')
+
+  let headline
+  if (status === 'clean') headline = '全部对齐，没有要改的'
+  else if (status === 'applied') headline = `已对齐 ${data.applied || 0} 条` + ((data.failed || 0) > 0 ? `，${data.failed} 条失败` : '')
+  else headline = `查出 ${fixCount} 条需要对齐`
+
   return {
-    total_fix_count: data.total_fix_count || 0,
-    summaryText: `扫描报工 ${(data.scanned && data.scanned.worklogs) || 0} 条：需对齐 ${data.total_fix_count || 0} 条（未发薪 ${data.unpaid_fix_count || 0}、已发薪 ${data.paid_fix_count || 0}），需人工确认 ${manual.length} 组` + (data.applied === undefined ? '' : `；本次已写入 ${data.applied} 条，失败 ${data.failed} 条`),
+    status,
+    total_fix_count: fixCount,
+    headline,
+    summaryText: `扫描报工 ${scanned} 条 · 未发薪 ${data.unpaid_fix_count || 0} 条 · 已发薪 ${data.paid_fix_count || 0} 条 · 待人工确认 ${manual.length} 组`,
     samples,
     manual_review: manual
   }
@@ -49,6 +61,7 @@ Page({
   data: {
     repairing: false,
     repairReport: null,
+    checkpointTotal: 0,
     factory_latitude: '',
     factory_longitude: '',
     geofence_radius: '100',
@@ -106,7 +119,7 @@ Page({
           coordinate_system: settings.coordinate_system || '',
           location_source: settings.location_source || '',
           loaded: true
-        })
+        }, () => this.refreshCheckpointTotal())
       })
       .catch(() => {
         this.setData({ loaded: false })
@@ -149,7 +162,7 @@ Page({
           longitude: self.data.sampledLocation.longitude,
           radius: self.data.geofence_radius || '100'
         }))
-        self.setData({ checkpoints, location_source: 'on_site', coordinate_system: 'gcj02' })
+        self.setData({ checkpoints, location_source: 'on_site', coordinate_system: 'gcj02' }, () => self.refreshCheckpointTotal())
         showSuccess('已添加：' + name)
       }
     })
@@ -159,7 +172,7 @@ Page({
     const index = Number(e.currentTarget.dataset.index)
     const checkpoints = (this.data.checkpoints || []).slice()
     checkpoints.splice(index, 1)
-    this.setData({ checkpoints })
+    this.setData({ checkpoints }, () => this.refreshCheckpointTotal())
   },
 
   applySampleToMain() {
@@ -172,8 +185,15 @@ Page({
       factory_longitude: this.data.sampledLocation.longitude,
       location_source: 'on_site',
       coordinate_system: 'gcj02'
-    })
+    }, () => this.refreshCheckpointTotal())
     showSuccess('已设为主打卡点')
+  },
+
+  // 打卡点总数 = 主打卡点(0/1) + 附加打卡点，供卡片头部显示。
+  // WXML 不做计算，所以每次动到 checkpoints / 主打卡点后都刷一次。
+  refreshCheckpointTotal() {
+    const extra = (this.data.checkpoints || []).length
+    this.setData({ checkpointTotal: (this.data.factory_latitude ? 1 : 0) + extra })
   },
 
   toggleAdvancedInput() {
@@ -344,7 +364,11 @@ Page({
     try {
       const res = await callCloud('salary', { action: 'repairSettlementPrices', dry_run: true })
       hideLoading()
-      this.setData({ repairing: false, repairReport: buildRepairReport(res.data || {}) })
+      const report = buildRepairReport(res.data || {}, false)
+      this.setData({ repairing: false, repairReport: report })
+      // 「没问题」也要有明确反馈：只留一行小灰字等于没反馈
+      if (report.status === 'clean') showSuccess('数据都是对的')
+      else wx.showToast({ title: report.headline, icon: 'none', duration: 2500 })
     } catch (err) {
       hideLoading()
       this.setData({ repairing: false })
@@ -363,8 +387,9 @@ Page({
     try {
       const res = await callCloud('salary', { action: 'repairSettlementPrices', dry_run: false })
       hideLoading()
-      this.setData({ repairing: false, repairReport: buildRepairReport(res.data || {}) })
-      showSuccess(res.msg || '对齐完成')
+      const report = buildRepairReport(res.data || {}, true)
+      this.setData({ repairing: false, repairReport: report })
+      showSuccess(report.headline)
     } catch (err) {
       hideLoading()
       this.setData({ repairing: false })

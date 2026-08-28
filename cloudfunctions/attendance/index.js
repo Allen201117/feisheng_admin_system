@@ -1246,20 +1246,17 @@ async function getMonthAttendanceOverview(event, wxContext) {
   if (!orgId) return { code: -1, msg: '账号未归属工厂' }
 
   const month = /^\d{4}-\d{2}$/.test(String(event.month || '')) ? event.month : bjTime.getBeijingMonth()
-  const range = bjTime.getBeijingMonthRange(month)
   const today = bjTime.getBeijingToday()
 
   try {
-    const [users, attendances, leaves] = await Promise.all([
+    // 只取 Users + 本月请假：考勤口径已改为「不看打卡、只看请假」（见 attendance-summary.logic.js 顶部），
+    // 打卡记录仍由 getAbnormalRecords / supplement 那条线单独用，这里不需要。
+    const [users, leaves] = await Promise.all([
       // 注意：本云函数的 fetchAllDocs 第三个参数是 pageSize，不支持字段投影，别照搬 salary/order 的写法
       fetchAllDocs('Users', {
         org_id: orgId,
         role: _.in(['employee', 'qc']),
         status: 'active'
-      }),
-      fetchAllDocs('Attendances', {
-        org_id: orgId,
-        date: _.gte(range.startDate).and(_.lt(range.endDate))
       }),
       // LeaveRecords 是「第一次有人请假」才创建的集合：没建过时查询会直接报错，
       // 不能让整个考勤总览跟着挂掉，所以这里单独兜底成空数组。
@@ -1277,16 +1274,6 @@ async function getMonthAttendanceOverview(event, wxContext) {
         today,
         // 只喂纯函数需要的字段：Users 里有手机号/密码等敏感字段，绝不整条往前端带
         users: users.map(u => ({ _id: u._id, name: u.name, role: u.role })),
-        attendances: attendances.map(a => ({
-          _id: a._id,
-          user_id: a.user_id,
-          date: a.date,
-          hours: a.hours,
-          status: a.status,
-          clock_in_time: a.clock_in_time,
-          clock_in_display: a.clock_in_time ? formatTimeStr(a.clock_in_time) : '',
-          clock_out_display: a.clock_out_time ? formatTimeStr(a.clock_out_time) : ''
-        })),
         leaves
       })
     }

@@ -65,7 +65,7 @@ test('全勤口径：请假 ≤ 2 天算全勤，超过 2 天不算', () => {
   assert.equal(isFullAttendance(3), false)
 })
 
-test('月度总览：出勤/请假/缺勤/未到 四态分清，且全勤按 ≤2 天判定', () => {
+test('月度总览：不看打卡，没请假的过去日子一律算出勤', () => {
   const overview = buildMonthAttendanceOverview({
     month: '2026-08',
     today: '2026-08-05',
@@ -73,14 +73,8 @@ test('月度总览：出勤/请假/缺勤/未到 四态分清，且全勤按 ≤
       { _id: 'u1', name: '张三', role: 'employee' },
       { _id: 'u2', name: '李四', role: 'employee' }
     ],
-    attendances: [
-      { user_id: 'u1', date: '2026-08-01', hours: 8, clock_in_time: '2026-08-01T01:00:00Z' },
-      { user_id: 'u1', date: '2026-08-02', hours: 7.5, clock_in_time: '2026-08-02T01:00:00Z' },
-      // 只有记录没签到时间的不算出勤
-      { user_id: 'u2', date: '2026-08-01', hours: 0, clock_in_time: '' }
-    ],
     leaves: [
-      { user_id: 'u1', status: 'active', dates: ['2026-08-03'], half_days: { '2026-08-03': 'am' }, day_count: 0.5 },
+      { user_id: 'u1', status: 'active', dates: ['2026-08-03'], half_days: { '2026-08-03': 'am' }, day_count: 0.5, reason: '看病' },
       { user_id: 'u2', status: 'active', dates: ['2026-08-01', '2026-08-02', '2026-08-03'], day_count: 3 }
     ]
   })
@@ -88,27 +82,46 @@ test('月度总览：出勤/请假/缺勤/未到 四态分清，且全勤按 ≤
   const zhang = overview.employees.find(e => e.user_id === 'u1')
   const li = overview.employees.find(e => e.user_id === 'u2')
 
-  assert.equal(zhang.present_days, 2)
+  // 8-01~8-05 共 5 天已过去，张三 8-03 请了半天 → 出勤 4.5 天
+  assert.equal(zhang.present_days, 4.5)
   assert.equal(zhang.leave_days, 0.5)
-  assert.equal(zhang.absent_days, 2) // 8-04、8-05 既没打卡也没请假
-  assert.equal(zhang.total_hours, 15.5)
   assert.equal(zhang.is_full_attendance, true)
 
-  assert.equal(li.present_days, 0)
+  // 李四 8-01~8-03 全天请假 → 只有 8-04、8-05 算出勤
+  assert.equal(li.present_days, 2)
   assert.equal(li.leave_days, 3)
-  assert.equal(li.absent_days, 2) // 8-04、8-05
   assert.equal(li.is_full_attendance, false)
 
-  // 8-06 之后还没到，不算缺勤
+  // 8-06 之后还没到，既不算出勤也不算请假
   assert.equal(zhang.days.find(d => d.date === '2026-08-06').status, 'future')
-  assert.equal(zhang.days.find(d => d.date === '2026-08-03').status, 'leave')
+  assert.equal(zhang.days.find(d => d.date === '2026-08-03').status, 'half')
   assert.equal(zhang.days.find(d => d.date === '2026-08-03').leave_kind, 'am')
+  assert.equal(zhang.days.find(d => d.date === '2026-08-04').status, 'present')
+  assert.equal(li.days.find(d => d.date === '2026-08-01').status, 'leave')
   assert.equal(zhang.days.length, 31)
 
   assert.equal(overview.summary.employee_count, 2)
   assert.equal(overview.summary.full_attendance_count, 1)
   assert.equal(overview.summary.not_full_count, 1)
   assert.equal(overview.summary.total_leave_days, 3.5)
+})
+
+test('请假明细带原因和来源，按日期升序，供抽屉逐条列出', () => {
+  const overview = buildMonthAttendanceOverview({
+    month: '2026-08',
+    today: '2026-08-31',
+    users: [{ _id: 'u1', name: '张三', role: 'employee' }],
+    leaves: [
+      { user_id: 'u1', status: 'active', dates: ['2026-08-09'], half_days: { '2026-08-09': 'pm' }, day_count: 0.5, reason: '接孩子', created_by_boss: true },
+      { user_id: 'u1', status: 'active', dates: ['2026-08-02'], day_count: 1, reason: '事假' }
+    ]
+  })
+  const details = overview.employees[0].leave_details
+  assert.deepEqual(details.map(d => d.date), ['2026-08-02', '2026-08-09'])
+  assert.equal(details[0].kind, 'full')
+  assert.equal(details[0].reason, '事假')
+  assert.equal(details[1].kind, 'pm')
+  assert.equal(details[1].created_by_boss, true)
 })
 
 test('列表把不全勤的排在前面，方便老板一眼看到要盯的人', () => {
@@ -119,7 +132,6 @@ test('列表把不全勤的排在前面，方便老板一眼看到要盯的人',
       { _id: 'ok', name: '全勤的', role: 'employee' },
       { _id: 'bad', name: '请太多的', role: 'employee' }
     ],
-    attendances: [],
     leaves: [
       { user_id: 'bad', status: 'active', dates: ['2026-08-01', '2026-08-02', '2026-08-03'], day_count: 3 }
     ]
@@ -127,19 +139,19 @@ test('列表把不全勤的排在前面，方便老板一眼看到要盯的人',
   assert.equal(overview.employees[0].user_id, 'bad')
 })
 
-test('当天既出勤又请了半天时算出勤（绿），但保留半天标记', () => {
+test('未来已报备的请假照样标红，不会因为日子没到就当成未到', () => {
   const overview = buildMonthAttendanceOverview({
     month: '2026-08',
-    today: '2026-08-31',
+    today: '2026-08-05',
     users: [{ _id: 'u1', name: '张三', role: 'employee' }],
-    attendances: [
-      { user_id: 'u1', date: '2026-08-01', hours: 4, clock_in_time: '2026-08-01T01:00:00Z' }
-    ],
     leaves: [
-      { user_id: 'u1', status: 'active', dates: ['2026-08-01'], half_days: { '2026-08-01': 'pm' }, day_count: 0.5 }
+      { user_id: 'u1', status: 'active', dates: ['2026-08-20'], day_count: 1 }
     ]
   })
-  const day = overview.employees[0].days.find(d => d.date === '2026-08-01')
-  assert.equal(day.status, 'present')
-  assert.equal(day.leave_kind, 'pm')
+  const days = overview.employees[0].days
+  assert.equal(days.find(d => d.date === '2026-08-20').status, 'leave')
+  assert.equal(days.find(d => d.date === '2026-08-21').status, 'future')
+  // 未来的请假不计进「已出勤天数」，但计进全勤判定用的请假总天数
+  assert.equal(overview.employees[0].present_days, 5)
+  assert.equal(overview.employees[0].leave_days, 1)
 })

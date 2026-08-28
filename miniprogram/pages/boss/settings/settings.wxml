@@ -7,53 +7,37 @@
     <button class="settings-header-save btn-sm btn-sm-primary" bindtap="onSave" disabled="{{loading}}" hover-class="tap-button-hover">{{loading ? '保存中' : '保存'}}</button>
   </view>
 
-  <!-- 服务与续费 -->
-  <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">服务与续费</text>
-    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-1);display:block;">查看当前版本、到期时间，并复制开通信息发给平台管理员。</text>
-    <button class="btn btn-outline btn-block" bindtap="goSubscription" hover-class="tap-button-hover">服务状态与续费</button>
-  </view>
+  <!-- ============ 考勤打卡 ============ -->
+  <text class="settings-section">考勤打卡</text>
 
-  <!-- 发薪机制 -->
+  <!-- 打卡点 -->
   <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">发薪机制</text>
-    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-2);display:block;">选择薪酬管理默认按月份结算，还是按订单结算。</text>
-    <view class="settings-segment">
-      <view class="settings-segment-item {{salary_payroll_mode === 'monthly' ? 'active' : ''}}" data-mode="monthly" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
-        <text class="settings-segment-title">按月发薪</text>
-        <text class="settings-segment-desc">按月份汇总员工工资</text>
-      </view>
-      <view class="settings-segment-item {{salary_payroll_mode === 'order' ? 'active' : ''}}" data-mode="order" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
-        <text class="settings-segment-title">按订单发薪</text>
-        <text class="settings-segment-desc">订单完成后按订单结算</text>
-      </view>
+    <view class="settings-head">
+      <text class="settings-title">打卡点</text>
+      <text class="settings-count">已设 {{checkpointTotal}} 个</text>
     </view>
-  </view>
-
-  <!-- 打卡点管理 -->
-  <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">打卡点管理</text>
-    <text class="text-tertiary text-xs" style="margin-bottom:var(--sp-1);display:block;">到工厂各入口/区域，点击下方按钮采样后一键添加打卡点。员工在任意打卡点附近即可打卡。</text>
+    <text class="settings-desc">走到工厂各个入口，采样一次就能加一个打卡点。员工在任意打卡点附近都能打卡。</text>
 
     <button class="btn-primary btn-block" bindtap="getLocation" disabled="{{locating}}" hover-class="tap-button-hover">{{locating ? '正在采样定位...' : '采样当前位置'}}</button>
 
-    <view wx:if="{{locationResult}}" class="notice notice-green" style="margin-top:var(--sp-1);">
+    <view wx:if="{{locationResult}}" class="notice notice-green settings-gap-sm">
       <text class="text-green text-sm font-medium">采样成功（精度{{locationResult.accuracy}}）</text>
     </view>
-    <view wx:if="{{sampledLocation}}" class="flex-row gap-1" style="margin-top:var(--sp-1);">
-      <button class="flex-1 btn-sm btn-sm-ghost" style="border:1rpx solid var(--border);color:var(--text-secondary);" bindtap="applySampleToMain" hover-class="tap-button-hover">{{factory_latitude ? '更新主打卡点' : '设为主打卡点'}}</button>
-      <button class="flex-1 btn-sm btn-sm-ghost" style="border:1rpx solid var(--border);color:var(--text-secondary);" bindtap="quickAddCheckpoint" hover-class="tap-button-hover">添加为附加打卡点</button>
+    <view wx:if="{{sampledLocation}}" class="settings-action-row">
+      <button class="flex-1 btn-sm btn-sm-ghost settings-ghost-btn" bindtap="applySampleToMain" hover-class="tap-button-hover">{{factory_latitude ? '更新主打卡点' : '设为主打卡点'}}</button>
+      <button class="flex-1 btn-sm btn-sm-ghost settings-ghost-btn" bindtap="quickAddCheckpoint" hover-class="tap-button-hover">添加为附加打卡点</button>
     </view>
 
-    <view class="card" style="margin:var(--sp-1) 0;">
+    <view class="settings-sub-card">
       <view wx:if="{{factory_latitude}}" class="list-row">
         <view class="flex-1">
           <text class="list-row-title">主打卡点</text>
           <text class="list-row-subtitle">{{factory_latitude}}, {{factory_longitude}}</text>
         </view>
+        <text class="badge badge-blue">主</text>
       </view>
       <view wx:else class="list-row">
-        <text class="list-row-subtitle">未设置主打卡点，请采样当前位置</text>
+        <text class="list-row-subtitle">还没设主打卡点，先点上面「采样当前位置」</text>
       </view>
 
       <view wx:for="{{checkpoints}}" wx:for-item="item" wx:key="index" class="list-row">
@@ -61,12 +45,12 @@
           <text class="list-row-title">{{item.name || '附加打卡点 ' + (index + 1)}}</text>
           <text class="list-row-subtitle">{{item.latitude}}, {{item.longitude}}</text>
         </view>
-        <text class="text-red text-xs" style="flex-shrink:0;padding:8rpx 16rpx;" data-index="{{index}}" bindtap="removeCheckpoint" hover-class="tap-chip-hover">删除</text>
+        <text class="settings-remove" data-index="{{index}}" bindtap="removeCheckpoint" hover-class="tap-chip-hover">删除</text>
       </view>
     </view>
 
-    <view class="text-center" style="padding:var(--sp-1) 0;" bindtap="toggleAdvancedInput" hover-class="tap-row-hover">
-      <text class="text-tertiary text-xs">{{showAdvancedInput ? '收起高级选项 ▲' : '高级选项 ▼'}}</text>
+    <view class="settings-toggle" bindtap="toggleAdvancedInput" hover-class="tap-row-hover">
+      <text class="text-tertiary text-xs">{{showAdvancedInput ? '收起手动输入坐标 ▲' : '手动输入坐标 ▼'}}</text>
     </view>
 
     <view wx:if="{{showAdvancedInput}}">
@@ -82,71 +66,129 @@
     </view>
   </view>
 
-  <!-- 参数配置 -->
+  <!-- 打卡规则 -->
   <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">参数配置</text>
-    <view class="list-row flex-wrap">
-      <view class="flex-1">
-        <text class="list-row-title">打卡范围半径（米）</text>
-        <text class="list-row-subtitle">所有打卡点共用此半径。GPS精度差时会自动补偿容差。</text>
-      </view>
-      <input class="field-input" type="number" placeholder="默认100" style="width:200rpx;flex-shrink:0;" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
+    <view class="settings-head">
+      <text class="settings-title">打卡规则</text>
     </view>
-    <view class="list-row flex-wrap">
-      <text class="list-row-title flex-1">合格率阈值（%）— 排行榜用</text>
-      <input class="field-input" type="number" placeholder="默认95" style="width:200rpx;flex-shrink:0;" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
-    </view>
-    <view class="list-row flex-wrap">
-      <text class="list-row-title flex-1">二维码有效期（天）</text>
-      <input class="field-input" type="number" placeholder="默认1" style="width:200rpx;flex-shrink:0;" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
-    </view>
-  </view>
 
-  <!-- 打卡方式 -->
-  <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">打卡方式</text>
-    <view class="list-row">
-      <view class="flex-1">
-        <text class="list-row-title">允许居家打卡</text>
-        <text class="list-row-subtitle">开启后员工可在非围栏范围内打卡，标记为居家打卡</text>
+    <view class="settings-row">
+      <view class="settings-row-main">
+        <text class="settings-row-title">打卡范围半径</text>
+        <text class="settings-row-desc">所有打卡点共用。GPS 精度差时会自动补偿容差。</text>
+      </view>
+      <view class="settings-row-input">
+        <input class="field-input settings-input" type="number" placeholder="100" value="{{geofence_radius}}" data-field="geofence_radius" bindinput="onInput" />
+        <text class="settings-unit">米</text>
+      </view>
+    </view>
+
+    <view class="settings-row">
+      <view class="settings-row-main">
+        <text class="settings-row-title">二维码有效期</text>
+        <text class="settings-row-desc">考勤二维码多久失效。</text>
+      </view>
+      <view class="settings-row-input">
+        <input class="field-input settings-input" type="number" placeholder="1" value="{{qrcode_expire_days}}" data-field="qrcode_expire_days" bindinput="onInput" />
+        <text class="settings-unit">天</text>
+      </view>
+    </view>
+
+    <view class="settings-row settings-row-last">
+      <view class="settings-row-main">
+        <text class="settings-row-title">允许居家打卡</text>
+        <text class="settings-row-desc">开启后员工在围栏外也能打卡，会标记为居家打卡。</text>
       </view>
       <switch checked="{{allow_home_checkin}}" data-field="allow_home_checkin" bindchange="onSwitchChange" color="#2563EB" />
     </view>
   </view>
 
-  <!-- 数据体检：结算价对账修复（一次性存量修复入口） -->
-  <view class="card-bento" style="margin-top:var(--sp-2);">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">数据体检</text>
-    <text class="text-tertiary text-xs" style="display:block;margin-bottom:var(--sp-1);">检查历史报工的结算价是否和工序当前工价对齐。改过工价的老数据会在这里被找出来并一键对齐。</text>
+  <!-- ============ 工资与统计 ============ -->
+  <text class="settings-section">工资与统计</text>
+
+  <view class="card-bento">
+    <view class="settings-head">
+      <text class="settings-title">发薪机制</text>
+    </view>
+    <text class="settings-desc">薪酬管理默认按月份结算，还是按订单结算。</text>
+    <view class="settings-segment">
+      <view class="settings-segment-item {{salary_payroll_mode === 'monthly' ? 'active' : ''}}" data-mode="monthly" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
+        <text class="settings-segment-title">按月发薪</text>
+        <text class="settings-segment-desc">按月份汇总员工工资</text>
+      </view>
+      <view class="settings-segment-item {{salary_payroll_mode === 'order' ? 'active' : ''}}" data-mode="order" bindtap="onPayrollModeTap" hover-class="tap-chip-hover">
+        <text class="settings-segment-title">按订单发薪</text>
+        <text class="settings-segment-desc">订单完成后按订单结算</text>
+      </view>
+    </view>
+
+    <view class="settings-row settings-row-last settings-gap">
+      <view class="settings-row-main">
+        <text class="settings-row-title">合格率阈值</text>
+        <text class="settings-row-desc">排行榜用：低于这个合格率不上榜。</text>
+      </view>
+      <view class="settings-row-input">
+        <input class="field-input settings-input" type="number" placeholder="95" value="{{quality_threshold}}" data-field="quality_threshold" bindinput="onInput" />
+        <text class="settings-unit">%</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 数据体检 -->
+  <view class="card-bento">
+    <view class="settings-head">
+      <text class="settings-title">数据体检</text>
+    </view>
+    <text class="settings-desc">检查历史报工的结算价有没有跟工序当前工价对齐。改过工价的老数据会在这里被找出来，确认后可一键对齐。</text>
     <button class="btn btn-outline btn-block" bindtap="onCheckSettlementPrices" disabled="{{repairing}}" hover-class="tap-button-hover">{{repairing ? '检查中...' : '检查结算价'}}</button>
-    <view wx:if="{{repairReport}}" style="margin-top:var(--sp-2);">
-      <text class="text-secondary text-xs" style="display:block;">{{repairReport.summaryText}}</text>
+
+    <view wx:if="{{repairReport}}" class="settings-gap">
+      <!-- 三种明确状态：全对齐(绿) / 查出问题(橙) / 刚写完库(绿) -->
+      <view class="settings-result {{repairReport.status === 'dirty' ? 'is-warn' : 'is-ok'}}">
+        <text class="settings-result-icon">{{repairReport.status === 'dirty' ? '!' : '✓'}}</text>
+        <view class="flex-1">
+          <text class="settings-result-title">{{repairReport.headline}}</text>
+          <text class="settings-result-desc">{{repairReport.summaryText}}</text>
+        </view>
+      </view>
+
       <view wx:for="{{repairReport.samples}}" wx:key="worklog_id" class="list-row">
         <view class="flex-1">
           <text class="list-row-title">{{item.title}}</text>
           <text class="list-row-subtitle">{{item.detail}}</text>
         </view>
       </view>
+
+      <view wx:if="{{repairReport.manual_review.length > 0}}" class="notice notice-amber settings-gap-sm">下面这些金额对不上账，我没有动，需要你自己确认：</view>
       <view wx:for="{{repairReport.manual_review}}" wx:key="scopeKey" class="list-row">
         <view class="flex-1">
           <text class="list-row-title text-red">{{item.user_name}} · {{item.scope}}</text>
           <text class="list-row-subtitle">实发 ¥{{item.recordedTotal}}｜{{item.reason}}</text>
         </view>
       </view>
-      <button wx:if="{{repairReport.total_fix_count > 0}}" class="btn-primary btn-block" style="margin-top:var(--sp-2);" bindtap="onApplySettlementRepair" disabled="{{repairing}}" hover-class="tap-button-hover">一键对齐这 {{repairReport.total_fix_count}} 条</button>
+
+      <button wx:if="{{repairReport.total_fix_count > 0}}" class="btn-primary btn-block settings-gap" bindtap="onApplySettlementRepair" disabled="{{repairing}}" hover-class="tap-button-hover">一键对齐这 {{repairReport.total_fix_count}} 条</button>
     </view>
   </view>
 
-  <!-- 协议与隐私 -->
-  <view class="card-bento" style="margin-top:var(--sp-2);">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">协议与隐私</text>
-    <view class="list-row tappable" bindtap="goPrivacyPolicy" hover-class="tap-row-hover">
-      <text class="flex-1 list-row-title">查看隐私政策</text>
-      <text class="text-tertiary text-base">→</text>
+  <!-- ============ 账号与服务 ============ -->
+  <text class="settings-section">账号与服务</text>
+
+  <view class="card-bento">
+    <view class="list-row tappable" bindtap="goSubscription" hover-class="tap-row-hover">
+      <view class="flex-1">
+        <text class="list-row-title">服务状态与续费</text>
+        <text class="list-row-subtitle">当前版本、到期时间，复制开通信息给平台管理员</text>
+      </view>
+      <text class="settings-arrow">›</text>
     </view>
-    <view class="list-row tappable" bindtap="goUserAgreement" hover-class="tap-row-hover">
-      <text class="flex-1 list-row-title">查看用户服务协议</text>
-      <text class="text-tertiary text-base">→</text>
+    <view class="list-row tappable" bindtap="goPrivacyPolicy" hover-class="tap-row-hover">
+      <text class="flex-1 list-row-title">隐私政策</text>
+      <text class="settings-arrow">›</text>
+    </view>
+    <view class="list-row tappable settings-row-last" bindtap="goUserAgreement" hover-class="tap-row-hover">
+      <text class="flex-1 list-row-title">用户服务协议</text>
+      <text class="settings-arrow">›</text>
     </view>
   </view>
 
