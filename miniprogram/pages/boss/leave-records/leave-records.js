@@ -6,7 +6,8 @@ const bjTime = require('../../../utils/beijing-time')
 const { filterListByKeyword } = require('../../../utils/list-search')
 const {
   buildLeaveCalendar,
-  cycleLeaveSelection,
+  LEAVE_KINDS,
+  applyLeaveKind,
   selectionDates,
   selectionHalfDays,
   selectionDayCount,
@@ -67,6 +68,8 @@ Page({
     addMinMonth: '',
     canPrev: false,
     addCells: [],
+    leaveKinds: LEAVE_KINDS,
+    addKind: 'full',
     addSelection: {},
     addSelectedCount: 0,
     addDayCount: 0,
@@ -132,6 +135,7 @@ Page({
       addToday: today,
       addMinMonth: calcMinMonth(month),
       addSelection: {},
+      addKind: 'full',
       addReason: '',
       submitting: false
     }, () => this.rebuildAdd())
@@ -185,10 +189,16 @@ Page({
     this.setData({ addMonth: month, addMonthLabel: formatMonthLabel(month), addSelection: {} }, () => this.rebuildAdd())
   },
 
+  onAddKindTap(e) {
+    this.setData({ addKind: e.currentTarget.dataset.kind })
+  },
+
   onAddDayTap(e) {
     const cell = e.currentTarget.dataset.cell
     if (!cell || cell.empty || !cell.selectable) return
-    this.setData({ addSelection: cycleLeaveSelection(this.data.addSelection, cell.dateStr) }, () => this.rebuildAdd())
+    this.setData({
+      addSelection: applyLeaveKind(this.data.addSelection, cell.dateStr, this.data.addKind)
+    }, () => this.rebuildAdd())
   },
 
   onAddReasonInput(e) {
@@ -219,6 +229,34 @@ Page({
       }).then(() => {
         this.setData({ submitting: false })
       })
+    })
+  },
+
+  // 改请假时段（全天/上午/下午/半天）。半天功能上线前的老记录、或者录错了的，
+  // 都能在这里直接改，不用删了重录。作用于这条记录的所有日期。
+  onFixLeaveKind(e) {
+    const leaveId = e.currentTarget.dataset.id
+    const name = e.currentTarget.dataset.name || '该员工'
+    if (!leaveId) return
+    const options = [
+      { label: '改成上午半天', kind: 'am' },
+      { label: '改成下午半天', kind: 'pm' },
+      { label: '改成半天（不分上下午）', kind: 'half' },
+      { label: '改回全天', kind: 'full' }
+    ]
+    wx.showActionSheet({
+      itemList: options.map(o => o.label),
+      success: (res) => {
+        const picked = options[res.tapIndex]
+        if (!picked) return
+        callCloud('attendance', { action: 'updateLeaveHalfDay', leave_id: leaveId, kind: picked.kind })
+          .then(() => {
+            showSuccess(name + ' 已更新')
+            this.load()
+          })
+          .catch((err) => showError(err.message || '修改失败'))
+      },
+      fail: () => {}
     })
   },
 

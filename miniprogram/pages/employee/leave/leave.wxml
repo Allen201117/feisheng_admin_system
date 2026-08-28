@@ -8,6 +8,15 @@
       <view class="leave-cal-nav" bindtap="onNextMonth" hover-class="tap-chip-hover">›</view>
     </view>
 
+    <view class="leave-kind-row">
+      <text class="leave-kind-label">请假时段</text>
+      <view class="leave-kind-seg">
+        <view wx:for="{{leaveKinds}}" wx:for-item="k" wx:key="value"
+              class="leave-kind-item {{leaveKind === k.value ? 'active' : ''}}"
+              data-kind="{{k.value}}" bindtap="onKindTap" hover-class="tap-chip-hover">{{k.label}}</view>
+      </view>
+    </view>
+
     <view class="leave-week">
       <text wx:for="{{weekHeaders}}" wx:key="*this" class="leave-week-cell">{{item}}</text>
     </view>
@@ -24,7 +33,7 @@
     </view>
 
     <view class="leave-summary" wx:if="{{selectedCount > 0}}">已选 {{selectedSummary}} · 共 {{selectedDayCount}} 天</view>
-    <view class="leave-summary muted" wx:else>点日期选请假：连点切换 全天 → 上午 → 下午 → 取消</view>
+    <view class="leave-summary muted" wx:else>先选上面的时段，再点日历上要请假的日子（可多选）</view>
 
     <view class="field-group" style="margin-top:var(--sp-2);">
       <input class="field-input" placeholder="请假原因（选填，如 事假/病假）" value="{{reason}}" bindinput="onReasonInput" maxlength="50" />

@@ -478,6 +478,41 @@ Page({
     }
   },
 
+  // 备注读不出半天的，让老板直接点着改 —— 否则只能删了重录，太折腾
+  onFixLeaveKind(e) {
+    const leaveId = e.currentTarget.dataset.id
+    const title = e.currentTarget.dataset.title || '这条请假'
+    if (!leaveId) return
+    const options = [
+      { label: '改成上午半天', kind: 'am' },
+      { label: '改成下午半天', kind: 'pm' },
+      { label: '改成半天（不分上下午）', kind: 'half' },
+      { label: '改回全天', kind: 'full' }
+    ]
+    wx.showActionSheet({
+      itemList: options.map(o => o.label),
+      success: (res) => {
+        const picked = options[res.tapIndex]
+        if (!picked) return
+        this.applyLeaveKind(leaveId, picked.kind, title)
+      },
+      fail: () => {}
+    })
+  },
+
+  async applyLeaveKind(leaveId, kind, title) {
+    showLoading('保存中...')
+    try {
+      await callCloud('attendance', { action: 'updateLeaveHalfDay', leave_id: leaveId, kind })
+      hideLoading()
+      showSuccess(`${title} 已更新`)
+      this.onCheckLegacyHalfDay()
+    } catch (err) {
+      hideLoading()
+      showError(err.message || '修改失败')
+    }
+  },
+
   goPrivacyPolicy() {
     wx.navigateTo({ url: '/pages/privacy-policy/privacy-policy' })
   },

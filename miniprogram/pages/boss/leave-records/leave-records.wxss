@@ -122,6 +122,7 @@
 .leave-item-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12rpx;
   margin-top: 12rpx;
 }
 
@@ -154,4 +155,52 @@
   border-radius: 999rpx;
   background: var(--blue-600); color: #fff;
   font-size: 18rpx; line-height: 28rpx; text-align: center;
+}
+
+/* 请假时段选择器：全天 / 上午 / 下午 三选一。
+   原来是连点同一天循环切换，老板反馈不好用（点错了要绕一圈才回得来），改成显式三个按钮。
+   切时段只影响之后点的日期，已选好的不动 —— 一次请假可以混着选（3号全天 + 5号上午）。 */
+.leave-kind-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.leave-kind-label {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+.leave-kind-seg {
+  flex: 1;
+  display: flex;
+  padding: 6rpx;
+  border-radius: 999rpx;
+  background: var(--surface-strong);
+}
+.leave-kind-item {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  border-radius: 999rpx;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  transition: all 0.15s var(--ease-apple);
+}
+.leave-kind-item.active {
+  background: var(--bg-card);
+  color: var(--blue-600);
+  font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-card);
+}
+
+/* 改时段按钮：跟删除按钮并排，但不是危险操作，用蓝色描边 */
+.leave-kind-btn {
+  min-height: 52rpx;
+  line-height: 52rpx;
+  padding: 0 26rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--blue-600);
+  font-size: var(--fs-xs);
+  color: var(--blue-600);
 }

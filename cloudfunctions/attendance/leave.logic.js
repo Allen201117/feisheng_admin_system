@@ -129,17 +129,32 @@ function buildMonthLeaveMap(records) {
   return map
 }
 
+// 一个员工的「日期→全天/半天」映射折算成天数
+function countDaysFromLeaveSlot(slot) {
+  let total = 0
+  Object.keys(slot || {}).forEach(function (d) { total += slot[d] === 'full' ? 1 : 0.5 })
+  return Math.round(total * 2) / 2
+}
+
 // 汇总某月各员工请假天数：返回 { [user_id]: day_count }
-// 只统计 status==='active' 的记录；同一员工多条记录累加。
+// 只统计 status==='active' 的记录。
+// ⚠️ 必须按「去重后的日期」算，不能把多条记录的 day_count 直接相加：
+// 实际数据里存在同一员工同一天被两条请假记录覆盖的情况（比如先录了 6/23+6/24，
+// 又单独录了一条 6/23），直接相加会把 2 天算成 3 天，进而把本来全勤的人误判成不全勤。
 function summarizeMonthLeave(records) {
+  const leaveMap = buildMonthLeaveMap(records)
   const map = {}
+  Object.keys(leaveMap).forEach(function (uid) {
+    const days = countDaysFromLeaveSlot(leaveMap[uid])
+    if (days > 0) map[uid] = days
+  })
+  // 兜底：极少数只有 day_count、没有 dates 的脏记录没法按日期去重，只能累加
   ;(records || []).forEach(function (r) {
-    if (!r || r.status !== 'active') return
-    const uid = r.user_id
-    if (!uid) return
+    if (!r || r.status !== 'active' || !r.user_id) return
+    if (Array.isArray(r.dates) && r.dates.length > 0) return
     const days = countLeaveDays(r)
     if (days <= 0) return
-    map[uid] = (map[uid] || 0) + days
+    map[r.user_id] = Math.round(((map[r.user_id] || 0) + days) * 2) / 2
   })
   return map
 }
@@ -194,6 +209,7 @@ module.exports = {
   normalizeHalfDays,
   computeLeaveDays,
   buildMonthLeaveMap,
+  countDaysFromLeaveSlot,
   countLeaveDays,
   summarizeMonthLeave,
   countTodayLeave,

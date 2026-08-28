@@ -1,13 +1,14 @@
 // pages/employee/leave/leave.js
 // 员工请假：选月份 + 在日历上点选要请假的日期 + 选填原因 → 提交。自助生效、无需审批。
-// 连点同一天循环切换：未选 → 全天 → 上午 → 下午 → 未选（半天记 0.5 天）。
+// 时段用三个按钮显式选：全天 / 上午 / 下午，选好时段再点日历上的日期（半天记 0.5 天）。
 // 日历布局用纯算法（不依赖 new Date 做"当下"判断），唯一的"今天"来自 beijing-time（§1.3）。
 // 日历/选中态的算法统一在 utils/leave-calendar.logic.js，老板代录页共用同一份，避免两处各写一遍。
 const { callCloud, showError, showSuccess, showConfirm } = require('../../../utils/util')
 const bjTime = require('../../../utils/beijing-time')
 const {
   buildLeaveCalendar,
-  cycleLeaveSelection,
+  LEAVE_KINDS,
+  applyLeaveKind,
   selectionDates,
   selectionHalfDays,
   selectionDayCount,
@@ -35,6 +36,8 @@ Page({
     canPrev: false,
     today: '',
     cells: [],
+    leaveKinds: LEAVE_KINDS,
+    leaveKind: 'full',
     selection: {},
     selectedCount: 0,
     selectedDayCount: 0,
@@ -74,10 +77,18 @@ Page({
     this.setData({ month, monthLabel: formatMonthLabel(month), selection: {} }, () => this.rebuild())
   },
 
+  // 切换本次请假时段（全天/上午/下午）。只影响之后点的日期，已经选好的不动，
+  // 所以一次请假里可以混着选：3 号全天 + 5 号上午。
+  onKindTap(e) {
+    this.setData({ leaveKind: e.currentTarget.dataset.kind })
+  },
+
   onDayTap(e) {
     const cell = e.currentTarget.dataset.cell
     if (!cell || cell.empty || !cell.selectable) return
-    this.setData({ selection: cycleLeaveSelection(this.data.selection, cell.dateStr) }, () => this.rebuild())
+    this.setData({
+      selection: applyLeaveKind(this.data.selection, cell.dateStr, this.data.leaveKind)
+    }, () => this.rebuild())
   },
 
   onReasonInput(e) {
@@ -99,7 +110,7 @@ Page({
         reason: this.data.reason
       }).then(() => {
         showSuccess('请假已提交')
-        this.setData({ selection: {}, reason: '' }, () => this.rebuild())
+        this.setData({ selection: {}, reason: '', leaveKind: 'full' }, () => this.rebuild())
         this.loadMyLeaves()
       }).catch((err) => {
         showError(err.message || '提交失败')

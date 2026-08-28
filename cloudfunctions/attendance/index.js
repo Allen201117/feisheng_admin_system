@@ -208,6 +208,7 @@ exports.main = async (event, context) => {
     case 'getUserMonthlyRecords': return await getUserMonthlyRecords(event)
     case 'getMonthAttendanceOverview': return await getMonthAttendanceOverview(event, wxContext)
     case 'repairLegacyHalfDayLeaves': return await repairLegacyHalfDayLeaves(event, wxContext)
+    case 'updateLeaveHalfDay': return await updateLeaveHalfDay(event, wxContext)
     case 'checkAbnormal': return await checkAbnormalAttendances()
     // ===== 请假（LeaveRecords）=====
     case 'requestLeave': return await requestLeave(event, wxContext)
@@ -1365,5 +1366,53 @@ async function repairLegacyHalfDayLeaves(event, wxContext) {
   } catch (err) {
     console.error('[attendance] repairLegacyHalfDayLeaves 失败', err)
     return { code: -1, msg: '历史半天请假识别失败: ' + err.message }
+  }
+}
+
+
+// 老板手动把一条请假改成半天 / 改回全天（boss only）。
+// 迁移工具只认得懂备注里明写「上午/下午/半天」的，剩下像「10.30走」「1」这种读不出来的，
+// 得让老板自己点一下改 —— 否则只能删了重录，太折腾。
+// 作用于整条记录的所有日期；一条记录里有的日子全天有的日子半天，仍需删了分开重录。
+async function updateLeaveHalfDay(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+
+  const leaveId = event.leave_id
+  const kind = String(event.kind || '')
+  if (!leaveId) return { code: -1, msg: '参数不完整' }
+  if (kind !== 'full' && leaveLogic.HALF_KINDS.indexOf(kind) < 0) return { code: -1, msg: '无效的半天类型' }
+
+  try {
+    let record = null
+    try {
+      const res = await db.collection('LeaveRecords').doc(leaveId).get()
+      record = res.data
+    } catch (e) {
+      return { code: -1, msg: '请假记录不存在' }
+    }
+    if (!record || !ensureSameOrg(record, caller)) return { code: -1, msg: '请假记录不存在' }
+    if (record.status !== 'active') return { code: -1, msg: '该请假已撤销，不能修改' }
+
+    const dates = Array.isArray(record.dates) ? record.dates : []
+    if (dates.length === 0) return { code: -1, msg: '这条请假没有日期，无法修改' }
+
+    const halfDays = {}
+    if (kind !== 'full') dates.forEach(function (d) { halfDays[String(d)] = kind })
+    const dayCount = leaveLogic.computeLeaveDays(dates, halfDays)
+
+    await db.collection('LeaveRecords').doc(leaveId).update({
+      data: {
+        half_days: halfDays,
+        day_count: dayCount,
+        updated_at: db.serverDate()
+      }
+    })
+    await writeAudit('leave_half_day_update', `operator=${caller._id}; leave=${leaveId}; kind=${kind}; days=${dayCount}`, getOrgId(caller))
+
+    return { code: 0, msg: '已更新', data: { day_count: dayCount, kind: kind } }
+  } catch (err) {
+    console.error('[attendance] updateLeaveHalfDay 失败', err)
+    return { code: -1, msg: '修改失败' }
   }
 }
