@@ -207,6 +207,7 @@ exports.main = async (event, context) => {
     case 'supplement': return await supplement(event, wxContext)
     case 'getUserMonthlyRecords': return await getUserMonthlyRecords(event)
     case 'getMonthAttendanceOverview': return await getMonthAttendanceOverview(event, wxContext)
+    case 'repairLegacyHalfDayLeaves': return await repairLegacyHalfDayLeaves(event, wxContext)
     case 'checkAbnormal': return await checkAbnormalAttendances()
     // ===== 请假（LeaveRecords）=====
     case 'requestLeave': return await requestLeave(event, wxContext)
@@ -1280,5 +1281,89 @@ async function getMonthAttendanceOverview(event, wxContext) {
   } catch (err) {
     console.error('[attendance] getMonthAttendanceOverview 失败', err)
     return { code: -1, msg: '获取考勤总览失败' }
+  }
+}
+
+
+// 历史半天请假识别（一次性数据迁移，boss only，默认 dry_run 只报告不写库）。
+// 背景：半天请假功能是 2026-08-29 才上线的。在那之前老板想记「上午请假」只能写进备注，
+// 库里仍按整天记（day_count = dates.length），于是新版日历会把它标成红色「全天」，
+// 全勤天数也多算了 0.5 天。这里把备注里能读出上午/下午/半天的老记录批量补上 half_days。
+// 安全边界：只碰完全没有半天标记的 active 记录，已经用新功能标过的一律不动，重复跑不会改坏。
+async function repairLegacyHalfDayLeaves(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '账号未归属工厂' }
+
+  const dryRun = event.dry_run !== false
+
+  try {
+    const records = await fetchAllDocs('LeaveRecords', {
+      org_id: orgId,
+      status: 'active'
+    }).catch(() => [])
+
+    const plan = leaveLogic.planLegacyHalfDayMigration(records)
+
+    // 备注里带字但读不出半天的，单独列出来让老板自己看一眼（比如写「有事」「家里事」）
+    const unmatched = records
+      .filter(r => r && r.status === 'active' && (r.reason || '').trim())
+      .filter(r => !plan.some(p => p._id === r._id))
+      .filter(r => Object.keys(leaveLogic.normalizeHalfDays(r.half_days, r.dates)).length === 0)
+      .slice(0, 20)
+      .map(r => ({
+        _id: r._id,
+        user_name: r.user_name || '',
+        month: r.month || '',
+        dates: r.dates || [],
+        reason: r.reason || ''
+      }))
+
+    const summary = {
+      dry_run: dryRun,
+      scanned: records.length,
+      total_fix_count: plan.length,
+      plan: plan.slice(0, 30),
+      unmatched
+    }
+
+    if (dryRun || plan.length === 0) {
+      return { code: 0, msg: dryRun ? '试运行完成（未写库）' : '没有需要转换的老记录', data: summary }
+    }
+
+    let applied = 0
+    let failed = 0
+    for (let i = 0; i < plan.length; i += 20) {
+      const chunk = plan.slice(i, i + 20)
+      const results = await Promise.all(chunk.map(async (item) => {
+        try {
+          await db.collection('LeaveRecords').doc(item._id).update({
+            data: {
+              half_days: item.half_days,
+              day_count: item.new_day_count,
+              half_day_migrated: true,
+              updated_at: db.serverDate()
+            }
+          })
+          return true
+        } catch (err) {
+          console.error('[attendance] 半天请假迁移写入失败', item._id, err)
+          return false
+        }
+      }))
+      results.forEach((ok) => { ok ? applied++ : failed++ })
+    }
+
+    await writeAudit('leave_half_day_migrate', `operator=${caller._id}; scanned=${records.length}; applied=${applied}; failed=${failed}`, orgId)
+
+    return {
+      code: 0,
+      msg: `转换完成：成功 ${applied} 条，失败 ${failed} 条`,
+      data: { ...summary, applied, failed }
+    }
+  } catch (err) {
+    console.error('[attendance] repairLegacyHalfDayLeaves 失败', err)
+    return { code: -1, msg: '历史半天请假识别失败: ' + err.message }
   }
 }

@@ -28,8 +28,9 @@ function formatDatesCn(dates, halfDays) {
     const parts = String(d).split('-')
     if (parts.length < 3) return
     const kind = half[d]
-    if (kind === 'am' || kind === 'pm') {
-      halfParts.push(parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日' + (kind === 'am' ? '上午' : '下午'))
+    if (kind === 'am' || kind === 'pm' || kind === 'half') {
+      const suffix = kind === 'am' ? '上午' : (kind === 'pm' ? '下午' : '半天')
+      halfParts.push(parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日' + suffix)
       return
     }
     const mk = parseInt(parts[1]) + '月'

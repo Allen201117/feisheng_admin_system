@@ -21,7 +21,7 @@ function formatLeaveDatesWithHalf(dates, halfDays) {
   const half = halfDays || {}
   return (dates || []).map((d) => {
     const p = String(d).split('-')
-    const suffix = half[d] === 'am' ? '(上午)' : (half[d] === 'pm' ? '(下午)' : '')
+    const suffix = half[d] === 'am' ? '(上午)' : (half[d] === 'pm' ? '(下午)' : (half[d] === 'half' ? '(半天)' : ''))
     return parseInt(p[1]) + '月' + parseInt(p[2]) + '日' + suffix
   }).join('、')
 }

@@ -15,7 +15,10 @@ function isFullAttendance(leaveDays) {
   return (Number(leaveDays) || 0) <= FULL_ATTENDANCE_MAX_LEAVE_DAYS
 }
 
-// 规范化半天标记：只保留 dates 里存在、且值是 am/pm 的项
+// 半天的三种取值：am 上午 / pm 下午 / half 只知道是半天但没说哪半（老数据迁移出来的）
+const HALF_KINDS = ['am', 'pm', 'half']
+
+// 规范化半天标记：只保留 dates 里存在、且值合法的项
 function normalizeHalfDays(halfDays, dates) {
   const allowed = {}
   ;(Array.isArray(dates) ? dates : []).forEach(function (d) { allowed[String(d)] = true })
@@ -24,10 +27,68 @@ function normalizeHalfDays(halfDays, dates) {
   Object.keys(src).forEach(function (k) {
     const v = String(src[k])
     if (!allowed[k]) return
-    if (v !== 'am' && v !== 'pm') return
+    if (HALF_KINDS.indexOf(v) < 0) return
     out[k] = v
   })
   return out
+}
+
+// 从请假备注里认出「其实是请半天」——老数据迁移用（半天功能上线前，老板只能把"上午休息"写进备注）。
+// 返回 'am' | 'pm' | 'half' | ''（''=看不出是半天）。
+// 先认上午/下午这种明确的，再兜底认「半天」这种没说哪半的；宁可返回 'half' 也不瞎猜是上午还是下午。
+const AM_WORDS = ['上午', '早上', '早晨', '上半天', '前半天', '早班', '上半晌', '中午前']
+const PM_WORDS = ['下午', '下半天', '后半天', '午后', '晚班', '下半晌', '傍晚']
+const HALF_WORDS = ['半天', '半日', '0.5天', '.5天']
+
+function detectHalfDayFromReason(reason) {
+  const text = String(reason || '')
+  if (!text) return ''
+  for (var i = 0; i < AM_WORDS.length; i++) {
+    if (text.indexOf(AM_WORDS[i]) >= 0) return 'am'
+  }
+  for (var j = 0; j < PM_WORDS.length; j++) {
+    if (text.indexOf(PM_WORDS[j]) >= 0) return 'pm'
+  }
+  for (var k = 0; k < HALF_WORDS.length; k++) {
+    if (text.indexOf(HALF_WORDS[k]) >= 0) return 'half'
+  }
+  return ''
+}
+
+// 挑出「备注里其实写着半天、但库里按全天记着」的老记录，返回待迁移清单（纯函数）。
+// 只碰完全没有半天标记的记录：已经用新功能标过半天的一律不动，重复跑也不会改坏。
+function planLegacyHalfDayMigration(records) {
+  const plan = []
+  ;(records || []).forEach(function (r) {
+    if (!r || r.status !== 'active') return
+    const dates = Array.isArray(r.dates) ? r.dates : []
+    if (dates.length === 0) return
+    const existing = normalizeHalfDays(r.half_days, dates)
+    if (Object.keys(existing).length > 0) return // 已经标过半天，不动
+
+    const kind = detectHalfDayFromReason(r.reason)
+    if (!kind) return
+
+    const halfDays = {}
+    dates.forEach(function (d) { halfDays[String(d)] = kind })
+    const newDayCount = computeLeaveDays(dates, halfDays)
+    const oldDayCount = countLeaveDays(r)
+    if (newDayCount === oldDayCount) return
+
+    plan.push({
+      _id: r._id,
+      user_id: r.user_id,
+      user_name: r.user_name || '',
+      month: r.month || '',
+      dates: dates.slice(),
+      reason: r.reason || '',
+      kind: kind,
+      half_days: halfDays,
+      old_day_count: oldDayCount,
+      new_day_count: newDayCount
+    })
+  })
+  return plan
 }
 
 // 按 dates + half_days 现算天数（半天记 0.5）
@@ -126,6 +187,9 @@ function normalizeLeaveDates(dates, month) {
 
 module.exports = {
   FULL_ATTENDANCE_MAX_LEAVE_DAYS,
+  HALF_KINDS,
+  detectHalfDayFromReason,
+  planLegacyHalfDayMigration,
   isFullAttendance,
   normalizeHalfDays,
   computeLeaveDays,

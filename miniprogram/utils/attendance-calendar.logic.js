@@ -35,7 +35,8 @@ const STATUS_TEXT = {
 const LEAVE_BADGE = {
   full: '假',
   am: '上',
-  pm: '下'
+  pm: '下',
+  half: '半'   // 老数据迁移出来的：知道是半天，但备注里没说上午还是下午
 }
 
 // days 来自云函数：[{ day, date, status, leave_kind, hours, is_today }]

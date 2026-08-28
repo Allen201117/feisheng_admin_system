@@ -25,7 +25,7 @@ const ABNORMAL_SEARCH_FIELDS = [
 ]
 
 // 抽屉里的请假明细：考勤只看请假，所以这里只列请假的日子（出勤在日历上一片绿已经够看了）
-const LEAVE_KIND_TEXT = { am: '上午', pm: '下午', full: '全天' }
+const LEAVE_KIND_TEXT = { am: '上午', pm: '下午', half: '半天', full: '全天' }
 
 function buildLeaveDetailRows(details) {
   return (details || []).map(d => ({
