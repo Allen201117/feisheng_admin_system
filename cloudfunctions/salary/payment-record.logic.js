@@ -35,8 +35,42 @@ function isOrderFullyPaid({ participantUserIds, paidUserIds }) {
   return participants.every(id => paidSet.has(String(id)))
 }
 
+// 奖惩记录「是否已发薪锁定」的查询条件（CLAUDE.md §2.3）。
+// 必须和 getUserMonthlySalaryByBoss 里 is_paid 的口径完全一致：
+//  - 订单奖惩（带 order_id）：只看该订单那一笔发薪记录；
+//  - 月度奖惩：只看「纯按月」发薪记录 —— markPaid 给按订单发薪的 SalaryPayments
+//    也写了 month 字段，不用 order_id 不存在把它排掉，就会把「这个月其实没按月发薪」
+//    误判成已锁定，删除奖惩被改走冲正，老板看到「已删除」但记录还在明细里。
+// command 传云数据库的 db.command（只用到 exists），便于纯函数单测。
+function buildAdjustmentPayLockWhere({ orgId, adjustment, command }) {
+  const adj = adjustment || {}
+  const where = {
+    org_id: orgId,
+    user_id: adj.user_id,
+    paid: true
+  }
+  if (adj.order_id) {
+    where.order_id = adj.order_id
+  } else {
+    where.month = adj.month
+    where.order_id = command.exists(false)
+  }
+  return where
+}
+
+// 冲正/更正记录必须继承原记录的订单归属，否则订单模式的工资详情
+// （calcUserOrderSalary 按 order_id 查奖惩）根本查不到这条冲正，
+// 表现为「删了但原记录还在、金额一分没少」。
+function inheritAdjustmentScope(adjustment) {
+  const adj = adjustment || {}
+  if (!adj.order_id) return {}
+  return { order_id: adj.order_id, order_name: adj.order_name || '' }
+}
+
 module.exports = {
   buildSalaryPaymentDocId,
+  buildAdjustmentPayLockWhere,
+  inheritAdjustmentScope,
   buildSalaryPaymentCreateData,
   isOrderFullyPaid
 }

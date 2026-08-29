@@ -50,6 +50,9 @@
 ### 2.3 发薪锁定 + 发薪即完成 ✅
 - `SalaryPayments.paid=true` 锁定。按月 ID `${org}_${user}_${month}`，按订单 ID `${org}_${user}_order_${orderId}`。`salary_payroll_mode`（`monthly` 缺省 / `order`）决定模式。
 - 已发薪月份/订单的奖惩改删走**冲正记录**（`is_reversal`/`is_correction`/`original_id`），不改原记录。
+- ✅ **「已发薪」的判断口径唯一真源 `buildAdjustmentPayLockWhere`（payment-record.logic.js，2026-08-29）**：订单奖惩（带 `order_id`）只看该订单那笔发薪；月度奖惩只看**纯按月**发薪记录，必须用 `order_id: _.exists(false)` 排掉按订单发薪的记录——`markPaid` 给按订单发薪的 `SalaryPayments` **也写了 `month`**，不排掉就会把没按月发薪的月份误判成锁定，删除奖惩被改走冲正，老板看到「已删除」但记录还在。读侧 `getUserMonthlySalaryByBoss` 与写侧 `deleteAdjustment`/`updateAdjustment` 必须同口径。
+- ✅ **冲正/更正记录必须继承原记录的 `order_id`/`order_name`（`inheritAdjustmentScope`）**：订单模式详情 `calcUserOrderSalary` 按 `order_id` 查奖惩，冲正丢了订单归属就查不到，表现为「删了但原记录还在、金额一分没少」。
+- 真删奖惩时连同 `original_id` 指向它的冲正/更正记录一起删，否则剩下的冲正会变成一笔凭空的反向奖/罚。
 - **发薪 = 订单完成标志**（订单发薪模式）：✅ 已实现（2026-06-11）：`salary.markPaid` 返回 `data.order_fully_paid/order_status`（`isOrderFullyPaid`，payment-record.logic.js），订单全员发薪且未完成时，老板端工资页弹窗提醒一键把订单置为「已完成」。
 
 ### 2.4 删除规则 + 已完成订单锁定（可恢复）✅

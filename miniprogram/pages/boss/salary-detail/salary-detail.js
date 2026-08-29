@@ -90,7 +90,9 @@ Page({
       })
       const adjustments = (data.adjustments || []).map(a => ({
         ...a,
-        is_locked: isPaid
+        is_locked: isPaid,
+        // 冲正/更正记录标出来，老板才知道「原记录 + 抵消记录」是一对，不是删失败
+        adj_tag: a.is_reversal ? '冲正' : (a.is_correction ? '更正' : '')
       }))
       this.setData({
         isPaidLocked: isPaid,
@@ -323,14 +325,25 @@ Page({
         if (res.confirm && res.content) {
           showLoading('删除中...')
           try {
-            await callCloud('salary', {
+            const delRes = await callCloud('salary', {
               action: 'deleteAdjustment',
               adjustment_id: adj._id,
               delete_reason: res.content
             })
             hideLoading()
-            showSuccess('已删除')
             this.loadSalaryDetail()
+            // 已发薪的期次按规定不能真删，只能加一条冲正记录抵消（原记录仍在列表里）。
+            // 这里必须说清楚，否则老板看到「已删除」但记录还在，会以为没生效。
+            if (delRes && delRes.data && delRes.data.is_reversal) {
+              wx.showModal({
+                title: '已冲正',
+                content: delRes.msg || '该期已发薪，已加一条冲正记录抵消，原记录按规定保留',
+                showCancel: false,
+                confirmText: '知道了'
+              })
+            } else {
+              showSuccess(delRes && delRes.msg ? delRes.msg : '已删除')
+            }
           } catch (err) {
             hideLoading()
             showError(err.message || '删除失败')
