@@ -10,6 +10,26 @@
 
 ## 2026-08-29
 
+### 列表行对齐：徽章竖排、姓名被挤换行、右列参差（全局样式层修复）
+
+- 背景：老板反馈薪酬管理列表「太丑、没对齐」。截图里「安丽丽」被挤成两行、「已发」竖排成「已/发」、「请假半天·全勤」折行，整列行高参差。
+- 根因：都在通用样式层，不是某一页的问题——
+  1. `.badge` 没有 `flex-shrink: 0` / `white-space: nowrap`：flex 行里空间不够时徽章被压扁换行，把整行撑成两三行高。19 个页面 40 处徽章全都受影响。
+  2. `.salary-name` / `.emp-name` 没有防换行：姓名先被挤折行，行高跟着变。
+  3. `.list-row-title` / `.list-row-subtitle` / `.emp-meta` / `.salary-detail` 不是 block，标题和副标题会流式挤在同一行——各页面靠手写 `style="display:block"` 单独打补丁，漏写的地方（如 export 历史列表）就是乱的。
+  4. `.salary-amount` 没有定宽和右对齐，各行金额位数不同时对不成一条竖线。
+  5. `.flex-row` 作为 flex item 时没有 `min-width: 0`，内部内容会把父容器撑破。
+- 改动（全部在 `app.wxss` 通用类，一处修全部页面）：
+  - `.badge` 加 `flex-shrink: 0; white-space: nowrap;`
+  - `.salary-name` / `.emp-name` 改 `inline-block` + `max-width: 6em` + 单行省略号 + `flex-shrink: 0`
+  - `.list-row-title` / `.list-row-subtitle` / `.emp-meta` / `.salary-detail` 统一 `display: block`
+  - `.salary-amount` 加 `min-width: 176rpx` + `text-align: right`（配合已有的 `tabular-nums`）
+  - `.salary-row` 加 `min-height: 108rpx` + `overflow: hidden`（内容超宽时裁掉，不再撑高）
+  - `.flex-row` 加 `min-width: 0`；`.list-row-extra` 加 `white-space: nowrap`
+  - 新增两条行内作用域规则：`.flex-row > .list-row-title` 单行省略号（标题和徽章同行时不折行；标题独占一行时仍可换行显示完整）、`.flex-between > .emp-meta` 不参与压缩
+- 数据/部署影响：纯前端样式，只需重新上传前端包，不涉及云函数。**AI 未部署、未真机验证**（开发者工具未开自动化端口，无法自动截图比对）。
+- 验证：`npm run test:unit` 309 项全绿（`tests/ui-apple-style.test.js` 新增 5 条样式回归断言，锁住徽章不换行、姓名单行省略、金额列定宽右对齐、标题副标题 block、flex-row 可收缩）。
+
 ### 奖惩冲正体检：清掉旧口径误判留下的冲正对
 
 - 背景：上面那条修完之后，库里还留着一批旧口径误判时产生的冲正记录。老板当时看到「删了还在」多点了几次删除，每点一次加一条反向记录（旧代码没做幂等），净额会被越冲越偏——本来罚 ¥100，冲三次变成多奖 ¥200。

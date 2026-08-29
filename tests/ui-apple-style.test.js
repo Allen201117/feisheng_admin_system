@@ -328,3 +328,49 @@ test('frontend audit has no dark navigation or thick left rails', () => {
     assert.doesNotMatch(source, /border-left:\s*[4-9]rpx\s+solid/, `${file} still uses a thick color rail`)
   }
 })
+
+// ---- 列表行对齐（老板反馈：薪酬列表姓名被挤成两行、「已发」竖排、右列参差）----
+test('badges never wrap or shrink inside flex rows', () => {
+  const css = read('miniprogram/app.wxss')
+  const badge = /\.badge\s*\{([^}]*)\}/.exec(css)
+  assert.ok(badge, '.badge rule missing')
+  // 少了这两条，「已发」会竖排成「已/发」，整行被撑高，一列行高就参差
+  assert.match(badge[1], /flex-shrink:\s*0/)
+  assert.match(badge[1], /white-space:\s*nowrap/)
+})
+
+test('list name columns stay on one line with ellipsis', () => {
+  const css = read('miniprogram/app.wxss')
+  for (const selector of ['.salary-name', '.emp-name']) {
+    const rule = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css)
+    assert.ok(rule, `${selector} rule missing`)
+    assert.match(rule[1], /white-space:\s*nowrap/, `${selector} must not wrap`)
+    assert.match(rule[1], /text-overflow:\s*ellipsis/, `${selector} needs ellipsis`)
+    assert.match(rule[1], /flex-shrink:\s*0/, `${selector} must not be squeezed`)
+  }
+})
+
+test('money column is fixed width and right aligned so rows line up', () => {
+  const css = read('miniprogram/app.wxss')
+  const rule = /\.salary-amount\s*\{([^}]*)\}/.exec(css)
+  assert.ok(rule, '.salary-amount rule missing')
+  assert.match(rule[1], /min-width:\s*\d+rpx/)
+  assert.match(rule[1], /text-align:\s*right/)
+  assert.match(rule[1], /tabular-nums/)
+})
+
+test('list title and subtitle are block level without per-page inline styles', () => {
+  const css = read('miniprogram/app.wxss')
+  for (const selector of ['.list-row-title', '.list-row-subtitle', '.salary-detail', '.emp-meta']) {
+    const rule = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(css)
+    assert.ok(rule, `${selector} rule missing`)
+    assert.match(rule[1], /display:\s*block/, `${selector} should own its line`)
+  }
+})
+
+test('flex row utility can shrink so its content never bursts the row', () => {
+  const css = read('miniprogram/app.wxss')
+  const rule = /\.flex-row\s+\{([^}]*)\}/.exec(css)
+  assert.ok(rule, '.flex-row rule missing')
+  assert.match(rule[1], /min-width:\s*0/)
+})
