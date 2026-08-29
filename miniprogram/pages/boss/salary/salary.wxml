@@ -32,7 +32,11 @@
 
   <!-- 员工薪资列表 -->
   <view class="card-bento">
-    <text class="menu-group-title" style="margin-bottom:var(--sp-1);">员工薪资明细</text>
+    <view class="flex-between" style="margin-bottom:var(--sp-1);">
+      <text class="menu-group-title" style="margin-bottom:0;">员工薪资明细</text>
+      <!-- 去掉「已发」徽章后，勾选框成了唯一的发放状态指示，这里说一句免得看不懂 -->
+      <text class="text-tertiary text-xs">打勾 = 已发薪</text>
+    </view>
 
     <view class="list-search-row">
       <input class="field-input list-search-input" placeholder="搜索员工姓名" value="{{salarySearchKeyword}}" bindinput="onSalarySearchInput" confirm-type="search" />
@@ -62,8 +66,10 @@
       <view class="salary-info tappable" bindtap="goDetail" data-id="{{item.user_id}}" data-name="{{item.user_name}}">
         <view class="flex-row gap-1">
           <text class="salary-name">{{item.user_name}}</text>
+          <!-- 发放状态只用左边的绿色勾选框表达，这里不再重复一个「已发」徽章：
+               同一信息显示两遍，还把这一行本来就不宽的空间占掉，请假徽章就被挤换行了。
+               总数看顶部「已发 N/M 人」，按发放状态筛选仍可直接搜「已发」/「未发」。 -->
           <text class="badge {{item.attendFull ? 'badge-solid-green' : 'badge-solid-red'}}">{{item.attendBadgeText}}</text>
-          <text class="badge {{item.paid ? 'badge-green' : 'badge-slate'}}">{{item.paid ? '已发' : '未发'}}</text>
         </view>
         <text class="salary-detail">计件: ¥{{item.baseSalary}} | 奖惩: ¥{{item.adjustmentTotal}}</text>
       </view>
