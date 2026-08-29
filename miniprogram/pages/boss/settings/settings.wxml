@@ -174,6 +174,43 @@
     </view>
   </view>
 
+  <!-- 奖惩冲正清理 -->
+  <view class="card-bento">
+    <view class="settings-head">
+      <text class="settings-title">奖惩冲正清理</text>
+    </view>
+    <text class="settings-desc">早期版本会把「按订单发薪」误当成「按月发薪」，于是删奖惩时没真删，只加了一条反向的冲正记录抵消，原记录还留在明细里。这里把这些误判留下的冲正找出来，确认后一次清干净。已发薪期次的冲正是账目痕迹，不会动。</text>
+    <button class="btn btn-outline btn-block" bindtap="onCheckAdjustmentReversals" disabled="{{reversalChecking}}" hover-class="tap-button-hover">{{reversalChecking ? '检查中...' : '检查奖惩冲正'}}</button>
+
+    <view wx:if="{{reversalReport}}" class="settings-gap">
+      <view class="settings-result {{reversalReport.status === 'dirty' ? 'is-warn' : 'is-ok'}}">
+        <text class="settings-result-icon">{{reversalReport.status === 'dirty' ? '!' : '✓'}}</text>
+        <view class="flex-1">
+          <text class="settings-result-title">{{reversalReport.headline}}</text>
+          <text class="settings-result-desc">{{reversalReport.summaryText}}</text>
+        </view>
+      </view>
+
+      <view wx:for="{{reversalReport.rows}}" wx:key="key" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title">{{item.title}}</text>
+          <text class="list-row-subtitle">{{item.detail}}</text>
+        </view>
+        <text class="badge badge-amber">{{item.badgeText}}</text>
+      </view>
+
+      <view wx:if="{{reversalReport.manual_review.length > 0}}" class="notice notice-amber settings-gap-sm">下面这些已经发过薪了，动了会和实发总额对不上，我没有改，需要你自己确认：</view>
+      <view wx:for="{{reversalReport.manual_review}}" wx:key="key" class="list-row">
+        <view class="flex-1">
+          <text class="list-row-title text-red">{{item.title}}</text>
+          <text class="list-row-subtitle">{{item.detail}}</text>
+        </view>
+      </view>
+
+      <button wx:if="{{reversalReport.total_fix_count > 0}}" class="btn-primary btn-block settings-gap" bindtap="onApplyAdjustmentReversals" disabled="{{reversalChecking}}" hover-class="tap-button-hover">清掉这 {{reversalReport.total_group_count}} 组</button>
+    </view>
+  </view>
+
   <!-- 历史半天请假识别 -->
   <view class="card-bento">
     <view class="settings-head">

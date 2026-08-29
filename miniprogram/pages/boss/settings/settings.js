@@ -60,6 +60,38 @@ function buildRepairReport(data, applied) {
 // 历史半天请假迁移报告 → 可直接渲染的文案
 const HALF_KIND_TEXT = { am: '上午', pm: '下午', half: '半天', full: '全天' }
 
+// 奖惩冲正体检报告 → 可直接渲染的文案
+function buildReversalReport(data, applied) {
+  const groups = data.groups || []
+  const manual = data.manual_review || []
+  const fixCount = data.total_fix_count || 0
+  const status = applied ? 'applied' : (fixCount === 0 && manual.length === 0 ? 'clean' : 'dirty')
+
+  let headline
+  if (status === 'clean') headline = '没有要清理的冲正记录'
+  else if (status === 'applied') headline = `已清理 ${data.applied || 0} 条` + ((data.failed || 0) > 0 ? `，${data.failed} 条失败` : '')
+  else headline = `找到 ${data.total_group_count || 0} 组要清理的冲正`
+
+  return {
+    status,
+    total_fix_count: fixCount,
+    total_group_count: data.total_group_count || 0,
+    headline,
+    summaryText: `扫描奖惩 ${(data.scanned && data.scanned.adjustments) || 0} 条 · 冲正 ${(data.scanned && data.scanned.reversals) || 0} 条 · 已发薪保留 ${data.kept_group_count || 0} 组 · 待你确认 ${manual.length} 组`,
+    rows: groups.map((g) => ({
+      key: g.key,
+      title: `${g.user_name || '员工'} · ${g.scope_text}`,
+      detail: g.note,
+      badgeText: g.orphan ? '孤儿冲正' : (g.duplicated ? `冲正 ${g.reversal_count} 次` : '误判冲正')
+    })),
+    manual_review: manual.map((m) => ({
+      key: m.key,
+      title: `${m.user_name || '员工'} · ${m.scope_text}`,
+      detail: m.reason
+    }))
+  }
+}
+
 // 云函数还没重新上传时会返回「未知操作」，直接把这句话翻译成能照做的提示，
 // 免得看到一句「未知操作」不知道是代码坏了还是没部署。
 function buildCloudActionError(err, fnName) {
@@ -120,6 +152,8 @@ Page({
     repairReport: null,
     halfDayChecking: false,
     halfDayReport: null,
+    reversalChecking: false,
+    reversalReport: null,
     checkpointTotal: 0,
     factory_latitude: '',
     factory_longitude: '',
@@ -453,6 +487,45 @@ Page({
       hideLoading()
       this.setData({ repairing: false })
       showError(err.message || '对齐失败')
+    }
+  },
+
+  // ===== 奖惩冲正体检（清掉旧「已发薪」误判留下的冲正对）=====
+  async onCheckAdjustmentReversals() {
+    this.setData({ reversalChecking: true, reversalReport: null })
+    showLoading('检查中...')
+    try {
+      const res = await callCloud('salary', { action: 'repairAdjustmentReversals', dry_run: true })
+      hideLoading()
+      const report = buildReversalReport(res.data || {}, false)
+      this.setData({ reversalChecking: false, reversalReport: report })
+      if (report.status === 'clean') showSuccess('奖惩记录是干净的')
+      else wx.showToast({ title: report.headline, icon: 'none', duration: 2500 })
+    } catch (err) {
+      hideLoading()
+      this.setData({ reversalChecking: false })
+      showError(buildCloudActionError(err, 'salary'))
+    }
+  },
+
+  async onApplyAdjustmentReversals() {
+    const report = this.data.reversalReport
+    if (!report || !report.total_fix_count) return
+    const ok = await showConfirm('确认清理', `将清掉 ${report.total_group_count} 组误判留下的冲正记录（共 ${report.total_fix_count} 条）。已发薪期次的冲正不会动。`)
+    if (!ok) return
+
+    this.setData({ reversalChecking: true })
+    showLoading('清理中...')
+    try {
+      const res = await callCloud('salary', { action: 'repairAdjustmentReversals', dry_run: false })
+      hideLoading()
+      const next = buildReversalReport(res.data || {}, true)
+      this.setData({ reversalChecking: false, reversalReport: next })
+      showSuccess(next.headline)
+    } catch (err) {
+      hideLoading()
+      this.setData({ reversalChecking: false })
+      showError(buildCloudActionError(err, 'salary'))
     }
   },
 

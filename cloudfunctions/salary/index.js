@@ -6,6 +6,7 @@ const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
 const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid, buildAdjustmentPayLockWhere, inheritAdjustmentScope } = require('./payment-record.logic')
+const { planAdjustmentReversalRepairs, buildScopeKey, buildLooseKey } = require('./adjustment-repair.logic')
 const { applyCurrentPricesToUnpaidLogs, selectWorklogSyncUpdates } = require('./settlement-price.logic')
 const { planPaidGroupRepairs } = require('./settlement-repair.logic')
 
@@ -542,6 +543,7 @@ exports.main = async (event, context) => {
     case 'getUserPaymentRecords': return await getUserPaymentRecords(event, wxContext)
     case 'getAvailableMonths': return await getAvailableMonths(event, wxContext)
     case 'repairSettlementPrices': return await repairSettlementPrices(event, wxContext)
+    case 'repairAdjustmentReversals': return await repairAdjustmentReversals(event, wxContext)
     default: return { code: -1, msg: '未知操作' }
   }
 }
@@ -1263,6 +1265,20 @@ async function deleteAdjustment(event, wxContext) {
     let linkedRemoved = 0
 
     if (isLocked) {
+      // 幂等：同一条奖惩只冲正一次。老板看到「删了还在」很容易多点几次，
+      // 每点一次加一条反向记录的话，净额会被越冲越偏（多扣/多奖一份钱）。
+      const existedReversal = await db.collection('SalaryAdjustments').where({
+        org_id: getOrgId(caller),
+        original_id: adjustment_id,
+        is_reversal: true
+      }).count()
+      if (existedReversal.total > 0) {
+        return {
+          code: 0,
+          msg: '这条奖惩已经冲正过了，金额已抵消（原记录按规定保留）',
+          data: { is_reversal: true, already_reversed: true }
+        }
+      }
       // 冲正
       await db.collection('SalaryAdjustments').add({
         data: {
@@ -1697,6 +1713,77 @@ function sortPaymentRecords(records) {
 //   2) 已发薪报工的工序名：改名纯展示、不动钱 → 一并对齐，省得老板对着旧工序名一条条猜。
 //   3) 已发薪报工的结算价：只在「按发薪当时口径重算的总额 == SalaryPayments.total_amount」时才写，
 //      即 DB 没固化但钱是对的；对不上账的组一律不动，进 manual_review。
+// 奖惩冲正体检（CLAUDE.md §2.3）：把旧的「已发薪」误判留下的冲正对清干净。
+// 默认 dry_run 只出清单，老板确认后才写库。已发薪期次的正常冲正一律不动。
+async function repairAdjustmentReversals(event, wxContext) {
+  const caller = await getCallerUserByEvent(event, wxContext)
+  if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
+  const orgId = getOrgId(caller)
+  if (!orgId) return { code: -1, msg: '工厂信息缺失' }
+
+  const dryRun = event.dry_run !== false
+
+  try {
+    const [adjustments, payments] = await Promise.all([
+      fetchAllByWhere('SalaryAdjustments', { org_id: orgId }, {
+        field: { _id: true, user_id: true, user_name: true, type: true, amount: true, reason: true, month: true, order_id: true, order_name: true, is_reversal: true, is_correction: true, original_id: true }
+      }),
+      fetchAllByWhere('SalaryPayments', { org_id: orgId, paid: true }, {
+        field: { user_id: true, month: true, order_id: true }
+      })
+    ])
+
+    const plan = planAdjustmentReversalRepairs({
+      adjustments,
+      paidScopeKeys: payments.map(buildScopeKey),
+      paidLooseKeys: payments.map(buildLooseKey)
+    })
+
+    if (dryRun) return { code: 0, data: { ...plan, dry_run: true } }
+
+    let applied = 0
+    let failed = 0
+    for (const group of plan.groups) {
+      for (const id of group.remove_ids) {
+        try {
+          await db.collection('SalaryAdjustments').doc(id).remove()
+          applied++
+        } catch (err) {
+          failed++
+        }
+      }
+      for (const id of group.promote_ids) {
+        try {
+          // 原记录和冲正都删了，这条更正就是唯一有效的那笔，去掉「更正」标记扶正成普通记录
+          await db.collection('SalaryAdjustments').doc(id).update({
+            data: { is_correction: _.remove(), original_id: _.remove(), repaired_at: db.serverDate() }
+          })
+          applied++
+        } catch (err) {
+          failed++
+        }
+      }
+    }
+
+    await db.collection('audit_logs').add({
+      data: {
+        org_id: orgId,
+        action: 'adjustment_reversal_repair',
+        operator_id: caller._id,
+        operator_name: caller.name,
+        details: `清理奖惩冲正 ${plan.total_group_count} 组：写入 ${applied} 条，失败 ${failed} 条`,
+        applied,
+        failed,
+        created_at: db.serverDate()
+      }
+    })
+
+    return { code: 0, data: { ...plan, dry_run: false, applied, failed } }
+  } catch (err) {
+    return { code: -1, msg: '奖惩冲正体检失败: ' + err.message }
+  }
+}
+
 async function repairSettlementPrices(event, wxContext) {
   const caller = await getCallerUserByEvent(event, wxContext)
   if (!caller || caller.role !== 'boss') return { code: -1, msg: '权限不足' }
