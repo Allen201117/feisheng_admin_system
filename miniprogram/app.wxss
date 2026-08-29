@@ -520,6 +520,10 @@ button[disabled] { opacity: 0.48; }
   font-weight: var(--fw-semibold);
   letter-spacing: 0.02em;
   border: 1rpx solid rgba(255,255,255,0.70);
+  /* 徽章是定长标签，flex 行里空间不够时不许被压扁换行 ——
+     少了这两条，「已发」会竖排成「已/发」，整行被撑成两三行高，列表看着就是没对齐 */
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .badge-blue   { background: var(--blue-100); color: var(--blue-600); }
@@ -727,9 +731,27 @@ button[disabled] { opacity: 0.48; }
 
 .list-row:last-child { border-bottom: none; }
 
-.list-row-title    { font-size: var(--fs-base); font-weight: var(--fw-medium); color: var(--text-primary); }
-.list-row-subtitle { font-size: var(--fs-2xs); line-height: 1.45; color: var(--text-secondary); margin-top: 6rpx; }
-.list-row-extra    { font-size: var(--fs-sm); color: var(--text-secondary); text-align: right; flex-shrink: 0; }
+.list-row-title    { display: block; font-size: var(--fs-base); font-weight: var(--fw-medium); color: var(--text-primary); }
+.list-row-subtitle { display: block; font-size: var(--fs-2xs); line-height: 1.45; color: var(--text-secondary); margin-top: 6rpx; }
+.list-row-extra    { font-size: var(--fs-sm); color: var(--text-secondary); text-align: right; flex-shrink: 0; white-space: nowrap; }
+
+/* 标题和徽章挤在同一行时（.flex-row 里），标题走单行省略号 ——
+   否则标题会先折行把行撑高，同一列的徽章、金额跟着错位。
+   标题独占一行时（直接放在 .flex-1 里）不受影响，仍可换行显示完整。 */
+.flex-row > .list-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 一行里靠右的时间/角色等次要文字不参与压缩，否则「2026-08」会被折成两行 */
+.flex-between > .emp-meta,
+.flex-between > .list-row-extra {
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-top: 0;
+}
 
 /* 可复用信息块：把密集业务字段拆成易扫读的标签 + 数值 */
 .info-grid {
@@ -797,17 +819,28 @@ button[disabled] { opacity: 0.48; }
 .emp-avatar.blue  { background: var(--blue-100); color: var(--blue-600); }
 .emp-avatar.green { background: var(--green-100); color: var(--green-600); }
 
-.emp-info { flex: 1; min-width: 0; }
+.emp-info { flex: 1; min-width: 0; overflow: hidden; }
 
-.emp-name { font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); }
+/* 同 .salary-name：姓名单行，长名字省略号，不许被徽章挤换行 */
+.emp-name {
+  display: inline-block;
+  max-width: 6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary);
+}
 
-.emp-meta { font-size: var(--fs-2xs); color: var(--text-secondary); margin-top: 4rpx; }
+.emp-meta { display: block; font-size: var(--fs-2xs); color: var(--text-secondary); margin-top: 4rpx; }
 
 /* ═══════════ 薪资列表 ═══════════ */
 
 .salary-row {
   display: flex; align-items: center; gap: var(--sp-2);
   padding: var(--sp-2) 0;
+  min-height: 108rpx;
+  overflow: hidden;
   border-bottom: 1rpx solid var(--border-light);
 }
 
@@ -826,13 +859,28 @@ button[disabled] { opacity: 0.48; }
   background: var(--green-600); border-color: var(--green-600); color: #fff;
 }
 
-.salary-info  { flex: 1; min-width: 0; }
-.salary-name  { font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary); }
-.salary-detail { font-size: var(--fs-2xs); color: var(--text-secondary); margin-top: 4rpx; }
+.salary-info  { flex: 1; min-width: 0; overflow: hidden; }
 
+/* 姓名是这一行的锚点，必须单行显示：被挤成「安丽/丽」两行时整行高度会跟着变，
+   一列行高不齐正是列表看着乱的主因。名字太长走省略号，不换行。 */
+.salary-name  {
+  display: inline-block;
+  max-width: 6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--text-primary);
+}
+
+.salary-detail { display: block; font-size: var(--fs-2xs); color: var(--text-secondary); margin-top: 4rpx; }
+
+/* 金额列定宽右对齐：各行数字位数不同也能对成一条竖线 */
 .salary-amount {
   font-size: var(--fs-md); font-weight: var(--fw-bold);
   color: var(--text-primary); flex-shrink: 0;
+  min-width: 176rpx;
+  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1203,7 +1251,7 @@ button[disabled] { opacity: 0.48; }
 
 /* ═══════════ 工具类 ═══════════ */
 
-.flex-row    { display: flex; flex-direction: row; align-items: center; }
+.flex-row    { display: flex; flex-direction: row; align-items: center; min-width: 0; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 .flex-center  { display: flex; justify-content: center; align-items: center; }
 .flex-1      { flex: 1; min-width: 0; }
