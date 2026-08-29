@@ -87,7 +87,7 @@
     <view wx:for="{{adjustments}}" wx:for-item="item" wx:key="_id" class="list-row flex-wrap">
       <view class="flex-1">
         <text class="list-row-title">{{item.reason}}</text>
-        <text class="list-row-subtitle">{{item.date}}</text>
+        <text class="list-row-subtitle">{{item.date}}<text wx:if="{{item.adj_tag}}" class="text-tertiary"> · {{item.adj_tag}}记录</text></text>
       </view>
       <view style="text-align:right;">
         <text class="font-semibold text-sm" style="{{item.type === 'reward' ? 'color:var(--green-600)' : 'color:var(--red-600)'}}">
@@ -95,7 +95,7 @@
         </text>
         <view class="flex-row gap-2" style="justify-content:flex-end;margin-top:8rpx;">
           <text class="text-accent tappable text-xs" bindtap="onEditAdj" data-adj="{{item}}">编辑</text>
-          <text class="text-red tappable text-xs" bindtap="onDeleteAdj" data-adj="{{item}}">删除</text>
+          <text class="text-red tappable text-xs" bindtap="onDeleteAdj" data-adj="{{item}}">{{item.is_locked ? '冲正删除' : '删除'}}</text>
         </view>
       </view>
     </view>

@@ -5,7 +5,7 @@ const db = cloud.database()
 const _ = db.command
 const bjTime = require('./beijing-time')
 const { resolvePeriodRange, buildSalaryPeriodSummary } = require('./period-statistics')
-const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid } = require('./payment-record.logic')
+const { buildSalaryPaymentDocId, buildSalaryPaymentCreateData, isOrderFullyPaid, buildAdjustmentPayLockWhere, inheritAdjustmentScope } = require('./payment-record.logic')
 const { applyCurrentPricesToUnpaidLogs, selectWorklogSyncUpdates } = require('./settlement-price.logic')
 const { planPaidGroupRepairs } = require('./settlement-repair.logic')
 
@@ -1142,13 +1142,10 @@ async function updateAdjustment(event, wxContext) {
     const adj = adjRes.data
     if (!ensureSameOrg(adj, caller)) return { code: -1, msg: '无权修改其他工厂奖惩' }
 
-    // 检查发薪锁定
-    const paidRes = await db.collection('SalaryPayments').where({
-      org_id: getOrgId(caller),
-      user_id: adj.user_id,
-      month: adj.month,
-      paid: true
-    }).get()
+    // 检查发薪锁定（口径同 deleteAdjustment / getUserMonthlySalaryByBoss）
+    const paidRes = await db.collection('SalaryPayments')
+      .where(buildAdjustmentPayLockWhere({ orgId: getOrgId(caller), adjustment: adj, command: _ }))
+      .get()
     const isLocked = paidRes.data.length > 0
 
     if (isLocked) {
@@ -1165,6 +1162,7 @@ async function updateAdjustment(event, wxContext) {
           amount: reverseAmount,
           reason: `【冲正】原记录: ${adj.reason}，冲正原因: ${edit_reason}`,
           month: adj.month,
+          ...inheritAdjustmentScope(adj),
           is_reversal: true,
           original_id: adjustment_id,
           operator_id: caller._id,
@@ -1184,6 +1182,7 @@ async function updateAdjustment(event, wxContext) {
             amount: parseFloat(amount),
             reason: reason || adj.reason,
             month: currentMonth,
+            ...inheritAdjustmentScope(adj),
             is_correction: true,
             original_id: adjustment_id,
             operator_id: caller._id,
@@ -1257,11 +1256,11 @@ async function deleteAdjustment(event, wxContext) {
     const adj = adjRes.data
     if (!ensureSameOrg(adj, caller)) return { code: -1, msg: '无权删除其他工厂奖惩' }
 
-    const paidRes = await db.collection('SalaryPayments').where({
-      org_id: getOrgId(caller),
-      user_id: adj.user_id, month: adj.month, paid: true
-    }).get()
+    const paidRes = await db.collection('SalaryPayments')
+      .where(buildAdjustmentPayLockWhere({ orgId: getOrgId(caller), adjustment: adj, command: _ }))
+      .get()
     const isLocked = paidRes.data.length > 0
+    let linkedRemoved = 0
 
     if (isLocked) {
       // 冲正
@@ -1274,6 +1273,7 @@ async function deleteAdjustment(event, wxContext) {
           amount: adj.amount,
           reason: `【冲正删除】原记录: ${adj.reason}，删除原因: ${delete_reason}`,
           month: adj.month,
+          ...inheritAdjustmentScope(adj),
           is_reversal: true,
           original_id: adjustment_id,
           operator_id: caller._id,
@@ -1282,6 +1282,17 @@ async function deleteAdjustment(event, wxContext) {
         }
       })
     } else {
+      // 真删：连同挂在这条记录上的冲正/更正记录一起删。
+      // 之前锁定口径写错时，未发薪的记录也被走了冲正，库里留下了配对的冲正记录；
+      // 现在只删原记录的话，那条冲正会变成一笔凭空的反向金额（幽灵奖/罚）。
+      const linked = await fetchAllByWhere('SalaryAdjustments', {
+        org_id: getOrgId(caller),
+        original_id: adjustment_id
+      }, { field: { _id: true } })
+      for (const item of linked) {
+        await db.collection('SalaryAdjustments').doc(item._id).remove()
+      }
+      linkedRemoved = linked.length
       await db.collection('SalaryAdjustments').doc(adjustment_id).remove()
     }
 
@@ -1297,11 +1308,16 @@ async function deleteAdjustment(event, wxContext) {
         old_values: { type: adj.type, amount: adj.amount, reason: adj.reason },
         delete_reason: delete_reason,
         is_reversal: isLocked,
+        linked_removed: linkedRemoved,
         created_at: db.serverDate()
       }
     })
 
-    return { code: 0, msg: isLocked ? '已通过冲正方式删除' : '奖惩删除成功' }
+    return {
+      code: 0,
+      msg: isLocked ? '该期已发薪，已加一条冲正记录抵消（原记录按规定保留）' : '奖惩已删除',
+      data: { is_reversal: isLocked }
+    }
   } catch (err) {
     return { code: -1, msg: '删除失败: ' + err.message }
   }
