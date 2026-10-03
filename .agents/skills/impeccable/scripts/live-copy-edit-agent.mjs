@@ -575,7 +575,9 @@ function resolveCommand(command, args = []) {
   let text;
   try { text = fs.readFileSync(found, 'utf-8'); } catch { return plain; }
   const progs = [...text.matchAll(/SET\s+"_prog=([^"]+)"/gi)].map((m) => m[1]);
-  for (const m of text.matchAll(/"%~?dp0%?[\\/]+([^"]+)"/gi)) {
+  // Only the line that actually runs (target followed by %*); the earlier
+  // IF EXIST "%dp0%\node.exe" probe would otherwise resolve to a bare node.exe.
+  for (const m of text.matchAll(/"%~?dp0%?[\\/]+([^"]+)"\s*%\*/gi)) {
     const target = path.normalize(path.join(path.dirname(found), m[1]));
     if (!fs.existsSync(target)) continue;
     if (/\.exe$/i.test(target)) return { file: target, args };
