@@ -1,0 +1,229 @@
+<view class="container org-detail-page">
+
+  <view wx:if="{{loading}}">
+    <view class="skeleton skeleton-box"></view>
+    <view class="skeleton skeleton-box"></view>
+    <view class="skeleton skeleton-box"></view>
+  </view>
+
+  <view wx:elif="{{loadError && !org}}" class="empty">
+    <text class="empty-title">工厂详情没加载出来</text>
+    <text class="empty-desc d-block">{{loadError}}</text>
+    <view class="empty-action tappable" bindtap="loadDetail" hover-class="tap-button-hover">重新加载</view>
+  </view>
+
+  <block wx:elif="{{org}}">
+
+    <view wx:if="{{loadError}}" class="notice notice-amber">刷新失败：{{loadError}}（下拉可重试）</view>
+
+    <!-- 新建后的引导 -->
+    <view wx:if="{{fresh && (activeAdminCount === 0 || org.billing_status === 'not_enabled')}}" class="notice notice-blue onboard">
+      <text class="font-semibold d-block">工厂已创建，还差两步</text>
+      <text class="d-block">{{activeAdminCount > 0 ? '✓' : '1.'}} 添加老板账号（老板才能登录）</text>
+      <text class="d-block">{{org.billing_status !== 'not_enabled' ? '✓' : '2.'}} 开通试用或标准版</text>
+    </view>
+
+    <!-- 工厂资料 -->
+    <view class="card-bento">
+      <view class="flex-between detail-head">
+        <view class="flex-1 detail-head-main">
+          <text class="detail-name">{{org.org_name}}</text>
+          <view class="flex-row gap-1 detail-badges">
+            <text class="badge badge-slate org-code">{{org.factory_code}}</text>
+            <text class="badge {{org.bucket === 'normal' ? 'badge-green' : org.bucket === 'trial' ? 'badge-blue' : 'badge-slate'}}">{{org.bucket_label}}</text>
+          </view>
+        </view>
+        <view class="btn-sm btn-sm-secondary tappable" bindtap="openEdit" hover-class="tap-button-hover">编辑资料</view>
+      </view>
+      <text class="detail-meta d-block">联系人：{{org.contact_name || '未填'}}{{org.contact_phone ? ' · ' + org.contact_phone : ''}}</text>
+      <text wx:if="{{org.created_date_text}}" class="detail-meta d-block">建厂：{{org.created_date_text}}</text>
+    </view>
+
+    <!-- 订阅 -->
+    <view class="card-bento">
+      <text class="menu-group-title d-block">订阅</text>
+      <text class="sub-plan d-block">{{org.plan_name_view}}</text>
+      <text wx:if="{{org.end_date_text && org.billing_status !== 'permanent'}}" class="sub-date d-block">{{org.end_date_text}} 到期</text>
+      <text class="sub-expiry d-block {{org.expiry_tone === 'over' ? 'text-red' : org.expiry_tone === 'warn' ? 'text-amber' : 'text-secondary'}}">{{org.expiry_text}}</text>
+      <text wx:if="{{org.grace_until_text}}" class="detail-meta d-block">宽限期到 {{org.grace_until_text}}（到期后这几天照常能用）</text>
+
+      <view class="info-grid">
+        <view class="info-tile">
+          <text class="info-tile-label">员工</text>
+          <text class="info-tile-value">{{employeeCount}} 人</text>
+        </view>
+        <view class="info-tile">
+          <text class="info-tile-label">在用的老板账号</text>
+          <text class="info-tile-value">{{activeAdminCount}} 个</text>
+        </view>
+      </view>
+
+      <button class="btn btn-primary btn-block sub-btn" bindtap="openRenew" disabled="{{subAction.disabled}}" hover-class="tap-button-hover">{{subAction.text}}</button>
+      <text wx:if="{{subAction.hint}}" class="field-hint d-block">{{subAction.hint}}</text>
+    </view>
+
+    <!-- 老板账号 -->
+    <view class="card-bento">
+      <view class="flex-between section-head">
+        <text class="menu-group-title">老板账号</text>
+        <view class="btn-sm btn-sm-primary tappable" bindtap="openAdmin" hover-class="tap-button-hover">添加</view>
+      </view>
+
+      <view wx:if="{{admins.length === 0}}" class="notice notice-amber">还没有老板账号，这家工厂现在没人能登录。点右上角「添加」。</view>
+
+      <view wx:for="{{admins}}" wx:key="_id" class="admin-item">
+        <view class="emp-row admin-row">
+          <view class="emp-avatar {{item.status === 'active' ? 'blue' : ''}}">{{item.name[0]}}</view>
+          <view class="emp-info">
+            <view class="flex-row gap-1">
+              <text class="emp-name">{{item.name}}</text>
+              <text class="badge {{item.status === 'active' ? 'badge-green' : 'badge-slate'}}">{{item.status === 'active' ? '在用' : '已停用'}}</text>
+            </view>
+            <text class="emp-meta">{{item.phone}}<text wx:if="{{item.status === 'active' && item.must_change_password}}"> · 还没改过初始密码</text></text>
+          </view>
+        </view>
+        <view class="admin-actions">
+          <view class="admin-action primary" data-index="{{index}}" bindtap="copyLoginInfo" hover-class="tap-button-hover">复制登录方式</view>
+          <view class="admin-action" data-index="{{index}}" bindtap="resetAdminPassword" hover-class="tap-button-hover">重置密码</view>
+          <view class="admin-action {{item.status === 'active' ? 'danger' : 'success'}}" data-index="{{index}}" bindtap="toggleAdminStatus" hover-class="tap-button-hover">{{item.status === 'active' ? '停用' : '恢复'}}</view>
+        </view>
+      </view>
+      <text wx:if="{{admins.length}}" class="field-hint d-block">重置后密码变成手机号，对方下次登录要先改密码。最后一个在用的老板账号不能停用。</text>
+    </view>
+
+    <!-- 开通记录 -->
+    <view class="card-bento">
+      <text class="menu-group-title d-block">开通记录</text>
+      <view wx:if="{{billingOrders.length === 0}}" class="empty-desc record-empty">还没有开通记录</view>
+      <view wx:for="{{billingOrders}}" wx:key="_id" class="list-row">
+        <view class="flex-1 record-main">
+          <view class="flex-row gap-1">
+            <text class="list-row-title">{{item.plan_name}}{{item.period_text ? ' · ' + item.period_text : ''}}</text>
+            <text wx:if="{{item.payment_status !== 'paid'}}" class="badge badge-amber">{{item.payment_status_label}}</text>
+          </view>
+          <text class="list-row-subtitle">{{item.paid_at_text}} · {{item.payment_channel_label}}{{item.verified_by_name ? ' · ' + item.verified_by_name : ''}}{{item.remark ? ' · ' + item.remark : ''}}</text>
+        </view>
+        <text class="list-row-extra num">¥{{item.amount_yuan}}</text>
+      </view>
+    </view>
+
+    <!-- 停用 / 启用工厂 -->
+    <view wx:if="{{canToggleOrg}}" class="danger-zone">
+      <button class="btn {{org.status === 'active' ? 'btn-danger' : 'btn-success'}} btn-block" bindtap="toggleOrgStatus" hover-class="tap-button-hover">{{org.status === 'active' ? '停用工厂' : '启用工厂'}}</button>
+      <text class="field-hint d-block text-center">{{org.status === 'active' ? '停用后全厂所有人都登录不了，数据保留，可以随时再启用' : '这家工厂已停用，全厂无法登录'}}</text>
+    </view>
+    <text wx:else class="field-hint d-block text-center danger-zone">自家工厂永久免费，不能停用</text>
+
+  </block>
+</view>
+
+<!-- 续费 / 开通弹层 -->
+<view wx:if="{{showRenew}}" class="modal-overlay" bindtap="closeRenew">
+  <view class="modal-sheet modal-bottom-sheet" catchtap="noop">
+    <view class="sheet-head">
+      <view class="flex-1">
+        <text class="sheet-title d-block">{{subAction.text}}</text>
+        <text class="detail-meta d-block">{{org.org_name}} · {{org.factory_code}}</text>
+      </view>
+      <text class="btn-sm btn-ghost" bindtap="closeRenew">关闭</text>
+    </view>
+    <scroll-view scroll-y class="modal-sheet-body modal-scroll-body sheet-body">
+      <view wx:if="{{renewLocked}}" class="notice notice-amber">上次提交没确认成功。套餐、时长、金额已锁定，再点一次会按刚才的内容补完，不会重复续费；想改内容请关闭弹窗重新打开。</view>
+
+      <view class="field-group {{renewLocked ? 'is-locked' : ''}}">
+        <text class="field-label">套餐</text>
+        <view class="filter-chips">
+          <view wx:for="{{renewView.planTabs}}" wx:key="plan_id" class="filter-chip {{item.active ? 'filter-chip-active' : ''}}" data-id="{{item.plan_id}}" bindtap="onRenewPlanTap" hover-class="tap-chip-hover">{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="field-group {{renewLocked ? 'is-locked' : ''}}">
+        <text class="field-label">时长</text>
+        <view class="filter-chips">
+          <view wx:for="{{renewView.durationOptions}}" wx:key="value" class="filter-chip {{item.active ? 'filter-chip-active' : ''}}" data-value="{{item.value}}" bindtap="onRenewDurationTap" hover-class="tap-chip-hover">{{item.label}}</view>
+        </view>
+      </view>
+
+      <view class="field-group">
+        <text class="field-label">收款金额（元）</text>
+        <input class="field-input" type="digit" value="{{renew.amount}}" bindinput="onRenewAmountInput" placeholder="例如 1999" disabled="{{renewLocked}}" />
+        <text class="field-hint d-block">按时长自动算好，实际收多少就改成多少</text>
+      </view>
+
+      <view class="field-group">
+        <text class="field-label">备注</text>
+        <input class="field-input" value="{{renew.remark}}" bindinput="onRenewRemarkInput" placeholder="例如 微信已收款 / 转账尾号 1234" />
+      </view>
+
+      <view wx:if="{{renewView.preview && !renewView.error}}" class="renew-preview">
+        <text class="info-tile-label d-block">到期日</text>
+        <view class="flex-row gap-1 renew-dates">
+          <text wx:if="{{renewView.preview.extendsCurrent}}" class="renew-old">{{renewView.preview.currentEndText}}</text>
+          <text wx:if="{{renewView.preview.extendsCurrent}}" class="text-secondary">→</text>
+          <text class="renew-new">{{renewView.preview.endText}}</text>
+        </view>
+        <text class="field-hint d-block">{{renewView.preview.extendsCurrent ? '从当前到期日往后接着算，剩下的天数不浪费。' : '从今天开始算。'}}宽限期到 {{renewView.preview.graceText}}。</text>
+      </view>
+
+      <view wx:if="{{renewView.error}}" class="notice notice-red">{{renewView.error}}</view>
+      <view wx:elif="{{renewError}}" class="notice notice-red">{{renewError}}</view>
+
+      <button class="btn btn-primary btn-block" bindtap="submitRenew" loading="{{renewing}}" disabled="{{renewing || (!renewLocked && !renewView.canSubmit)}}">{{renewLocked ? '再提交一次（不会重复续费）' : renewView.submitText}}</button>
+    </scroll-view>
+  </view>
+</view>
+
+<!-- 添加老板账号弹层 -->
+<view wx:if="{{showAdmin}}" class="modal-overlay" bindtap="closeAdmin">
+  <view class="modal-sheet modal-bottom-sheet" catchtap="noop">
+    <view class="sheet-head">
+      <text class="sheet-title">添加老板账号</text>
+      <text class="btn-sm btn-ghost" bindtap="closeAdmin">关闭</text>
+    </view>
+    <scroll-view scroll-y class="modal-sheet-body modal-scroll-body sheet-body">
+      <view class="field-group">
+        <text class="field-label">姓名 *</text>
+        <input class="field-input" value="{{adminForm.name}}" data-field="name" bindinput="onAdminInput" placeholder="老板姓名" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">手机号 *</text>
+        <input class="field-input" value="{{adminForm.phone}}" data-field="phone" bindinput="onAdminInput" placeholder="11 位手机号" type="number" maxlength="11" />
+      </view>
+      <view class="notice notice-blue">初始密码就是手机号，老板第一次登录会被要求改密码。建好后点「复制登录方式」发给老板。</view>
+      <view wx:if="{{adminError}}" class="notice notice-red">{{adminError}}</view>
+      <button class="btn btn-primary btn-block" bindtap="submitAdmin" loading="{{savingAdmin}}" disabled="{{savingAdmin}}">创建账号</button>
+    </scroll-view>
+  </view>
+</view>
+
+<!-- 编辑资料弹层 -->
+<view wx:if="{{showEdit}}" class="modal-overlay" bindtap="closeEdit">
+  <view class="modal-sheet modal-bottom-sheet" catchtap="noop">
+    <view class="sheet-head">
+      <text class="sheet-title">编辑资料</text>
+      <text class="btn-sm btn-ghost" bindtap="closeEdit">关闭</text>
+    </view>
+    <scroll-view scroll-y class="modal-sheet-body modal-scroll-body sheet-body">
+      <view class="field-group">
+        <text class="field-label">工厂名称 *</text>
+        <input class="field-input" value="{{editForm.org_name}}" data-field="org_name" bindinput="onEditInput" placeholder="工厂名称" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">工厂码 *</text>
+        <input class="field-input font-bold" value="{{editForm.factory_code}}" data-field="factory_code" bindinput="onEditInput" placeholder="例如 HJ01" maxlength="12" disabled="{{editCodeLocked}}" />
+        <text wx:if="{{editCodeLocked}}" class="field-hint d-block">自家工厂的工厂码不能改（永久免费按这个码认）</text>
+      </view>
+      <view wx:if="{{editCodeChanged}}" class="notice notice-amber">工厂码从 {{org.factory_code}} 改成 {{editNewCode}} 以后，全厂 {{employeeCount + activeAdminCount}} 个账号下次登录都要输新工厂码。保存前记得先通知老板。</view>
+      <view class="field-group">
+        <text class="field-label">联系人</text>
+        <input class="field-input" value="{{editForm.contact_name}}" data-field="contact_name" bindinput="onEditInput" placeholder="选填" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">联系电话</text>
+        <input class="field-input" value="{{editForm.contact_phone}}" data-field="contact_phone" bindinput="onEditInput" placeholder="选填" type="number" />
+      </view>
+      <view wx:if="{{editError}}" class="notice notice-red">{{editError}}</view>
+      <button class="btn btn-primary btn-block" bindtap="submitEdit" loading="{{savingEdit}}" disabled="{{savingEdit}}">保存</button>
+    </scroll-view>
+  </view>
+</view>

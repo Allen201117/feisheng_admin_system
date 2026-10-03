@@ -3,6 +3,9 @@ const cloud = require('wx-server-sdk')
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 const db = cloud.database()
 const _ = db.command
+const crypto = require('crypto')
+// 订阅状态 / 到期日推算 / 金额校验的唯一真源（common/org-billing.logic.js 的副本）
+const orgBilling = require('./org-billing.logic')
 
 const BILLING_COLLECTIONS = ['Plans', 'Subscriptions', 'BillingOrders', 'UsageMonthly']
 const PERMANENT_HOME_ORG_ID = 'org_home'
@@ -42,53 +45,8 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function toInt(value, fallback) {
-  const n = parseInt(value, 10)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function toAmountCents(value) {
-  const n = Number(value)
-  if (!Number.isFinite(n) || n < 0) return 0
-  return Math.round(n * 100)
-}
-
-function toTimestamp(input) {
-  if (!input) return 0
-  if (input instanceof Date) return input.getTime()
-  if (typeof input === 'number') return input
-  if (typeof input === 'string') {
-    const t = new Date(input).getTime()
-    return Number.isNaN(t) ? 0 : t
-  }
-  if (input.$date) {
-    const t = new Date(input.$date).getTime()
-    return Number.isNaN(t) ? 0 : t
-  }
-  if (input.seconds) {
-    return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
-  }
-  return 0
-}
-
-function addDays(date, days) {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000)
-}
-
-function addMonths(date, months) {
-  const d = new Date(date.getTime())
-  d.setUTCMonth(d.getUTCMonth() + months)
-  return d
-}
-
-function formatDate(input) {
-  const ts = toTimestamp(input)
-  if (!ts) return ''
-  const d = new Date(ts + 8 * 60 * 60 * 1000)
-  return d.getUTCFullYear() + '-' +
-    String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getUTCDate()).padStart(2, '0')
-}
+const toTimestamp = orgBilling.toTimestamp
+const formatDate = orgBilling.formatBeijingDate
 
 function daysUntil(input) {
   const ts = toTimestamp(input)
@@ -110,38 +68,11 @@ function decoratePlan(plan) {
 }
 
 function deriveBillingStatus(org) {
-  if (!org) return 'unknown'
-  if (org.status === 'disabled' || org.billing_status === 'disabled') return 'disabled'
-
-  const rawStatus = org.billing_status || 'not_enabled'
-  if (rawStatus === 'not_enabled') return 'not_enabled'
-  if (rawStatus === 'permanent') return 'permanent'
-
-  const now = Date.now()
-  const endTs = toTimestamp(org.current_period_end || org.trial_end)
-  const graceTs = toTimestamp(org.grace_until)
-
-  if ((rawStatus === 'trial' || rawStatus === 'active') && endTs && now > endTs) {
-    if (graceTs && now <= graceTs) return 'grace'
-    return 'expired'
-  }
-
-  if (rawStatus === 'grace' && graceTs && now > graceTs) return 'expired'
-  return rawStatus
+  return orgBilling.deriveBillingStatus(org, Date.now())
 }
 
 function getStatusLabel(status) {
-  const map = {
-    not_enabled: '未启用订阅',
-    trial: '试用中',
-    active: '正常使用中',
-    permanent: '永久免费',
-    grace: '宽限期内',
-    expired: '已到期',
-    disabled: '已停用',
-    unknown: '未知'
-  }
-  return map[status] || status
+  return orgBilling.getBillingStatusLabel(status)
 }
 
 function isCollectionAlreadyExistsError(err) {
@@ -201,7 +132,9 @@ async function seedPlans() {
         })
         results.push({ plan_id: planId, status: 'disabled' })
       }
-    } catch (err) {}
+    } catch (err) {
+      console.error('[billing] 下架旧套餐失败', planId, err)
+    }
   }
   return results
 }
@@ -215,7 +148,10 @@ async function getPlansFromDb() {
         .sort((a, b) => ACTIVE_PLAN_IDS.indexOf(a.plan_id) - ACTIVE_PLAN_IDS.indexOf(b.plan_id))
       if (plans.length) return plans.map(decoratePlan)
     }
-  } catch (err) {}
+  } catch (err) {
+    // Plans 集合还没建（新环境）时会走到这里，回退内置套餐；记日志便于区分真故障
+    console.error('[billing] 读取套餐失败，回退内置套餐', err)
+  }
   return DEFAULT_PLANS.map(decoratePlan)
 }
 
@@ -273,7 +209,10 @@ async function writePlatformLog(caller, actionType, targetOrgId, payloadSummary)
         timestamp: db.serverDate()
       }
     })
-  } catch (err) {}
+  } catch (err) {
+    // 审计日志失败不阻断已完成的业务写入，但必须留痕
+    console.error('[billing] 平台操作日志写入失败', actionType, targetOrgId, err)
+  }
 }
 
 async function upsertPermanentSubscriptionForOrg(org) {
@@ -448,17 +387,103 @@ async function listPlans(event) {
   const auth = await requirePlatformAdmin(event)
   if (!auth.ok) return auth.response
 
-  try {
-    await ensureBillingCollections()
-    await seedPlans()
-    await ensurePermanentHomeFactory()
-  } catch (err) {
-    return { code: 0, data: DEFAULT_PLANS.map(decoratePlan) }
-  }
-
+  // 只读：以前每次打开平台页都会建 4 个集合 + 重写全部套餐 + 校正永久工厂，拖慢页面。
+  // 这些写操作保留在 openSubscription（低频写路径）和 init 里；集合不存在时 getPlansFromDb 回退内置套餐。
   const plans = await getPlansFromDb()
   return { code: 0, data: plans }
 }
+
+// 同一 request_id 只对应一条收款记录：用它派生固定 _id，add 时撞 _id 即说明是重复提交（含并发）
+function buildOpenRequestIds(orgId, requestId) {
+  const digest = crypto.createHash('sha1').update(orgId + ':' + requestId).digest('hex').slice(0, 32)
+  return { orderId: 'bo_' + digest, subscriptionId: 'sub_' + digest }
+}
+
+async function findBillingOrderById(orderId) {
+  const res = await db.collection('BillingOrders').where({ _id: orderId }).limit(1).get()
+  return (res.data && res.data[0]) || null
+}
+
+function buildOpenSubscriptionResult(order, deduplicated) {
+  return {
+    code: 0,
+    msg: deduplicated ? '这笔开通已经生效过，没有重复续费' : '订阅已开通',
+    data: {
+      subscription_id: order.subscription_id,
+      billing_order_id: order._id,
+      end_at: order.end_at,
+      end_at_text: formatDate(order.end_at),
+      grace_until: order.grace_until,
+      grace_until_text: formatDate(order.grace_until),
+      deduplicated: !!deduplicated
+    }
+  }
+}
+
+// 把收款记录里冻结好的日期写到 Subscriptions / Organizations，最后把收款记录标记为已生效。
+// 三步都是按固定 id 覆盖写，重跑结果相同（幂等）。
+async function applyBillingOrder(order, caller) {
+  const isTrial = !!order.is_trial
+  await db.collection('Subscriptions').doc(order.subscription_id).set({
+    data: {
+      org_id: order.org_id,
+      plan_id: order.plan_id,
+      plan_name: order.plan_name,
+      status: isTrial ? 'trial' : 'active',
+      start_at: order.start_at,
+      end_at: order.end_at,
+      grace_until: order.grace_until,
+      source: 'manual',
+      billing_order_id: order._id,
+      opened_by: order.verified_by || caller._id,
+      opened_by_name: order.verified_by_name || caller.name || '',
+      remark: order.remark || '',
+      created_at: db.serverDate(),
+      updated_at: db.serverDate()
+    }
+  })
+
+  await db.collection('Organizations').doc(order.org_id).update({
+    data: {
+      billing_status: isTrial ? 'trial' : 'active',
+      plan_id: order.plan_id,
+      subscription_id: order.subscription_id,
+      trial_end: isTrial ? order.end_at : '',
+      current_period_start: order.start_at,
+      current_period_end: order.end_at,
+      grace_until: order.grace_until,
+      billing_owner_user_id: order.billing_owner_user_id || '',
+      billing_updated_at: db.serverDate(),
+      updated_at: db.serverDate()
+    }
+  })
+
+  await db.collection('BillingOrders').doc(order._id).update({
+    data: {
+      payment_status: 'paid',
+      applied: true,
+      paid_at: db.serverDate(),
+      updated_at: db.serverDate()
+    }
+  })
+}
+
+function describeOrder(order) {
+  const view = orgBilling.decorateBillingOrder(order)
+  return (order.plan_name || '') + (view.period_text ? ' ' + view.period_text : '') + '，¥' + view.amount_yuan
+}
+
+// 先补完这家工厂挂着的「没写完」的开通，再谈新的：避免失败后关掉弹层重开（新 request_id）把同一笔钱续两次
+async function findPendingOrderForOrg(orgId) {
+  const res = await db.collection('BillingOrders')
+    .where({ org_id: orgId, applied: false })
+    .orderBy('created_at', 'asc')
+    .limit(1)
+    .get()
+  return (res.data && res.data[0]) || null
+}
+
+const MAX_REMARK_LENGTH = 100
 
 async function openSubscription(event) {
   const auth = await requirePlatformAdmin(event)
@@ -466,112 +491,150 @@ async function openSubscription(event) {
 
   const orgId = normalizeText(event.org_id)
   const planId = normalizeText(event.plan_id) || 'standard_year'
-  const requestedPeriodMonths = Math.max(1, Math.min(toInt(event.period_months, 12), 120))
-  const requestedTrialDays = Math.max(1, Math.min(toInt(event.trial_days, 7), 30))
-  const graceDays = Math.max(0, Math.min(toInt(event.grace_days, 7), 90))
-  const amountCents = toAmountCents(event.amount_yuan)
   const paymentChannel = normalizeText(event.payment_channel) || 'manual_wechat'
   const remark = normalizeText(event.remark)
+  const externalTradeNo = normalizeText(event.external_trade_no)
+  const clientRequestId = normalizeText(event.request_id)
 
   if (!orgId) return { code: -1, msg: '缺少工厂ID' }
+  if (clientRequestId && !orgBilling.isValidRequestId(clientRequestId)) {
+    return { code: -1, msg: '请求编号无效，请关闭弹窗后重新提交' }
+  }
+  if (!orgBilling.isKnownPaymentChannel(paymentChannel)) return { code: -1, msg: '收款方式不对' }
+  if (remark.length > MAX_REMARK_LENGTH || externalTradeNo.length > MAX_REMARK_LENGTH) {
+    return { code: -1, msg: '备注最多 ' + MAX_REMARK_LENGTH + ' 个字' }
+  }
+  const amount = orgBilling.parseAmountYuan(event.amount_yuan)
+  if (!amount.ok) return { code: -1, msg: amount.msg }
+
+  // 新版前端每次打开续费弹层生成一个 request_id，callCloud 网络重试会原样带上它 → 服务端去重。
+  // 旧版前端不传：服务端临时生成，仅保证本次调用内一致（无跨重试去重，与改造前相同）。
+  const requestId = clientRequestId || ('srv_' + crypto.randomBytes(12).toString('hex'))
+  const ids = buildOpenRequestIds(orgId, requestId)
+  const fingerprint = orgBilling.buildOpenRequestFingerprint({
+    plan_id: planId,
+    period_months: event.period_months,
+    trial_days: event.trial_days,
+    amount_cents: amount.cents
+  })
 
   try {
+    // 新环境集合可能还没建：先建再查，否则查询直接报「集合不存在」
     await ensureBillingCollections()
-    await seedPlans()
-    await ensurePermanentHomeFactory()
+
+    let order = await findBillingOrderById(ids.orderId)
+    let replay = orgBilling.decideOpenSubscriptionReplay(order)
+    let resumedPrevious = false
+
+    if (order && order.request_fingerprint && order.request_fingerprint !== fingerprint) {
+      return { code: -1, msg: '这次提交的内容和上次不一样。请关闭弹窗、刷新页面后重新打开续费' }
+    }
+    if (replay === 'done') return buildOpenSubscriptionResult(order, true)
 
     const orgRes = await db.collection('Organizations').doc(orgId).get()
     const org = orgRes.data
-    if (!org || org.status !== 'active') return { code: -1, msg: '工厂不存在或已停用' }
-    if (org.platform_role === 'platform_admin' || orgId === 'org_platform') return { code: -1, msg: '平台组织不需要开通订阅' }
-    if (org.billing_status === 'permanent') return { code: -1, msg: '该工厂已是永久免费，无需重复开通' }
+    if (!org) return { code: -1, msg: '工厂不存在' }
 
-    const plans = await getPlansFromDb()
-    const plan = getPlanById(planId, plans)
-    if (!plan) return { code: -1, msg: '套餐不存在' }
-
-    const now = new Date()
-    const currentEndTs = toTimestamp(org.current_period_end || org.trial_end)
-    const startAt = currentEndTs && currentEndTs > now.getTime() ? new Date(currentEndTs) : now
-    const isTrial = plan.plan_id === 'trial' || plan.billing_period === 'trial'
-    const periodMonths = isTrial ? 0 : requestedPeriodMonths
-    const trialDays = isTrial ? Math.min(toInt(plan.trial_days, requestedTrialDays), 30) : 0
-    const endAt = isTrial ? addDays(startAt, trialDays) : addMonths(startAt, periodMonths)
-    const graceUntil = addDays(endAt, graceDays)
-
-    const subscriptionRes = await db.collection('Subscriptions').add({
-      data: {
-        org_id: orgId,
-        plan_id: plan.plan_id,
-        plan_name: plan.plan_name,
-        status: isTrial ? 'trial' : 'active',
-        start_at: startAt,
-        end_at: endAt,
-        grace_until: graceUntil,
-        source: 'manual',
-        opened_by: auth.caller._id,
-        opened_by_name: auth.caller.name || '',
-        remark,
-        created_at: db.serverDate(),
-        updated_at: db.serverDate()
+    if (replay === 'none') {
+      const pending = await findPendingOrderForOrg(orgId)
+      if (pending) {
+        order = pending
+        replay = 'resume'
+        resumedPrevious = true
       }
-    })
+    }
 
-    const orderRes = await db.collection('BillingOrders').add({
-      data: {
+    if (replay === 'resume') {
+      // 上次写到一半：只按收款记录里冻结的日期补完，绝不重新推算（否则会再顺延一次）
+      const resumable = orgBilling.checkResumableOrder(org, order)
+      if (!resumable.ok) {
+        console.error('[billing] 未完成的开通记录不能自动补完', order._id, orgId, resumable.msg)
+        return { code: -1, msg: resumable.msg }
+      }
+    } else {
+      await seedPlans()
+      await ensurePermanentHomeFactory()
+
+      // 永久工厂校正可能刚改了 org，重新读一次再推算
+      const freshOrgRes = await db.collection('Organizations').doc(orgId).get()
+      const freshOrg = freshOrgRes.data || org
+      if (freshOrg.status !== 'active') return { code: -1, msg: '工厂不存在或已停用' }
+
+      const plans = await getPlansFromDb()
+      const plan = plans.find(item => item.plan_id === planId)
+      if (!plan) return { code: -1, msg: '套餐不存在或已下架' }
+
+      const plannedWindow = orgBilling.planSubscriptionWindow({
+        org: freshOrg,
+        plan,
+        periodMonths: event.period_months,
+        trialDays: event.trial_days,
+        graceDays: event.grace_days,
+        nowTs: Date.now()
+      })
+      if (!plannedWindow.ok) return { code: -1, msg: plannedWindow.msg }
+
+      const orderData = {
+        _id: ids.orderId,
         org_id: orgId,
-        subscription_id: subscriptionRes._id,
+        subscription_id: ids.subscriptionId,
+        request_id: requestId,
+        request_fingerprint: fingerprint,
         plan_id: plan.plan_id,
         plan_name: plan.plan_name,
-        amount_cents: amountCents,
+        is_trial: plannedWindow.is_trial,
+        period_months: plannedWindow.period_months,
+        trial_days: plannedWindow.trial_days,
+        grace_days: plannedWindow.grace_days,
+        start_at: plannedWindow.start_at,
+        end_at: plannedWindow.end_at,
+        grace_until: plannedWindow.grace_until,
+        amount_cents: amount.cents,
         payment_channel: paymentChannel,
-        payment_status: 'paid',
-        paid_at: db.serverDate(),
+        payment_status: 'pending',
+        applied: false,
         verified_by: auth.caller._id,
         verified_by_name: auth.caller.name || '',
-        external_trade_no: normalizeText(event.external_trade_no),
+        external_trade_no: externalTradeNo,
+        billing_owner_user_id: normalizeText(event.billing_owner_user_id),
         remark,
         created_at: db.serverDate(),
         updated_at: db.serverDate()
       }
-    })
 
-    await db.collection('Organizations').doc(orgId).update({
-      data: {
-        billing_status: isTrial ? 'trial' : 'active',
-        plan_id: plan.plan_id,
-        subscription_id: subscriptionRes._id,
-        trial_end: isTrial ? endAt : '',
-        current_period_start: startAt,
-        current_period_end: endAt,
-        grace_until: graceUntil,
-        billing_owner_user_id: normalizeText(event.billing_owner_user_id),
-        billing_updated_at: db.serverDate(),
-        updated_at: db.serverDate()
+      try {
+        await db.collection('BillingOrders').add({ data: orderData })
+        order = orderData
+      } catch (err) {
+        // 并发的同一请求抢先写入了同 _id 的记录 → 按已有记录处理；不是这种情况就照常报错
+        const raced = await findBillingOrderById(ids.orderId)
+        if (!raced) throw err
+        if (orgBilling.decideOpenSubscriptionReplay(raced) === 'done') return buildOpenSubscriptionResult(raced, true)
+        const resumable = orgBilling.checkResumableOrder(org, raced)
+        if (!resumable.ok) return { code: -1, msg: resumable.msg }
+        order = raced
       }
-    })
+    }
+
+    await applyBillingOrder(order, auth.caller)
 
     await writePlatformLog(
       auth.caller,
       'open_subscription',
       orgId,
-      `${org.factory_code || orgId}/${plan.plan_name}/${isTrial ? trialDays + '天' : periodMonths + '个月'}/${amountCents}分`
+      `${org.factory_code || orgId}/${order.plan_name}/${order.is_trial ? order.trial_days + '天' : order.period_months + '个月'}/${order.amount_cents}分${replay === 'resume' ? '/补完' : ''}`
     )
 
-    return {
-      code: 0,
-      msg: '订阅已开通',
-      data: {
-        subscription_id: subscriptionRes._id,
-        billing_order_id: orderRes._id,
-        end_at: endAt,
-        end_at_text: formatDate(endAt),
-        grace_until: graceUntil,
-        grace_until_text: formatDate(graceUntil)
-      }
+    const result = buildOpenSubscriptionResult(order, false)
+    if (resumedPrevious) {
+      result.msg = '上次没完成的那笔开通（' + describeOrder(order) + '）已补上，到期 ' + result.data.end_at_text +
+        '。这次的提交没有再续费，如果还要续，请重新打开续费。'
+      result.data.resumed_previous = true
     }
+    return result
   } catch (err) {
-    return { code: -1, msg: '开通订阅失败: ' + (err.message || '未知错误') }
+    console.error('[billing] 开通订阅失败', orgId, requestId, err)
+    return { code: -1, msg: '开通订阅失败: ' + (err.message || '未知错误') + '。可以直接再点一次确认，不会重复续费' }
   }
 }
 
@@ -598,12 +661,10 @@ async function listBillingOrders(event) {
 
     return {
       code: 0,
-      data: list.map(item => Object.assign({}, item, {
-        amount_yuan: Number(item.amount_cents || 0) / 100,
-        paid_at_text: formatDate(item.paid_at || item.created_at)
-      }))
+      data: list.map(item => orgBilling.decorateBillingOrder(item))
     }
   } catch (err) {
+    console.error('[billing] 获取开通记录失败', orgId, err)
     return { code: -1, msg: '获取开通记录失败' }
   }
 }
@@ -616,6 +677,12 @@ async function markManualPaymentPaid(event) {
   if (!orderId) return { code: -1, msg: '缺少收款记录ID' }
 
   try {
+    const order = await findBillingOrderById(orderId)
+    if (!order) return { code: -1, msg: '收款记录不存在' }
+    // 没生效的开通记录（applied:false）如果在这里直接标成已收款，会被当成「已生效」而永远补不完
+    if (order.applied === false) {
+      return { code: -1, msg: '这笔开通还没生效，请回到工厂详情重新提交开通' }
+    }
     await db.collection('BillingOrders').doc(orderId).update({
       data: {
         payment_status: 'paid',
@@ -625,9 +692,10 @@ async function markManualPaymentPaid(event) {
         updated_at: db.serverDate()
       }
     })
-    await writePlatformLog(auth.caller, 'mark_manual_payment_paid', '', orderId)
+    await writePlatformLog(auth.caller, 'mark_manual_payment_paid', order.org_id || '', orderId)
     return { code: 0, msg: '已确认收款' }
   } catch (err) {
+    console.error('[billing] 确认收款失败', orderId, err)
     return { code: -1, msg: '确认收款失败' }
   }
 }
