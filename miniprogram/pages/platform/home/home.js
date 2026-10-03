@@ -1,55 +1,27 @@
-const { callCloud, showError, showSuccess, showLoading, hideLoading, trim } = require('../../../utils/util')
+const { callCloud, showError, showSuccess } = require('../../../utils/util')
 const { getStoredUser } = require('../../../utils/auth')
-const { filterListByKeyword } = require('../../../utils/list-search')
+const orgBilling = require('../../../utils/org-billing.logic')
+const listLogic = require('./org-list.logic')
 const app = getApp()
 
-const ORG_SEARCH_FIELDS = [
-  'org_name',
-  'factory_code',
-  'contact_name',
-  'contact_phone',
-  'billing_status_label',
-  'plan_name_view'
-]
+const EMPTY_CREATE_FORM = { org_name: '', factory_code: '', contact_name: '', contact_phone: '' }
 
 Page({
   data: {
     userInfo: null,
     organizations: [],
-    filteredOrganizations: [],
+    rows: [],
+    overviewCards: listLogic.buildOverviewCards([], 'all'),
+    activeFilter: 'all',
     orgSearchKeyword: '',
-    selectedOrgId: '',
-    selectedOrg: null,
-    factoryAdmins: [],
-    orgForm: {
-      org_name: '',
-      factory_code: '',
-      contact_name: '',
-      contact_phone: ''
-    },
-    editForm: {
-      org_name: '',
-      factory_code: '',
-      contact_name: '',
-      contact_phone: ''
-    },
-    adminForm: {
-      org_id: '',
-      name: '',
-      phone: '',
-      password: ''
-    },
-    plans: [],
-    selectedPlanIndex: 0,
-    billingForm: {
-      plan_id: 'standard_year',
-      period_months: '12',
-      trial_days: '7',
-      amount_yuan: '1999',
-      remark: ''
-    },
-    billingOrders: [],
-    loading: false
+    sortMode: 'due',
+    sortLabel: listLogic.SORT_MODES.due,
+    loading: true,
+    loadError: '',
+    showCreate: false,
+    createForm: Object.assign({}, EMPTY_CREATE_FORM),
+    createError: '',
+    creating: false
   },
 
   onLoad() {
@@ -59,425 +31,125 @@ Page({
       return
     }
     this.setData({ userInfo: user })
-    this.loadPlans()
     this.loadOrganizations()
+  },
+
+  // 从工厂详情返回时刷新（续费/停用/改名后列表要跟着变）
+  onShow() {
+    if (this._loadedOnce) this.loadOrganizations({ silent: true })
   },
 
   onPullDownRefresh() {
     this.loadOrganizations().finally(() => wx.stopPullDownRefresh())
   },
 
-  async loadOrganizations() {
-    this.setData({ loading: true })
+  async loadOrganizations(options) {
+    const silent = options && options.silent
+    if (!silent) this.setData({ loading: true, loadError: '' })
     try {
       const res = await callCloud('platform', { action: 'listOrganizations' })
-      const organizations = (res.data || []).map(item => this.decorateOrganization(item))
-      const currentId = this.data.selectedOrgId
-      const selected = organizations.find(item => item._id === currentId) || organizations[0] || null
-      this.setData({ organizations })
-      this.refreshFilteredOrganizations()
-      if (selected) {
-        this.applySelectedOrganization(selected, false)
-        this.loadFactoryAdmins(selected._id)
-        this.loadBillingOrders(selected._id)
-      } else {
-        this.setData({
-          selectedOrgId: '',
-          selectedOrg: null,
-          filteredOrganizations: [],
-          factoryAdmins: [],
-          billingOrders: [],
-          editForm: { org_name: '', factory_code: '', contact_name: '', contact_phone: '' },
-          'adminForm.org_id': ''
-        })
-      }
+      this._loadedOnce = true
+      this.setData({ organizations: res.data || [], loadError: '' })
+      this.refreshRows()
     } catch (err) {
-      showError(err.message || '加载工厂失败')
-      this.setData({ organizations: [], filteredOrganizations: [] })
+      const msg = err.message || '加载工厂失败'
+      // 静默刷新失败时保留已有列表，只提示；首次加载失败显示错误态
+      if (silent) showError(msg)
+      else this.setData({ loadError: msg })
     } finally {
       this.setData({ loading: false })
     }
   },
 
-  refreshFilteredOrganizations() {
+  refreshRows() {
+    const { organizations, activeFilter, orgSearchKeyword, sortMode } = this.data
     this.setData({
-      filteredOrganizations: filterListByKeyword(this.data.organizations, this.data.orgSearchKeyword, ORG_SEARCH_FIELDS)
+      overviewCards: listLogic.buildOverviewCards(organizations, activeFilter),
+      rows: listLogic.buildOrgRows(organizations, { filter: activeFilter, keyword: orgSearchKeyword, sort: sortMode })
     })
   },
 
+  onOverviewTap(e) {
+    const activeFilter = listLogic.nextFilter(this.data.activeFilter, e.currentTarget.dataset.key)
+    this.setData({ activeFilter }, () => this.refreshRows())
+  },
+
   onOrgSearchInput(e) {
-    this.setData({ orgSearchKeyword: e.detail.value }, () => this.refreshFilteredOrganizations())
+    this.setData({ orgSearchKeyword: e.detail.value }, () => this.refreshRows())
   },
 
   clearOrgSearch() {
     if (!this.data.orgSearchKeyword) return
-    this.setData({ orgSearchKeyword: '' }, () => this.refreshFilteredOrganizations())
+    this.setData({ orgSearchKeyword: '' }, () => this.refreshRows())
   },
 
-  async loadPlans() {
-    try {
-      const res = await callCloud('billing', { action: 'listPlans' })
-      const plans = res.data || []
-      const selectedPlanIndex = Math.max(0, plans.findIndex(item => item.plan_id === this.data.billingForm.plan_id))
-      this.setData({ plans, selectedPlanIndex })
-      this.applyPlanToBillingForm(plans[selectedPlanIndex])
-    } catch (err) {
-      this.setData({
-        plans: [
-          { plan_id: 'trial', plan_name: '试用版', price_yuan: 0, billing_period: 'trial', period_months: 0, trial_days: 7 },
-          { plan_id: 'standard_year', plan_name: '标准版年付', price_yuan: 1999, billing_period: 'year', period_months: 12 }
-        ],
-        selectedPlanIndex: 0
-      })
-    }
+  clearAllFilters() {
+    this.setData({ orgSearchKeyword: '', activeFilter: 'all' }, () => this.refreshRows())
   },
 
-  toTimestamp(input) {
-    if (!input) return 0
-    if (typeof input === 'number') return input
-    if (typeof input === 'string') {
-      const t = new Date(input).getTime()
-      return Number.isNaN(t) ? 0 : t
-    }
-    if (input.$date) {
-      const t = new Date(input.$date).getTime()
-      return Number.isNaN(t) ? 0 : t
-    }
-    if (input.seconds) {
-      return Number(input.seconds) * 1000 + Math.floor((Number(input.nanoseconds) || 0) / 1000000)
-    }
-    return 0
+  toggleSort() {
+    const sortMode = this.data.sortMode === 'due' ? 'created' : 'due'
+    this.setData({ sortMode, sortLabel: listLogic.SORT_MODES[sortMode] }, () => this.refreshRows())
   },
 
-  formatDate(input) {
-    const ts = this.toTimestamp(input)
-    if (!ts) return '未设置'
-    const d = new Date(ts + 8 * 60 * 60 * 1000)
-    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0')
-  },
-
-  getBillingStatus(org) {
-    if (!org) return 'unknown'
-    if (org.status === 'disabled' || org.billing_status === 'disabled') return 'disabled'
-    const raw = org.billing_status || 'not_enabled'
-    if (raw === 'not_enabled') return 'not_enabled'
-    if (raw === 'permanent') return 'permanent'
-    const now = Date.now()
-    const endTs = this.toTimestamp(org.current_period_end || org.trial_end)
-    const graceTs = this.toTimestamp(org.grace_until)
-    if ((raw === 'active' || raw === 'trial') && endTs && now > endTs) {
-      return graceTs && now <= graceTs ? 'grace' : 'expired'
-    }
-    if (raw === 'grace' && graceTs && now > graceTs) return 'expired'
-    return raw
-  },
-
-  decorateOrganization(org) {
-    const status = this.getBillingStatus(org)
-    const labels = {
-      not_enabled: '未开通',
-      trial: '试用中',
-      active: '正常',
-      permanent: '永久免费',
-      grace: '宽限期',
-      expired: '已到期',
-      disabled: '已停用',
-      unknown: '未知'
-    }
-    const planMap = {
-      trial: '试用版',
-      standard_year: status === 'permanent' ? '标准版年付（永久免费）' : '标准版年付'
-    }
-    const endAt = org.current_period_end || org.trial_end || ''
-    return Object.assign({}, org, {
-      billing_status_view: status,
-      billing_status_label: labels[status] || status,
-      billing_status_class: status === 'active' || status === 'permanent' ? 'billing-active' : status === 'trial' ? 'billing-trial' : status === 'grace' ? 'billing-grace' : status === 'expired' ? 'billing-expired' : 'billing-muted',
-      plan_name_view: planMap[org.plan_id] || (org.plan_id ? org.plan_id : '未开通'),
-      current_period_end_text: status === 'permanent' ? '永久免费' : this.formatDate(endAt),
-      grace_until_text: status === 'permanent' ? '无需宽限' : this.formatDate(org.grace_until)
-    })
-  },
-
-  onOrgInput(e) {
-    const field = e.currentTarget.dataset.field
-    this.setData({ ['orgForm.' + field]: e.detail.value })
-  },
-
-  onAdminInput(e) {
-    const field = e.currentTarget.dataset.field
-    this.setData({ ['adminForm.' + field]: e.detail.value })
-  },
-
-  onEditInput(e) {
-    const field = e.currentTarget.dataset.field
-    this.setData({ ['editForm.' + field]: e.detail.value })
-  },
-
-  selectOrganization(e) {
+  openOrg(e) {
     const id = e.currentTarget.dataset.id
-    const org = this.data.organizations.find(item => item._id === id)
-    if (!org) return
-    this.applySelectedOrganization(this.decorateOrganization(org), true)
-    this.loadFactoryAdmins(org._id)
-    this.loadBillingOrders(org._id)
+    if (!id) return
+    wx.navigateTo({ url: '/pages/platform/org-detail/org-detail?id=' + encodeURIComponent(id) })
   },
 
-  applySelectedOrganization(org, showTip) {
-    this.setData({
-      selectedOrgId: org._id,
-      selectedOrg: org,
-      editForm: {
-        org_name: org.org_name || '',
-        factory_code: org.factory_code || '',
-        contact_name: org.contact_name || '',
-        contact_phone: org.contact_phone || ''
-      },
-      'adminForm.org_id': org._id
-    })
-    if (showTip) {
-      showSuccess('已选中' + (org.org_name || '工厂'))
-    }
+  openCreate() {
+    this.setData({ showCreate: true, createForm: Object.assign({}, EMPTY_CREATE_FORM), createError: '' })
   },
 
-  onBillingInput(e) {
+  closeCreate() {
+    if (this.data.creating) return
+    this.setData({ showCreate: false })
+  },
+
+  onCreateInput(e) {
     const field = e.currentTarget.dataset.field
-    this.setData({ ['billingForm.' + field]: e.detail.value })
+    this.setData({ ['createForm.' + field]: e.detail.value, createError: '' })
   },
 
-  onPlanPickerChange(e) {
-    const index = Number(e.detail.value)
-    const plan = this.data.plans[index]
-    this.setData({ selectedPlanIndex: index })
-    this.applyPlanToBillingForm(plan)
-  },
-
-  applyPlanToBillingForm(plan) {
-    if (!plan) return
-    this.setData({
-      billingForm: {
-        plan_id: plan.plan_id,
-        period_months: String(plan.billing_period === 'trial' ? 0 : (plan.period_months || 12)),
-        trial_days: String(plan.trial_days || 7),
-        amount_yuan: String(plan.price_yuan === undefined ? 0 : plan.price_yuan),
-        remark: this.data.billingForm.remark || ''
-      }
-    })
-  },
-
-  async loadBillingOrders(orgId) {
-    if (!orgId) {
-      this.setData({ billingOrders: [] })
+  async submitCreate() {
+    if (this.data.creating) return
+    const form = this.data.createForm
+    const orgName = (form.org_name || '').trim()
+    if (!orgName) {
+      this.setData({ createError: '请填写工厂名称' })
       return
     }
-    try {
-      const res = await callCloud('billing', {
-        action: 'listBillingOrders',
-        org_id: orgId
-      })
-      this.setData({ billingOrders: (res.data || []).slice(0, 5) })
-    } catch (err) {
-      this.setData({ billingOrders: [] })
-    }
-  },
-
-  openSubscription() {
-    const org = this.data.selectedOrg
-    const form = this.data.billingForm
-    const plan = this.data.plans[this.data.selectedPlanIndex]
-    if (!org) {
-      showError('请先选择工厂')
-      return
-    }
-    if (!form.plan_id) {
-      showError('请选择套餐')
+    const codeCheck = orgBilling.validateFactoryCode(form.factory_code)
+    if (!codeCheck.ok) {
+      this.setData({ createError: codeCheck.msg })
       return
     }
 
-    const periodMonths = parseInt(form.period_months, 10) || 12
-    const trialDays = parseInt(form.trial_days, 10) || 7
-    const amountYuan = Number(form.amount_yuan || 0)
-    const isTrial = plan && plan.billing_period === 'trial'
-    const content = '确认给“' + org.org_name + '”开通/延期 ' +
-      (plan ? plan.plan_name : form.plan_id) + ' ' + (isTrial ? trialDays + '天' : periodMonths + '个月') + '？'
-
-    wx.showModal({
-      title: '确认开通订阅',
-      content,
-      success: async (res) => {
-        if (!res.confirm) return
-        showLoading('开通中...')
-        try {
-          await callCloud('billing', {
-            action: 'openSubscription',
-            org_id: org._id,
-            plan_id: form.plan_id,
-            period_months: periodMonths,
-            trial_days: trialDays,
-            amount_yuan: Number.isFinite(amountYuan) ? amountYuan : 0,
-            payment_channel: 'manual_wechat',
-            remark: trim(form.remark)
-          })
-          hideLoading()
-          showSuccess('订阅已开通')
-          await this.loadOrganizations()
-        } catch (err) {
-          hideLoading()
-          showError(err.message || '开通失败')
-        }
-      }
-    })
-  },
-
-  async loadFactoryAdmins(orgId) {
-    if (!orgId) {
-      this.setData({ factoryAdmins: [] })
-      return
-    }
+    this.setData({ creating: true, createError: '' })
     try {
       const res = await callCloud('platform', {
-        action: 'listFactoryAdmins',
-        org_id: orgId
-      })
-      this.setData({ factoryAdmins: res.data || [] })
-    } catch (err) {
-      this.setData({ factoryAdmins: [] })
-    }
-  },
-
-  async createOrganization() {
-    const form = this.data.orgForm
-    const orgName = trim(form.org_name)
-    const factoryCode = trim(form.factory_code).toUpperCase()
-    if (!orgName || !factoryCode) {
-      showError('请填写工厂名称和工厂码')
-      return
-    }
-
-    showLoading('创建中...')
-    try {
-      await callCloud('platform', {
         action: 'createOrganization',
         org_name: orgName,
-        factory_code: factoryCode,
-        contact_name: trim(form.contact_name),
-        contact_phone: trim(form.contact_phone)
+        factory_code: codeCheck.code,
+        contact_name: (form.contact_name || '').trim(),
+        contact_phone: (form.contact_phone || '').trim()
       })
-      hideLoading()
+      this.setData({ creating: false, showCreate: false })
       showSuccess('工厂已创建')
-      this.setData({
-        orgForm: { org_name: '', factory_code: '', contact_name: '', contact_phone: '' }
-      })
-      await this.loadOrganizations()
-    } catch (err) {
-      hideLoading()
-      showError(err.message || '创建失败')
-    }
-  },
-
-  async saveSelectedOrganization() {
-    const org = this.data.selectedOrg
-    if (!org) {
-      showError('请先选择工厂')
-      return
-    }
-    const form = this.data.editForm
-    const orgName = trim(form.org_name)
-    const factoryCode = trim(form.factory_code).toUpperCase()
-    if (!orgName || !factoryCode) {
-      showError('工厂名称和工厂码不能为空')
-      return
-    }
-
-    showLoading('保存中...')
-    try {
-      await callCloud('platform', {
-        action: 'updateOrganization',
-        org_id: org._id,
-        org_name: orgName,
-        factory_code: factoryCode,
-        contact_name: trim(form.contact_name),
-        contact_phone: trim(form.contact_phone)
-      })
-      hideLoading()
-      showSuccess('已保存')
-      await this.loadOrganizations()
-    } catch (err) {
-      hideLoading()
-      showError(err.message || '保存失败')
-    }
-  },
-
-  async toggleSelectedOrganization() {
-    const org = this.data.selectedOrg
-    if (!org) return
-    const action = org.status === 'active' ? 'disableOrganization' : 'enableOrganization'
-    const title = org.status === 'active' ? '停用工厂' : '启用工厂'
-    const content = org.status === 'active'
-      ? '停用后该工厂用户将无法登录。'
-      : '启用后该工厂用户可恢复登录。'
-
-    wx.showModal({
-      title,
-      content,
-      success: async (res) => {
-        if (!res.confirm) return
-        try {
-          await callCloud('platform', { action, org_id: org._id })
-          showSuccess(org.status === 'active' ? '已停用' : '已启用')
-          await this.loadOrganizations()
-        } catch (err) {
-          showError(err.message || '操作失败')
-        }
+      const orgId = res.data && res.data.org_id
+      if (orgId) {
+        wx.navigateTo({ url: '/pages/platform/org-detail/org-detail?id=' + encodeURIComponent(orgId) + '&fresh=1' })
+      } else {
+        this.loadOrganizations({ silent: true })
       }
-    })
-  },
-
-  async createFactoryAdmin() {
-    const form = this.data.adminForm
-    if (!form.org_id || !trim(form.name) || !trim(form.phone)) {
-      showError('请选择工厂并填写管理员信息')
-      return
-    }
-
-    showLoading('创建中...')
-    try {
-      await callCloud('platform', {
-        action: 'createFactoryAdmin',
-        org_id: form.org_id,
-        name: trim(form.name),
-        phone: trim(form.phone),
-        password: trim(form.password)
-      })
-      hideLoading()
-      showSuccess('管理员已创建')
-      this.setData({ adminForm: { org_id: form.org_id, name: '', phone: '', password: '' } })
-      await this.loadFactoryAdmins(form.org_id)
     } catch (err) {
-      hideLoading()
-      showError(err.message || '创建失败')
+      // 网络超时后 callCloud 自动重试可能撞上「工厂码已被使用」——其实第一次已经建好了，刷新列表让它露出来
+      const msg = err.message || '创建失败'
+      const maybeCreated = msg.indexOf('已被其他工厂使用') >= 0
+      this.setData({ creating: false, createError: maybeCreated ? msg + '。如果是刚刚建的，关掉弹窗在列表里就能看到' : msg })
+      if (maybeCreated) this.loadOrganizations({ silent: true })
     }
-  },
-
-  resetFactoryAdminPassword(e) {
-    const admin = this.data.factoryAdmins[Number(e.currentTarget.dataset.index)]
-    if (!admin) return
-    wx.showModal({
-      title: '重置密码',
-      content: '确认将该管理员密码重置为手机号，并踢下线？',
-      success: async (res) => {
-        if (!res.confirm) return
-        try {
-          await callCloud('platform', {
-            action: 'resetFactoryAdminPassword',
-            user_id: admin._id
-          })
-          showSuccess('已重置')
-        } catch (err) {
-          showError(err.message || '重置失败')
-        }
-      }
-    })
   },
 
   onLogout() {

@@ -1,14 +1,91 @@
-/* Factory select cards */
-.org-card { background:var(--bg-card); border-radius:var(--r-lg); padding:var(--sp-2); margin-bottom:var(--sp-1); border:1rpx solid var(--border); box-shadow:var(--shadow-card); }
-.org-card-selected { border-color:var(--blue-600); }
-.org-card:active { box-shadow:var(--shadow-elevated); }
-/* Subscription current plan card */
-.sub-current-plan { background:var(--bg-elevated); border-radius:var(--r-lg); padding:var(--sp-2); margin-bottom:var(--sp-2); border:1rpx solid var(--border-light); }
-.sub-history { margin-top:var(--sp-2); }
-.billing-record { background:var(--bg-card); border-radius:var(--r-md); padding:var(--sp-2); margin-bottom:var(--sp-1); border:1rpx solid var(--border); }
-.admin-list { margin-top:var(--sp-2); }
-.admin-card { background:var(--bg-card); border-radius:var(--r-md); padding:var(--sp-2); margin-bottom:var(--sp-1); border:1rpx solid var(--border); }
-.d-block { display:block; } .mt-1 { margin-top:var(--sp-1); } .mt-2 { margin-top:var(--sp-2); }
-.mt-8 { margin-top:8rpx; } .mt-12 { margin-top:12rpx; } .mt-4 { margin-top:4rpx; }
-.mb-6 { margin-bottom:6rpx; } .mb-1 { margin-bottom:var(--sp-1); }
-.hero-value-sm { display:block; font-size:var(--fs-lg); font-weight:var(--fw-bold); color:var(--text-primary); margin-top:var(--sp-1); }
+/* 平台管理 · 工厂列表（只放本页特有的布局，颜色/字号全部走 app.wxss 设计 Token） */
+.d-block { display: block; }
+
+/* 状态总览：全部 / 正常 / 试用中 / 停用，可点筛选 */
+.org-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12rpx;
+  margin: var(--sp-2) 0;
+}
+.org-overview-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20rpx 8rpx 18rpx;
+  border-radius: 22rpx;
+  background: linear-gradient(180deg, #FFFFFF 0%, var(--bg-card-soft) 100%);
+  border: 1rpx solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  transition: all 0.15s var(--ease-apple);
+}
+.org-overview-value {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.org-overview-label {
+  margin-top: 4rpx;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+}
+.org-overview-item.tone-normal .org-overview-value { color: var(--green-600); }
+.org-overview-item.tone-trial .org-overview-value { color: var(--blue-600); }
+.org-overview-item.is-active {
+  background: var(--blue-50);
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 2rpx var(--blue-500);
+}
+
+.org-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -4rpx 4rpx var(--sp-1);
+}
+.org-toolbar-count { font-size: var(--fs-xs); color: var(--text-secondary); }
+.org-sort {
+  padding: 8rpx 4rpx;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--blue-600);
+}
+
+/* 工厂行 */
+.org-row { align-items: center; }
+.org-row-main { flex: 1; min-width: 0; }
+.org-code { font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.org-row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+  flex-shrink: 0;
+}
+.org-row-expiry {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.org-row-chevron {
+  flex-shrink: 0;
+  margin-left: -8rpx;
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+/* 底部弹层（与订单详情弹层同结构） */
+.sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-2) 0;
+}
+.sheet-title { flex: 1; font-size: var(--fs-md); font-weight: var(--fw-bold); color: var(--text-primary); }
+.sheet-body { text-align: left; }
+.sheet-body .notice { margin-top: var(--sp-1); }
+.sheet-body .btn { margin-top: var(--sp-1); }

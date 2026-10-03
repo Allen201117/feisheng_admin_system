@@ -78,9 +78,9 @@
 
 ### 订阅 -> 人工开通 -> 到期限制
 
-1. 平台管理员在 `pages/platform/home/home` 选择工厂。
-2. 前端调用 `billing.listPlans` 获取套餐，调用 `billing.openSubscription` 手动开通或延期。
-3. `billing` 云函数写入 `Subscriptions` 和 `BillingOrders`，同时更新 `Organizations` 上的订阅快照字段。
+1. 平台管理员在 `pages/platform/home/home` 列表点进工厂，进入 `pages/platform/org-detail/org-detail`（一次 `platform.getOrganizationDetail` 取齐详情）。
+2. 前端调用 `billing.listPlans`（只读）获取套餐；打开续费弹层时生成一个 `request_id`，用共享纯函数 `planSubscriptionWindow` 预览新到期日，确认后调用 `billing.openSubscription`（网络重试、失败后再点都带同一个 `request_id`）。
+3. `billing.openSubscription` 幂等三步：按 `request_id` 派生固定 `_id` 写 `BillingOrders(pending, applied:false)`（冻结起止日期）→ 覆盖写 `Subscriptions` 与 `Organizations` 订阅快照 → 标 `BillingOrders(paid, applied:true)`。同编号已生效直接返回；写一半失败再提交时按冻结日期补完，不会重复顺延。订阅状态/到期日推算唯一真源 `common/org-billing.logic.js`（billing、platform、前端各一份字节相同副本）。
 4. 老板在 `pages/boss/subscription/subscription` 调用 `billing.getMySubscription` 查看服务状态，并复制开通信息发给平台管理员。
 5. 到期且超过宽限期后，`order/user/worklog/qrcode` 中的新增类写操作会读取 `Organizations` 订阅快照并拦截；历史查看和导出暂不拦。
 
@@ -100,7 +100,7 @@
 套餐配置表，由平台统一维护。
 
 - 核心字段：`plan_id`、`plan_name`、`status`、`price_cents`、`billing_period`、`period_months`、`trial_days`、`employee_limit`、`order_limit_per_month`、`features`、`created_at`、`updated_at`。
-- 主要写入：`init.migrate_billing_v1`、`billing.listPlans` 的默认套餐种子逻辑。
+- 主要写入：`init.migrate_billing_v1`、`billing.openSubscription` 的默认套餐种子逻辑（2026-10-03 起 `listPlans` 只读，不再写套餐）。
 - 主要读取：`billing`、平台管理页。
 - 当前试行套餐：`trial` 为 7 天试用、最多 10 名员工；`standard_year` 为标准版年付，开放全部功能；基础版/专业版种子会被置为 `disabled`。
 
@@ -116,9 +116,9 @@
 
 人工收款和未来线上支付订单记录。
 
-- 核心字段：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`、`payment_status`、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`。
-- 主要写入：`billing.openSubscription`、`billing.markManualPaymentPaid`。
-- 主要读取：平台管理页展示最近开通记录。
+- 核心字段：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`、`payment_status`、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`；2026-10-03 起追加 `request_id`、`applied`、`is_trial`、`period_months`、`trial_days`、`grace_days`、`start_at`、`end_at`、`grace_until`（开通幂等与补完用，见上文订阅流程第 3 步）。
+- 主要写入：`billing.openSubscription`、`billing.markManualPaymentPaid`（拒绝 `applied:false`）。
+- 主要读取：平台工厂详情页展示最近开通记录（`platform.getOrganizationDetail`），旧版平台页走 `billing.listBillingOrders`。
 
 ### UsageMonthly
 

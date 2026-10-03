@@ -10,6 +10,7 @@
     "pages/qc/home/home",
     "pages/qc/inspect/inspect",
     "pages/platform/home/home",
+    "pages/platform/org-detail/org-detail",
     "pages/boss/home/home",
     "pages/boss/subscription/subscription",
     "pages/boss/employees/employees",

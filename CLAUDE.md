@@ -65,7 +65,7 @@
 - 所有云函数**写操作**必须校验登录态 + 角色。员工只能访问自己的工资/考勤/报工；QC 只拿质检所需数据，**不默认有 boss 权限**。
 - 鉴权链：`callCloud` 注入 `auth_user_id+auth_session_token` → `getCallerUserByEvent` 校验 token + `Users.status=active` + 所属 `Organizations.status=active` → `getOrgId(user)` 取租户。**org_id 从登录用户推导，绝不信前端传值。**
 - ✅ 鉴权统一（2026-06-11）：唯一真源 `cloudfunctions/common/auth-guard.js`，10 个云函数各持相同副本（部署约束，同 beijing-time 模式；`tests/auth-guard-copies.test.js` 校验字节一致）。统一口径：**强制 token、无 openid 回退、org 状态 fail-closed**；platform 同口径（并禁止停用 org_platform/org_home）；登录限流改为 `rate_key=(工厂码/姓名/手机号)` 等值计数 + fail-closed。
-- 仍待加固：`session_token` 无过期 TTL（泄露在重置前长期有效）；主鉴权不校验 openid（仅 verifyToken 校验）；`callCloud` 对非幂等写操作的网络重试可能造成重复提交。
+- 仍待加固：`session_token` 无过期 TTL（泄露在重置前长期有效）；主鉴权不校验 openid（仅 verifyToken 校验）；`callCloud` 对非幂等写操作的网络重试可能造成重复提交（`billing.openSubscription` 已于 2026-10-03 用 `request_id` 幂等化，其余写操作仍待逐个处理）。
 
 ### 2.6 时间口径
 见 §1.3。`date`/`period_key`/`month` 存北京时间业务字符串；`created_at`/`paid_at`/`inspected_at` 用 `db.serverDate()`；`clock_*_time` 现写 `toISOString()`，展示/统计时转北京时间。`db.serverDate()` 与 `toISOString()` 边界仍需持续审计。

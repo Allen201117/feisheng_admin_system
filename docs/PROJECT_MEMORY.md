@@ -91,7 +91,8 @@ docs/                               项目文档、验收报告、审计报告
 - `pages/employee/leave/leave`：员工请假（日历多选日期+原因，自助提交、可撤销未到的请假）。
 - `pages/qc/home/home`：质检首页，待检/已检列表。
 - `pages/qc/inspect/inspect`：质检详情与提交。
-- `pages/platform/home/home`：平台管理，工厂列表、工厂资料、工厂管理员、订阅开通。
+- `pages/platform/home/home`：平台管理·工厂列表（2026-10-03 重构）。顶部状态总览只分「全部/正常/试用中/停用」可点筛选，到期信息单独一行文字（30 天内橙、过期红）；搜索、快到期/新建排序；底部「新建工厂」弹层，建完带 `fresh=1` 进详情。纯逻辑 `home/org-list.logic.js`。
+- `pages/platform/org-detail/org-detail`：平台管理·工厂详情（2026-10-03 新增）。一次 `platform.getOrganizationDetail` 取齐；订阅卡（续费/开通弹层：套餐+时长快选、金额自动算、到期日前后对比、付费工厂选试用直接说明原因）；老板账号（添加/复制登录方式/重置密码/停用·恢复）；开通记录（中文渠道/状态）；编辑资料（改工厂码弹确认并写明影响人数）；停用/启用工厂（`org_home` 不给入口）。纯逻辑 `org-detail/org-detail.logic.js`。
 - `pages/boss/home/home`：老板工作台。「经营概览」是常用功能入口区，按老板点击频次动态排前 4（本地存储 `boss_menu_usage_<uid>`，纯函数 `utils/menu-usage.logic.js`；默认员工/考勤/报工/订单）；其中考勤卡显示今日出勤+今日请假人数+请假红点。
 - `pages/boss/subscription/subscription`：老板端服务状态与续费说明。
 - `pages/boss/employees/employees`：员工列表。
@@ -124,15 +125,16 @@ docs/                               项目文档、验收报告、审计报告
 - `settings`：`getAll`、`getPublic`、`save`、`updateLeaderboardVisibility`。
 - `qrcode`：`generate`、`getLatest`、`verify`、`revoke`。
 - `export`：`getTableDataV2`、`exportToFileV2`、`getHistory`、`getOrderList`、`exportProcessSummary`（2026-06-11 删除无调用的 legacy `getTableData`/`exportToFile`；月/年汇总=工资核算表含合计行，月/年明细含「结算单价/当前工价」两列，订单汇总=工资核算表（数量/计件/奖惩/应发），订单明细=报工核算表矩阵）。
-- `billing`：`getMySubscription`、`getOpenRequestInfo`、`listPlans`、`openSubscription`、`extendSubscription`、`changePlan`、`listBillingOrders`、`markManualPaymentPaid`。
+- `billing`：`getMySubscription`、`getOpenRequestInfo`、`listPlans`（2026-10-03 起只读，不再建集合/写套餐）、`openSubscription`（2026-10-03 起幂等：前端每次续费弹层带一个 `request_id`，派生固定 `_id` 的 `BillingOrders` 先写 `pending`，再写 `Subscriptions`/`Organizations`，最后标 `paid`+`applied:true`；同编号重发直接返回原结果，同编号改了内容再提交按 `request_fingerprint` 拒绝；写一半失败按冻结日期补完不重新推算；换新编号提交时若该工厂挂着 `applied:false` 记录，先补完那笔并返回 `resumed_previous:true`（本次不再续）；补完前校验工厂未停用、非永久、之后没被别的操作改过；试用天数按填写值生效 1–30；已开过正式套餐的工厂禁止改回试用；金额/套餐不合法直接拒绝）、`extendSubscription`、`changePlan`、`listBillingOrders`、`markManualPaymentPaid`（拒绝 `applied:false` 的未生效记录）。
+- `platform`：`listOrganizations`（排除 `org_platform`；`data` 仍是工厂数组、只追加视图字段 `bucket`/`bucket_label`/`expiry_tone`/`expiry_text`/`days_remaining`/`end_date_text` 等，另返回 `summary`）、`getOrganizationDetail`（工厂视图+全部老板账号含停用+最近 20 条开通记录+在用 employee/qc 人数）、`createOrganization`（工厂码 2–12 位字母数字）、`updateOrganization`（只在改码时校验格式，大小写不算改、保存统一大写，`org_home` 禁止改码，返回 `factory_code_changed`）、`disableOrganization`/`enableOrganization`、`listFactoryAdmins`（旧版前端用，只返回在用）、`createFactoryAdmin`（手机号 `1[3-9]` 11 位；新页面不再提供自设初始密码——login 未改密时本就接受手机号，自设起不到保护；旧前端传入仍需 ≥8 位字母+数字）、`resetFactoryAdminPassword`、`setFactoryAdminStatus`（停用即清 `session_token` 踢下线；工厂最后一个在用老板不能停）。订阅状态/三分类/到期文字/续费日期推算唯一真源 `common/org-billing.logic.js`，副本在 `billing/`、`platform/`、`miniprogram/utils/`（`tests/org-billing.logic.test.js` 校验字节一致）。
 - `init`：默认初始化、`migrate_v2`、`migrate_multi_tenant`、`migrate_missing_org_batch`、`migrate_billing_v1`、`migrate_location`、`migrate_timezone`。
 
 ## 数据库集合与核心字段
 
 - `Organizations`：`org_name`、`factory_code`、`contact_name`、`contact_phone`、`status`、`billing_status`、`plan_id`、`subscription_id`、`trial_end`、`current_period_start`、`current_period_end`、`grace_until`、`billing_owner_user_id`、`billing_updated_at`。`billing_status=permanent` 表示永久免费。
 - `Plans`：`plan_id`、`plan_name`、`status`、`price_cents`、`billing_period`、`period_months`、`trial_days`、`employee_limit`、`order_limit_per_month`、`features`、`created_at`、`updated_at`。
-- `Subscriptions`：`org_id`、`plan_id`、`plan_name`、`status`、`start_at`、`end_at`、`grace_until`、`source`、`opened_by`、`opened_by_name`、`remark`、`created_at`、`updated_at`。
-- `BillingOrders`：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`、`payment_status`、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`。
+- `Subscriptions`：`org_id`、`plan_id`、`plan_name`、`status`、`start_at`、`end_at`、`grace_until`、`source`、`opened_by`、`opened_by_name`、`remark`、`created_at`、`updated_at`；2026-10-03 起新记录 `_id`=`sub_<sha1(org_id:request_id) 前 32 位>` 并带 `billing_order_id`。
+- `BillingOrders`：`org_id`、`subscription_id`、`plan_id`、`plan_name`、`amount_cents`、`payment_channel`（`manual_wechat` 微信收款 / `gift` 平台赠送等）、`payment_status`（`paid` / `pending`=开通没写完）、`paid_at`、`verified_by`、`verified_by_name`、`external_trade_no`、`remark`、`created_at`、`updated_at`；2026-10-03 起新记录追加 `_id`=`bo_<sha1(org_id:request_id) 前 32 位>`、`request_id`、`applied`（是否已写到工厂）、`is_trial`、`period_months`、`trial_days`、`grace_days`、`start_at`、`end_at`、`grace_until`、`billing_owner_user_id`。老记录没有这些字段，展示时时长留空，`applied` 缺失视为已生效。
 - `UsageMonthly`：`org_id`、`month`、`active_users`、`orders_created`、`worklogs_count`、`attendances_count`、`export_count`、`updated_at`。
 - `Users`：`name`、`phone`、`role`、`password_hash`、`salt`、`status`、`openid`、`session_token`、`monthly_hours`、`join_date`、`created_at`、`updated_at`。
 - `Orders`：`order_name`、`start_date`、`end_date`、`total_quantity`、`status`、`price_hidden`、`created_at`、`updated_at`。
