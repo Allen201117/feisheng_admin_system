@@ -3,7 +3,19 @@ const path = require('path');
 const automator = require('miniprogram-automator');
 
 const projectPath = path.resolve(__dirname, '../..');
-const cliPath = process.env.WX_CLI || '/Applications/wechatwebdevtools.app/Contents/MacOS/cli';
+function defaultCliPath() {
+  if (process.platform === 'win32') {
+    // Windows：开发者工具装在 Program Files 下，命令行入口是 cli.bat
+    const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].filter(Boolean);
+    const found = roots
+      .map((root) => path.join(root, 'Tencent', '微信web开发者工具', 'cli.bat'))
+      .find((candidate) => fs.existsSync(candidate));
+    if (found) return found;
+  }
+  return '/Applications/wechatwebdevtools.app/Contents/MacOS/cli';
+}
+
+const cliPath = process.env.WX_CLI || defaultCliPath();
 const devtoolsPort = Number(process.env.WX_DEVTOOLS_PORT || 48909);
 const automatorPort = Number(process.env.WX_AUTOMATOR_PORT || 9420);
 const launchTimeout = Number(process.env.WX_AUTOMATOR_TIMEOUT || 120000);

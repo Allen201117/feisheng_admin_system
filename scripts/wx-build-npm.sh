@@ -16,10 +16,11 @@ if ! printf '%s\n' "$CLI_HELP" | grep -Eq '(^|[[:space:]])build-npm([[:space:]]|
   exit 0
 fi
 
-wx_info "Running: \"$WX_CLI\" build-npm --project \"$PROJECT_ROOT\" --port \"$WX_DEVTOOLS_PORT\""
+WX_PROJECT_ARG="$(wx_native_path "$PROJECT_ROOT")"
+wx_info "Running: \"$WX_CLI\" build-npm --project \"$WX_PROJECT_ARG\" --port \"$WX_DEVTOOLS_PORT\""
 
 set +e
-BUILD_OUTPUT="$("$WX_CLI" build-npm --project "$PROJECT_ROOT" --port "$WX_DEVTOOLS_PORT" 2>&1)"
+BUILD_OUTPUT="$("$WX_CLI" build-npm --project "$WX_PROJECT_ARG" --port "$WX_DEVTOOLS_PORT" 2>&1)"
 BUILD_STATUS=$?
 set -e
 

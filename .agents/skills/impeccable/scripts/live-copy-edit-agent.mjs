@@ -470,21 +470,26 @@ function runClaude(prompt, { cwd, env, resultPath, logPath, timeoutMs = DEFAULT_
   if (env.IMPECCABLE_LIVE_COPY_AGENT_MODEL) {
     args.push('--model', env.IMPECCABLE_LIVE_COPY_AGENT_MODEL);
   }
-  args.push(prompt);
+  // Windows caps a whole command line at ~32K chars and a batch prompt can exceed that,
+  // so there the prompt goes through stdin (`claude --print` reads stdin when given no prompt arg).
+  const promptViaStdin = process.platform === 'win32';
+  if (!promptViaStdin) args.push(prompt);
   // Forward env as-is so CLAUDE_CODE_OAUTH_TOKEN and ANTHROPIC_API_KEY flow
   // through. On macOS, `claude /login` stores creds in the Keychain, which a
   // non-TTY subprocess cannot read; setting CLAUDE_CODE_OAUTH_TOKEN (via
   // `claude setup-token`) is the supported headless auth path.
-  return runAgentProcess('claude', args, '', { cwd, env, logPath, timeoutMs, mirrorOutputPath: resultPath });
+  return runAgentProcess('claude', args, promptViaStdin ? prompt : '', { cwd, env, logPath, timeoutMs, mirrorOutputPath: resultPath });
 }
 
 function runAgentProcess(command, args, stdin, { cwd, env, logPath, timeoutMs, mirrorOutputPath }) {
   return new Promise((resolve, reject) => {
     const log = fs.createWriteStream(logPath, { flags: 'a' });
-    const child = spawn(command, args, {
+    const resolved = resolveCommand(command, args);
+    const child = spawn(resolved.file, resolved.args, {
       cwd,
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     let output = '';
     let settled = false;
@@ -549,8 +554,49 @@ function truncate(value, max) {
 }
 
 function commandExists(command) {
-  const result = spawnSync(command, ['--version'], { stdio: 'ignore' });
+  const resolved = resolveCommand(command, ['--version']);
+  const result = spawnSync(resolved.file, resolved.args, { stdio: 'ignore', windowsHide: true });
   return !result.error && result.status === 0;
+}
+
+/**
+ * Windows: CLIs installed by npm (claude, codex) are .cmd shims. libuv only auto-appends
+ * .exe/.com, so spawn('claude') fails with ENOENT (commandExists would then wrongly report
+ * "not installed"), and shell:true would push the prompt through cmd.exe, which truncates at
+ * newlines and runs `& | " %` as commands. Instead read the shim, find the real .exe / script it
+ * points at, and spawn that directly. Anywhere else this returns the command unchanged.
+ */
+function resolveCommand(command, args = []) {
+  const plain = { file: command, args };
+  if (process.platform !== 'win32') return plain;
+  const found = findOnWindowsPath(command);
+  if (!found) return plain;
+  if (!/\.(cmd|bat)$/i.test(found)) return { file: found, args };
+  let text;
+  try { text = fs.readFileSync(found, 'utf-8'); } catch { return plain; }
+  const progs = [...text.matchAll(/SET\s+"_prog=([^"]+)"/gi)].map((m) => m[1]);
+  for (const m of text.matchAll(/"%~?dp0%?[\\/]+([^"]+)"/gi)) {
+    const target = path.normalize(path.join(path.dirname(found), m[1]));
+    if (!fs.existsSync(target)) continue;
+    if (/\.exe$/i.test(target)) return { file: target, args };
+    const prog = progs.length ? progs[progs.length - 1] : 'node';
+    const interpreter = prog.toLowerCase() === 'node' ? process.execPath : findOnWindowsPath(prog);
+    if (interpreter) return { file: interpreter, args: [target, ...args] };
+  }
+  return plain; // unparseable shim: keep ENOENT behaviour rather than falling back to cmd.exe
+}
+
+function findOnWindowsPath(command) {
+  const exts = (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+  const names = path.extname(command) ? [command] : exts.map((ext) => command + ext);
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const name of names) {
+      const full = path.join(dir, name);
+      try { if (fs.statSync(full).isFile()) return full; } catch { /* try next */ }
+    }
+  }
+  return null;
 }
 
 /**
@@ -658,14 +704,16 @@ function computeCommandAuthed(command) {
   if (command !== 'claude') return false;
   let result;
   try {
-    result = spawnSync('claude', [
+    const resolved = resolveCommand('claude', [
       '--print',
       '--output-format', 'json',
       'ping',
-    ], {
+    ]);
+    result = spawnSync(resolved.file, resolved.args, {
       encoding: 'utf-8',
       timeout: 10000,
       env: process.env,
+      windowsHide: true,
     });
   } catch {
     return false;

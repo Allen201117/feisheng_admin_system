@@ -16,9 +16,10 @@ if ! printf '%s\n' "$CLI_HELP" | grep -Eq '(^|[[:space:]])preview([[:space:]]|$)
   exit 0
 fi
 
-wx_info "Running: \"$WX_CLI\" preview --project \"$PROJECT_ROOT\" --port \"$WX_DEVTOOLS_PORT\""
+WX_PROJECT_ARG="$(wx_native_path "$PROJECT_ROOT")"
+wx_info "Running: \"$WX_CLI\" preview --project \"$WX_PROJECT_ARG\" --port \"$WX_DEVTOOLS_PORT\""
 
-if "$WX_CLI" preview --project "$PROJECT_ROOT" --port "$WX_DEVTOOLS_PORT"; then
+if "$WX_CLI" preview --project "$WX_PROJECT_ARG" --port "$WX_DEVTOOLS_PORT"; then
   wx_info "preview 命令执行完成。"
 else
   wx_error "preview 失败。请确认微信开发者工具已打开、已登录，并且当前账号拥有预览权限。"

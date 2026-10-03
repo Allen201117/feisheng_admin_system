@@ -3,6 +3,15 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+if [ -z "${WX_CLI:-}" ]; then
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # Windows：开发者工具装在 Program Files 下，命令行入口是 cli.bat
+      for _wx_cli in "/c/Program Files (x86)/Tencent/微信web开发者工具/cli.bat" "/c/Program Files/Tencent/微信web开发者工具/cli.bat"; do
+        if [ -f "$_wx_cli" ]; then WX_CLI="$_wx_cli"; break; fi
+      done ;;
+  esac
+fi
 WX_CLI="${WX_CLI:-/Applications/wechatwebdevtools.app/Contents/MacOS/cli}"
 WX_DEVTOOLS_HOST="${WX_DEVTOOLS_HOST:-127.0.0.1}"
 WX_DEVTOOLS_PORT="${WX_DEVTOOLS_PORT:-48909}"
@@ -34,10 +43,25 @@ detect_app_json() {
   return 1
 }
 
+# 传给微信开发者工具 CLI 的路径：Windows 版 cli.bat 要 Windows 写法（C:\...），Mac / Linux 没有 cygpath，原样
+wx_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
 check_wx_cli() {
   if [ -x "$WX_CLI" ]; then
     return 0
   fi
+
+  # Windows：cli.bat 在 Git Bash 里 test -x 恒为假，但可以直接执行
+  case "$WX_CLI" in
+    *.bat|*.BAT|*.cmd|*.CMD)
+      if [ -f "$WX_CLI" ]; then return 0; fi ;;
+  esac
 
   if [ -e "$WX_CLI" ]; then
     wx_error "微信开发者工具 CLI 存在但不可执行: $WX_CLI"
